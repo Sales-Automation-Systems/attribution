@@ -1,0 +1,791 @@
+// Attribution Database Queries (READ/WRITE)
+import { attrQuery, attrPool } from '../index';
+import type {
+  ClientConfig,
+  AttributedDomain,
+  DomainEvent,
+  AttributionMatch,
+  ReconciliationPeriod,
+  ReconciliationEntry,
+  ProcessingJob,
+  EventProcessingError,
+  SystemLog,
+  LogLevel,
+  LogSource,
+  EventSource,
+} from './types';
+
+// ============ Client Config Queries ============
+
+export async function getAllClientConfigs(): Promise<ClientConfig[]> {
+  return attrQuery<ClientConfig>(`
+    SELECT * FROM client_config ORDER BY client_name
+  `);
+}
+
+export async function getClientConfigById(id: string): Promise<ClientConfig | null> {
+  const rows = await attrQuery<ClientConfig>(
+    'SELECT * FROM client_config WHERE id = $1',
+    [id]
+  );
+  return rows[0] || null;
+}
+
+export async function getClientConfigBySlugAndUuid(
+  slug: string,
+  accessUuid: string
+): Promise<ClientConfig | null> {
+  const rows = await attrQuery<ClientConfig>(
+    'SELECT * FROM client_config WHERE slug = $1 AND access_uuid = $2',
+    [slug, accessUuid]
+  );
+  return rows[0] || null;
+}
+
+export async function getClientConfigByClientId(
+  clientId: string
+): Promise<ClientConfig | null> {
+  const rows = await attrQuery<ClientConfig>(
+    'SELECT * FROM client_config WHERE client_id = $1',
+    [clientId]
+  );
+  return rows[0] || null;
+}
+
+export async function createClientConfig(data: {
+  client_id: string;
+  client_name: string;
+  slug: string;
+  access_uuid?: string;
+  rev_share_rate?: number;
+}): Promise<ClientConfig> {
+  const rows = await attrQuery<ClientConfig>(
+    `INSERT INTO client_config (client_id, client_name, slug, access_uuid, rev_share_rate)
+     VALUES ($1, $2, $3, COALESCE($4, gen_random_uuid()), COALESCE($5, 0.10))
+     RETURNING *`,
+    [
+      data.client_id,
+      data.client_name,
+      data.slug,
+      data.access_uuid || null,
+      data.rev_share_rate || null,
+    ]
+  );
+  return rows[0];
+}
+
+export async function updateClientConfig(
+  id: string,
+  data: Partial<Pick<ClientConfig, 'client_name' | 'slug' | 'rev_share_rate'>>
+): Promise<ClientConfig | null> {
+  const rows = await attrQuery<ClientConfig>(
+    `UPDATE client_config 
+     SET client_name = COALESCE($2, client_name),
+         slug = COALESCE($3, slug),
+         rev_share_rate = COALESCE($4, rev_share_rate),
+         updated_at = NOW()
+     WHERE id = $1
+     RETURNING *`,
+    [id, data.client_name, data.slug, data.rev_share_rate]
+  );
+  return rows[0] || null;
+}
+
+// ============ Attributed Domain Queries ============
+
+export async function getAttributedDomains(
+  clientConfigId: string,
+  options?: {
+    status?: string;
+    matchType?: string;
+    limit?: number;
+    offset?: number;
+  }
+): Promise<AttributedDomain[]> {
+  let query = 'SELECT * FROM attributed_domain WHERE client_config_id = $1';
+  const params: unknown[] = [clientConfigId];
+  let paramIndex = 2;
+
+  if (options?.status) {
+    query += ` AND status = $${paramIndex}`;
+    params.push(options.status);
+    paramIndex++;
+  }
+
+  if (options?.matchType) {
+    query += ` AND match_type = $${paramIndex}`;
+    params.push(options.matchType);
+    paramIndex++;
+  }
+
+  query += ' ORDER BY first_event_at DESC NULLS LAST';
+
+  if (options?.limit) {
+    query += ` LIMIT $${paramIndex}`;
+    params.push(options.limit);
+    paramIndex++;
+  }
+
+  if (options?.offset) {
+    query += ` OFFSET $${paramIndex}`;
+    params.push(options.offset);
+  }
+
+  return attrQuery<AttributedDomain>(query, params);
+}
+
+export async function getAttributedDomainByDomain(
+  clientConfigId: string,
+  domain: string
+): Promise<AttributedDomain | null> {
+  const rows = await attrQuery<AttributedDomain>(
+    'SELECT * FROM attributed_domain WHERE client_config_id = $1 AND domain = $2',
+    [clientConfigId, domain]
+  );
+  return rows[0] || null;
+}
+
+export async function upsertAttributedDomain(data: {
+  client_config_id: string;
+  domain: string;
+  first_email_sent_at?: Date;
+  first_event_at?: Date;
+  first_attributed_month?: string;
+  has_positive_reply?: boolean;
+  has_sign_up?: boolean;
+  has_meeting_booked?: boolean;
+  has_paying_customer?: boolean;
+  is_within_window?: boolean;
+  match_type?: 'HARD_MATCH' | 'SOFT_MATCH' | 'NO_MATCH';
+}): Promise<AttributedDomain> {
+  const rows = await attrQuery<AttributedDomain>(
+    `INSERT INTO attributed_domain (
+       client_config_id, domain, first_email_sent_at, first_event_at,
+       first_attributed_month, has_positive_reply, has_sign_up, has_meeting_booked,
+       has_paying_customer, is_within_window, match_type
+     )
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+     ON CONFLICT (client_config_id, domain) DO UPDATE SET
+       first_email_sent_at = COALESCE(attributed_domain.first_email_sent_at, EXCLUDED.first_email_sent_at),
+       first_event_at = COALESCE(attributed_domain.first_event_at, EXCLUDED.first_event_at),
+       first_attributed_month = COALESCE(attributed_domain.first_attributed_month, EXCLUDED.first_attributed_month),
+       has_positive_reply = attributed_domain.has_positive_reply OR COALESCE(EXCLUDED.has_positive_reply, false),
+       has_sign_up = attributed_domain.has_sign_up OR COALESCE(EXCLUDED.has_sign_up, false),
+       has_meeting_booked = attributed_domain.has_meeting_booked OR COALESCE(EXCLUDED.has_meeting_booked, false),
+       has_paying_customer = attributed_domain.has_paying_customer OR COALESCE(EXCLUDED.has_paying_customer, false),
+       is_within_window = attributed_domain.is_within_window OR COALESCE(EXCLUDED.is_within_window, false),
+       match_type = COALESCE(EXCLUDED.match_type, attributed_domain.match_type),
+       updated_at = NOW()
+     RETURNING *`,
+    [
+      data.client_config_id,
+      data.domain,
+      data.first_email_sent_at || null,
+      data.first_event_at || null,
+      data.first_attributed_month || null,
+      data.has_positive_reply || false,
+      data.has_sign_up || false,
+      data.has_meeting_booked || false,
+      data.has_paying_customer || false,
+      data.is_within_window || false,
+      data.match_type || null,
+    ]
+  );
+  return rows[0];
+}
+
+export async function submitDispute(
+  id: string,
+  reason: string
+): Promise<AttributedDomain | null> {
+  const rows = await attrQuery<AttributedDomain>(
+    `UPDATE attributed_domain
+     SET status = 'DISPUTED',
+         dispute_reason = $2,
+         dispute_submitted_at = NOW(),
+         updated_at = NOW()
+     WHERE id = $1
+     RETURNING *`,
+    [id, reason]
+  );
+  return rows[0] || null;
+}
+
+export async function resolveDispute(
+  id: string,
+  resolution: 'REJECTED' | 'CONFIRMED',
+  notes: string
+): Promise<AttributedDomain | null> {
+  const rows = await attrQuery<AttributedDomain>(
+    `UPDATE attributed_domain
+     SET status = $2,
+         dispute_resolved_at = NOW(),
+         dispute_resolution_notes = $3,
+         updated_at = NOW()
+     WHERE id = $1
+     RETURNING *`,
+    [id, resolution, notes]
+  );
+  return rows[0] || null;
+}
+
+// ============ Domain Event Queries ============
+
+export async function getDomainEvents(
+  attributedDomainId: string
+): Promise<DomainEvent[]> {
+  return attrQuery<DomainEvent>(
+    `SELECT * FROM domain_event 
+     WHERE attributed_domain_id = $1 
+     ORDER BY event_time`,
+    [attributedDomainId]
+  );
+}
+
+export async function createDomainEvent(data: {
+  attributed_domain_id: string;
+  event_source: EventSource;
+  event_time: Date;
+  email?: string;
+  source_id?: string;
+  source_table?: string;
+  metadata?: Record<string, unknown>;
+}): Promise<DomainEvent> {
+  const rows = await attrQuery<DomainEvent>(
+    `INSERT INTO domain_event (
+       attributed_domain_id, event_source, event_time, email,
+       source_id, source_table, metadata
+     )
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     RETURNING *`,
+    [
+      data.attributed_domain_id,
+      data.event_source,
+      data.event_time,
+      data.email || null,
+      data.source_id || null,
+      data.source_table || null,
+      data.metadata ? JSON.stringify(data.metadata) : null,
+    ]
+  );
+  return rows[0];
+}
+
+// ============ Attribution Match Queries ============
+
+export async function createAttributionMatch(data: {
+  client_config_id: string;
+  attribution_event_id: string;
+  attributed_domain_id?: string;
+  prospect_id?: string;
+  event_type: string;
+  event_time: Date;
+  event_email?: string;
+  event_domain?: string;
+  match_type: 'HARD_MATCH' | 'SOFT_MATCH' | 'NO_MATCH';
+  matched_email?: string;
+  email_sent_at?: Date;
+  days_since_email?: number;
+  is_within_window?: boolean;
+  match_reason?: string;
+}): Promise<AttributionMatch> {
+  const rows = await attrQuery<AttributionMatch>(
+    `INSERT INTO attribution_match (
+       client_config_id, attribution_event_id, attributed_domain_id, prospect_id,
+       event_type, event_time, event_email, event_domain, match_type,
+       matched_email, email_sent_at, days_since_email, is_within_window, match_reason
+     )
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+     ON CONFLICT (attribution_event_id) DO UPDATE SET
+       attributed_domain_id = EXCLUDED.attributed_domain_id,
+       match_type = EXCLUDED.match_type,
+       matched_email = EXCLUDED.matched_email,
+       email_sent_at = EXCLUDED.email_sent_at,
+       days_since_email = EXCLUDED.days_since_email,
+       is_within_window = EXCLUDED.is_within_window,
+       match_reason = EXCLUDED.match_reason
+     RETURNING *`,
+    [
+      data.client_config_id,
+      data.attribution_event_id,
+      data.attributed_domain_id || null,
+      data.prospect_id || null,
+      data.event_type,
+      data.event_time,
+      data.event_email || null,
+      data.event_domain || null,
+      data.match_type,
+      data.matched_email || null,
+      data.email_sent_at || null,
+      data.days_since_email || null,
+      data.is_within_window || false,
+      data.match_reason || null,
+    ]
+  );
+  return rows[0];
+}
+
+// ============ Reconciliation Period Queries ============
+
+export async function getReconciliationPeriods(
+  clientConfigId: string
+): Promise<ReconciliationPeriod[]> {
+  return attrQuery<ReconciliationPeriod>(
+    `SELECT * FROM reconciliation_period 
+     WHERE client_config_id = $1 
+     ORDER BY year DESC, month DESC`,
+    [clientConfigId]
+  );
+}
+
+export async function getReconciliationPeriod(
+  clientConfigId: string,
+  year: number,
+  month: number
+): Promise<ReconciliationPeriod | null> {
+  const rows = await attrQuery<ReconciliationPeriod>(
+    `SELECT * FROM reconciliation_period 
+     WHERE client_config_id = $1 AND year = $2 AND month = $3`,
+    [clientConfigId, year, month]
+  );
+  return rows[0] || null;
+}
+
+export async function createReconciliationPeriod(data: {
+  client_config_id: string;
+  year: number;
+  month: number;
+  deadline?: Date;
+  rev_share_rate?: number;
+}): Promise<ReconciliationPeriod> {
+  const rows = await attrQuery<ReconciliationPeriod>(
+    `INSERT INTO reconciliation_period (
+       client_config_id, year, month, deadline, rev_share_rate
+     )
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (client_config_id, year, month) DO NOTHING
+     RETURNING *`,
+    [
+      data.client_config_id,
+      data.year,
+      data.month,
+      data.deadline || null,
+      data.rev_share_rate || null,
+    ]
+  );
+  return rows[0];
+}
+
+export async function updateReconciliationPeriodStats(
+  id: string,
+  stats: {
+    net_new_attributed?: number;
+    net_new_paying?: number;
+    total_revenue?: number;
+    rev_share_amount?: number;
+  }
+): Promise<ReconciliationPeriod | null> {
+  const rows = await attrQuery<ReconciliationPeriod>(
+    `UPDATE reconciliation_period
+     SET net_new_attributed = COALESCE($2, net_new_attributed),
+         net_new_paying = COALESCE($3, net_new_paying),
+         total_revenue = COALESCE($4, total_revenue),
+         rev_share_amount = COALESCE($5, rev_share_amount),
+         updated_at = NOW()
+     WHERE id = $1
+     RETURNING *`,
+    [
+      id,
+      stats.net_new_attributed,
+      stats.net_new_paying,
+      stats.total_revenue,
+      stats.rev_share_amount,
+    ]
+  );
+  return rows[0] || null;
+}
+
+export async function submitReconciliationPeriod(
+  id: string
+): Promise<ReconciliationPeriod | null> {
+  const rows = await attrQuery<ReconciliationPeriod>(
+    `UPDATE reconciliation_period
+     SET status = 'SUBMITTED',
+         submitted_at = NOW(),
+         updated_at = NOW()
+     WHERE id = $1 AND status = 'OPEN'
+     RETURNING *`,
+    [id]
+  );
+  return rows[0] || null;
+}
+
+export async function lockReconciliationPeriod(
+  id: string
+): Promise<ReconciliationPeriod | null> {
+  const rows = await attrQuery<ReconciliationPeriod>(
+    `UPDATE reconciliation_period
+     SET status = 'LOCKED',
+         locked_at = NOW(),
+         updated_at = NOW()
+     WHERE id = $1
+     RETURNING *`,
+    [id]
+  );
+  return rows[0] || null;
+}
+
+// ============ Reconciliation Entry Queries ============
+
+export async function getReconciliationEntries(
+  periodId: string
+): Promise<ReconciliationEntry[]> {
+  return attrQuery<ReconciliationEntry>(
+    'SELECT * FROM reconciliation_entry WHERE reconciliation_period_id = $1',
+    [periodId]
+  );
+}
+
+export async function upsertReconciliationEntry(data: {
+  reconciliation_period_id: string;
+  attributed_domain_id: string;
+  revenue?: number;
+  notes?: string;
+}): Promise<ReconciliationEntry> {
+  const rows = await attrQuery<ReconciliationEntry>(
+    `INSERT INTO reconciliation_entry (
+       reconciliation_period_id, attributed_domain_id, revenue, notes
+     )
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (reconciliation_period_id, attributed_domain_id) DO UPDATE SET
+       revenue = COALESCE(EXCLUDED.revenue, reconciliation_entry.revenue),
+       notes = COALESCE(EXCLUDED.notes, reconciliation_entry.notes),
+       updated_at = NOW()
+     RETURNING *`,
+    [
+      data.reconciliation_period_id,
+      data.attributed_domain_id,
+      data.revenue || null,
+      data.notes || null,
+    ]
+  );
+  return rows[0];
+}
+
+// ============ Processing Job Queries ============
+
+export async function getProcessingJobs(options?: {
+  clientConfigId?: string;
+  status?: string;
+  limit?: number;
+}): Promise<ProcessingJob[]> {
+  let query = 'SELECT * FROM processing_job WHERE 1=1';
+  const params: unknown[] = [];
+  let paramIndex = 1;
+
+  if (options?.clientConfigId) {
+    query += ` AND client_config_id = $${paramIndex}`;
+    params.push(options.clientConfigId);
+    paramIndex++;
+  }
+
+  if (options?.status) {
+    query += ` AND status = $${paramIndex}`;
+    params.push(options.status);
+    paramIndex++;
+  }
+
+  query += ' ORDER BY created_at DESC';
+
+  if (options?.limit) {
+    query += ` LIMIT $${paramIndex}`;
+    params.push(options.limit);
+  }
+
+  return attrQuery<ProcessingJob>(query, params);
+}
+
+export async function getOrCreateProcessingJob(
+  clientConfigId: string,
+  jobType: 'FULL_PROCESS' | 'INCREMENTAL' | 'SINGLE_CLIENT' = 'SINGLE_CLIENT'
+): Promise<ProcessingJob> {
+  // Check for existing running job
+  const existing = await attrQuery<ProcessingJob>(
+    `SELECT * FROM processing_job 
+     WHERE client_config_id = $1 AND status IN ('PENDING', 'RUNNING')
+     ORDER BY created_at DESC LIMIT 1`,
+    [clientConfigId]
+  );
+
+  if (existing[0]) {
+    return existing[0];
+  }
+
+  // Create new job
+  const rows = await attrQuery<ProcessingJob>(
+    `INSERT INTO processing_job (client_config_id, job_type, status)
+     VALUES ($1, $2, 'PENDING')
+     RETURNING *`,
+    [clientConfigId, jobType]
+  );
+  return rows[0];
+}
+
+export async function startProcessingJob(
+  id: string,
+  totalEvents: number
+): Promise<ProcessingJob | null> {
+  const rows = await attrQuery<ProcessingJob>(
+    `UPDATE processing_job
+     SET status = 'RUNNING',
+         total_events = $2,
+         started_at = NOW()
+     WHERE id = $1
+     RETURNING *`,
+    [id, totalEvents]
+  );
+  return rows[0] || null;
+}
+
+export async function updateProcessingJobProgress(
+  id: string,
+  progress: {
+    processed_events: number;
+    matched_hard: number;
+    matched_soft: number;
+    no_match: number;
+    last_processed_event_id: string;
+    current_batch: number;
+  }
+): Promise<ProcessingJob | null> {
+  const rows = await attrQuery<ProcessingJob>(
+    `UPDATE processing_job
+     SET processed_events = $2,
+         matched_hard = $3,
+         matched_soft = $4,
+         no_match = $5,
+         last_processed_event_id = $6,
+         current_batch = $7,
+         last_checkpoint_at = NOW()
+     WHERE id = $1
+     RETURNING *`,
+    [
+      id,
+      progress.processed_events,
+      progress.matched_hard,
+      progress.matched_soft,
+      progress.no_match,
+      progress.last_processed_event_id,
+      progress.current_batch,
+    ]
+  );
+  return rows[0] || null;
+}
+
+export async function completeProcessingJob(id: string): Promise<ProcessingJob | null> {
+  const rows = await attrQuery<ProcessingJob>(
+    `UPDATE processing_job
+     SET status = 'COMPLETED',
+         completed_at = NOW()
+     WHERE id = $1
+     RETURNING *`,
+    [id]
+  );
+  return rows[0] || null;
+}
+
+export async function failProcessingJob(
+  id: string,
+  errorMessage: string
+): Promise<ProcessingJob | null> {
+  const rows = await attrQuery<ProcessingJob>(
+    `UPDATE processing_job
+     SET status = 'FAILED',
+         error_message = $2,
+         completed_at = NOW()
+     WHERE id = $1
+     RETURNING *`,
+    [id, errorMessage]
+  );
+  return rows[0] || null;
+}
+
+// ============ Event Processing Error Queries ============
+
+export async function logEventError(data: {
+  processing_job_id: string;
+  attribution_event_id: string;
+  error_message: string;
+  error_stack?: string;
+}): Promise<EventProcessingError> {
+  const rows = await attrQuery<EventProcessingError>(
+    `INSERT INTO event_processing_error (
+       processing_job_id, attribution_event_id, error_message, error_stack
+     )
+     VALUES ($1, $2, $3, $4)
+     RETURNING *`,
+    [
+      data.processing_job_id,
+      data.attribution_event_id,
+      data.error_message,
+      data.error_stack || null,
+    ]
+  );
+  return rows[0];
+}
+
+// ============ Personal Email Domain Queries ============
+
+export async function isPersonalEmailDomain(domain: string): Promise<boolean> {
+  const rows = await attrQuery<{ domain: string }>(
+    'SELECT domain FROM personal_email_domain WHERE domain = $1',
+    [domain.toLowerCase()]
+  );
+  return rows.length > 0;
+}
+
+export async function getAllPersonalEmailDomains(): Promise<string[]> {
+  const rows = await attrQuery<{ domain: string }>(
+    'SELECT domain FROM personal_email_domain ORDER BY domain'
+  );
+  return rows.map((r) => r.domain);
+}
+
+// ============ System Log Queries ============
+
+export async function logToDb(data: {
+  level: LogLevel;
+  source: LogSource;
+  message: string;
+  context?: Record<string, unknown>;
+  client_config_id?: string;
+  processing_job_id?: string;
+}): Promise<SystemLog> {
+  const rows = await attrQuery<SystemLog>(
+    `INSERT INTO system_log (
+       level, source, message, context, client_config_id, processing_job_id
+     )
+     VALUES ($1, $2, $3, $4, $5, $6)
+     RETURNING *`,
+    [
+      data.level,
+      data.source,
+      data.message,
+      data.context ? JSON.stringify(data.context) : null,
+      data.client_config_id || null,
+      data.processing_job_id || null,
+    ]
+  );
+  return rows[0];
+}
+
+export async function getRecentLogs(options?: {
+  level?: LogLevel;
+  source?: LogSource;
+  limit?: number;
+}): Promise<SystemLog[]> {
+  let query = 'SELECT * FROM system_log WHERE 1=1';
+  const params: unknown[] = [];
+  let paramIndex = 1;
+
+  if (options?.level) {
+    query += ` AND level = $${paramIndex}`;
+    params.push(options.level);
+    paramIndex++;
+  }
+
+  if (options?.source) {
+    query += ` AND source = $${paramIndex}`;
+    params.push(options.source);
+    paramIndex++;
+  }
+
+  query += ' ORDER BY created_at DESC';
+  query += ` LIMIT $${paramIndex}`;
+  params.push(options?.limit || 50);
+
+  return attrQuery<SystemLog>(query, params);
+}
+
+// ============ Worker Heartbeat Queries ============
+
+export async function updateWorkerHeartbeat(
+  status: 'running' | 'idle' | 'processing',
+  currentJobId?: string
+): Promise<void> {
+  await attrPool.query(
+    `INSERT INTO worker_heartbeat (id, last_heartbeat, status, current_job_id)
+     VALUES ('main', NOW(), $1, $2)
+     ON CONFLICT (id) DO UPDATE SET
+       last_heartbeat = NOW(),
+       status = $1,
+       current_job_id = $2`,
+    [status, currentJobId || null]
+  );
+}
+
+export async function getWorkerHeartbeat(): Promise<{
+  last_heartbeat: Date;
+  status: string;
+  current_job_id: string | null;
+  is_healthy: boolean;
+} | null> {
+  const rows = await attrQuery<{
+    last_heartbeat: Date;
+    status: string;
+    current_job_id: string | null;
+  }>('SELECT * FROM worker_heartbeat WHERE id = $1', ['main']);
+
+  if (!rows[0]) return null;
+
+  const lastBeat = new Date(rows[0].last_heartbeat);
+  const isHealthy = Date.now() - lastBeat.getTime() < 60000; // 1 minute
+
+  return {
+    ...rows[0],
+    is_healthy: isHealthy,
+  };
+}
+
+// ============ Dashboard Stats Queries ============
+
+export async function getDashboardStats(clientConfigId?: string): Promise<{
+  total_attributed_domains: number;
+  total_paying_customers: number;
+  total_hard_matches: number;
+  total_soft_matches: number;
+  pending_disputes: number;
+}> {
+  let query = `
+    SELECT 
+      COUNT(*) FILTER (WHERE is_within_window = true) as total_attributed_domains,
+      COUNT(*) FILTER (WHERE has_paying_customer = true) as total_paying_customers,
+      COUNT(*) FILTER (WHERE match_type = 'HARD_MATCH') as total_hard_matches,
+      COUNT(*) FILTER (WHERE match_type = 'SOFT_MATCH') as total_soft_matches,
+      COUNT(*) FILTER (WHERE status = 'DISPUTED') as pending_disputes
+    FROM attributed_domain
+  `;
+
+  const params: unknown[] = [];
+  if (clientConfigId) {
+    query += ' WHERE client_config_id = $1';
+    params.push(clientConfigId);
+  }
+
+  const rows = await attrQuery<{
+    total_attributed_domains: string;
+    total_paying_customers: string;
+    total_hard_matches: string;
+    total_soft_matches: string;
+    pending_disputes: string;
+  }>(query, params);
+
+  return {
+    total_attributed_domains: parseInt(rows[0]?.total_attributed_domains || '0', 10),
+    total_paying_customers: parseInt(rows[0]?.total_paying_customers || '0', 10),
+    total_hard_matches: parseInt(rows[0]?.total_hard_matches || '0', 10),
+    total_soft_matches: parseInt(rows[0]?.total_soft_matches || '0', 10),
+    pending_disputes: parseInt(rows[0]?.pending_disputes || '0', 10),
+  };
+}
+

@@ -1,0 +1,17 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/daily-processing",
+      "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/cron/sync-clients",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/create-reconciliation-periods",
+      "schedule": "0 8 1 * *"
+    }
+  ]
+}
+

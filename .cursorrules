@@ -1,0 +1,56 @@
+# Attribution MVP - Project Rules
+
+## Database Rules
+- NEVER write to the production database (PROD_DATABASE_URL) - READ ONLY
+- All writes go to the attribution database (ATTR_DATABASE_URL)
+- Always use parameterized queries to prevent SQL injection
+- Use connection pooling for both database connections
+
+## Attribution Logic Rules
+- Attribution window is exactly 31 days (not 30, not 32)
+- Hard match = exact email match (case-insensitive)
+- Soft match = domain match, excluding personal email domains
+- Always check hard match BEFORE soft match
+- Personal email domains must NEVER be soft-matched
+- Normalize all domains to root domain (sales.acme.com → acme.com)
+- Positive replies have NO time limit (any reply after email counts)
+- Both email send AND success event must be for SAME client (never cross-match)
+
+## Success Events
+- Valid success events: sign_up, meeting_booked, paying_customer, positive_reply
+- Skip/ignore: dnc, website_visit
+- Positive replies are detected via lead_category.sentiment = 'POSITIVE'
+
+## URL Security
+- All client pages must include UUID in URL: /client/[slug]/[uuid]
+- Validate UUID matches client on every request
+- No authentication required for MVP, UUID provides obscurity
+
+## Reconciliation Rules
+- Reconciliation window: 1st - 10th of each month (Pacific Time)
+- All monthly dates calculated in America/Los_Angeles timezone
+- Status flow: ATTRIBUTED (default) → DISPUTED → REJECTED/CONFIRMED
+- Revenue = cash collected within the month
+- Historical period "Pre-Dec 2025" for all data before December 1, 2025
+- Disputes reviewed by SAS internal team
+
+## Client Management
+- Auto-detect new clients from production database
+- Auto-create client_config when new client detected
+- Generate slug from client_name (lowercase, hyphenated)
+- Generate random UUID for access_uuid
+
+## Code Standards
+- Use TypeScript strict mode
+- All database queries in dedicated query files (db/production/queries.ts, db/attribution/queries.ts)
+- Use React Server Components for data fetching where possible
+- Client components only when interactivity needed ('use client')
+
+## Processing Rules
+- Process ONE client at a time (never parallel)
+- Process in batches of 1000 events
+- Checkpoint progress after each batch (resumable)
+- Never skip an event - every event must be processed
+- Log all processing jobs with stats (matched_hard, matched_soft, no_match)
+- Include match_reason for audit trail
+
