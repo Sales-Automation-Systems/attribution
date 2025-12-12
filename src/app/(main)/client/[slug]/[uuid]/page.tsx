@@ -10,16 +10,16 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { 
   Target, 
-  CheckCircle, 
-  Clock, 
   FileText, 
   ExternalLink,
-  AlertCircle,
+  Mail,
+  MessageSquare,
+  UserPlus,
+  Calendar,
+  DollarSign,
 } from 'lucide-react';
 import Link from 'next/link';
-import { PipelineFunnel } from '@/components/attribution/pipeline-funnel';
-import { AttributionTable } from '@/components/attribution/attribution-table';
-import { DomainBreakdown } from '@/components/attribution/domain-breakdown';
+import { AttributionBreakdown } from '@/components/attribution/attribution-breakdown';
 
 export default async function ClientDashboardPage({
   params,
@@ -45,22 +45,6 @@ export default async function ClientDashboardPage({
     (p) => p.year === now.getFullYear() && p.month === now.getMonth() + 1
   );
 
-  // Calculate total hard and soft matches from the detailed breakdown
-  const totalHardMatches = (client.hard_match_positive_replies || 0) + 
-    (client.hard_match_sign_ups || 0) + 
-    (client.hard_match_meetings || 0) + 
-    (client.hard_match_paying || 0);
-  
-  const totalSoftMatches = (client.soft_match_positive_replies || 0) + 
-    (client.soft_match_sign_ups || 0) + 
-    (client.soft_match_meetings || 0) + 
-    (client.soft_match_paying || 0);
-
-  const totalAttributed = (client.attributed_positive_replies || 0) +
-    (client.attributed_sign_ups || 0) +
-    (client.attributed_meetings_booked || 0) +
-    (client.attributed_paying_customers || 0);
-
   return (
     <div className="flex flex-col gap-6 p-6">
       {/* Header */}
@@ -81,139 +65,114 @@ export default async function ClientDashboardPage({
         </Badge>
       </div>
 
-      {/* Section 1: Pipeline Funnel */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg">Pipeline Overview</CardTitle>
-          <CardDescription>Customer journey from outreach to conversion</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <PipelineFunnel
-            emailsSent={client.total_emails_sent || 0}
-            positiveReplies={client.total_positive_replies || 0}
-            attributedReplies={client.attributed_positive_replies || 0}
-            signUps={client.total_sign_ups || 0}
-            attributedSignUps={client.attributed_sign_ups || 0}
-            meetings={client.total_meetings_booked || 0}
-            attributedMeetings={client.attributed_meetings_booked || 0}
-            paying={client.total_paying_customers || 0}
-            attributedPaying={client.attributed_paying_customers || 0}
-          />
-        </CardContent>
-      </Card>
-
-      {/* Section 2: Attribution Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Attributed Domains</CardTitle>
-            <Target className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{domainStats.total_attributed_domains}</div>
-            <p className="text-xs text-muted-foreground">Unique domains consolidated</p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-green-500/5 border-green-200 dark:border-green-900">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Hard Matches</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{totalHardMatches}</div>
-            <p className="text-xs text-muted-foreground">
-              {totalAttributed > 0 ? Math.round((totalHardMatches / totalAttributed) * 100) : 0}% of attributed
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-yellow-500/5 border-yellow-200 dark:border-yellow-900">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Soft Matches</CardTitle>
-            <Clock className="h-4 w-4 text-yellow-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{totalSoftMatches}</div>
-            <p className="text-xs text-muted-foreground">
-              {totalAttributed > 0 ? Math.round((totalSoftMatches / totalAttributed) * 100) : 0}% of attributed
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Disputes</CardTitle>
-            <AlertCircle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{domainStats.pending_disputes}</div>
-            <p className="text-xs text-muted-foreground">Awaiting review</p>
-          </CardContent>
-        </Card>
+      {/* Section 1: Client's Total Numbers */}
+      <div>
+        <h2 className="text-lg font-semibold mb-3">Client&apos;s Pipeline</h2>
+        <p className="text-sm text-muted-foreground mb-4">Total events from {client.client_name}&apos;s outreach</p>
+        <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
+          <Card className="bg-slate-50 dark:bg-slate-900/50">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Mail className="h-4 w-4 text-slate-500" />
+                <span className="text-xs text-muted-foreground">Emails Sent</span>
+              </div>
+              <div className="text-2xl font-bold">
+                {(client.total_emails_sent || 0).toLocaleString()}
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-purple-50 dark:bg-purple-900/20">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <MessageSquare className="h-4 w-4 text-purple-500" />
+                <span className="text-xs text-muted-foreground">Positive Replies</span>
+              </div>
+              <div className="text-2xl font-bold text-purple-700 dark:text-purple-400">
+                {(client.total_positive_replies || 0).toLocaleString()}
+              </div>
+              <div className="text-xs text-purple-600 dark:text-purple-400 mt-1">
+                {client.attributed_positive_replies || 0} ours (100%)
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-blue-50 dark:bg-blue-900/20">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <UserPlus className="h-4 w-4 text-blue-500" />
+                <span className="text-xs text-muted-foreground">Sign-ups</span>
+              </div>
+              <div className="text-2xl font-bold text-blue-700 dark:text-blue-400">
+                {(client.total_sign_ups || 0).toLocaleString()}
+              </div>
+              <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                {client.attributed_sign_ups || 0} ours ({client.total_sign_ups ? Math.round(((client.attributed_sign_ups || 0) / client.total_sign_ups) * 100) : 0}%)
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-amber-50 dark:bg-amber-900/20">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Calendar className="h-4 w-4 text-amber-500" />
+                <span className="text-xs text-muted-foreground">Meetings</span>
+              </div>
+              <div className="text-2xl font-bold text-amber-700 dark:text-amber-400">
+                {(client.total_meetings_booked || 0).toLocaleString()}
+              </div>
+              <div className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                {client.attributed_meetings_booked || 0} ours ({client.total_meetings_booked ? Math.round(((client.attributed_meetings_booked || 0) / client.total_meetings_booked) * 100) : 0}%)
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-green-50 dark:bg-green-900/20">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <DollarSign className="h-4 w-4 text-green-500" />
+                <span className="text-xs text-muted-foreground">Paying Customers</span>
+              </div>
+              <div className="text-2xl font-bold text-green-700 dark:text-green-400">
+                {(client.total_paying_customers || 0).toLocaleString()}
+              </div>
+              <div className="text-xs text-green-600 dark:text-green-400 mt-1">
+                {client.attributed_paying_customers || 0} ours ({client.total_paying_customers ? Math.round(((client.attributed_paying_customers || 0) / client.total_paying_customers) * 100) : 0}%)
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
-      {/* Section 3: Detailed Attribution Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Attribution Breakdown by Event Type</CardTitle>
-          <CardDescription>
-            Detailed view of hard match, soft match, and unmatched events
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <AttributionTable
-            positiveReplies={{
-              total: client.total_positive_replies || 0,
-              attributed: client.attributed_positive_replies || 0,
-              hardMatch: client.hard_match_positive_replies || 0,
-              softMatch: client.soft_match_positive_replies || 0,
-            }}
-            signUps={{
-              total: client.total_sign_ups || 0,
-              attributed: client.attributed_sign_ups || 0,
-              hardMatch: client.hard_match_sign_ups || 0,
-              softMatch: client.soft_match_sign_ups || 0,
-              outsideWindow: client.outside_window_sign_ups || 0,
-              notMatched: client.not_matched_sign_ups || 0,
-            }}
-            meetings={{
-              total: client.total_meetings_booked || 0,
-              attributed: client.attributed_meetings_booked || 0,
-              hardMatch: client.hard_match_meetings || 0,
-              softMatch: client.soft_match_meetings || 0,
-              outsideWindow: client.outside_window_meetings || 0,
-              notMatched: client.not_matched_meetings || 0,
-            }}
-            paying={{
-              total: client.total_paying_customers || 0,
-              attributed: client.attributed_paying_customers || 0,
-              hardMatch: client.hard_match_paying || 0,
-              softMatch: client.soft_match_paying || 0,
-              outsideWindow: client.outside_window_paying || 0,
-              notMatched: client.not_matched_paying || 0,
-            }}
-          />
-        </CardContent>
-      </Card>
-
-      {/* Section 4: Domain Breakdown */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Domain Breakdown</CardTitle>
-          <CardDescription>How many domains have each type of event</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <DomainBreakdown
-            domainsWithReplies={client.domains_with_replies || 0}
-            domainsWithSignups={client.domains_with_signups || 0}
-            domainsWithMeetings={client.domains_with_meetings || 0}
-            domainsWithPaying={client.domains_with_paying || 0}
-            domainsWithMultiple={client.domains_with_multiple_events || 0}
-            totalDomains={domainStats.total_attributed_domains}
-          />
-        </CardContent>
-      </Card>
+      {/* Section 2: Our Attribution Breakdown */}
+      <div>
+        <h2 className="text-lg font-semibold mb-3">Attribution Breakdown</h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          Events we&apos;re responsible for, with hard/soft match breakdown
+        </p>
+        <AttributionBreakdown
+          signUps={{
+            total: client.total_sign_ups || 0,
+            attributed: client.attributed_sign_ups || 0,
+            hardMatch: client.hard_match_sign_ups || 0,
+            softMatch: client.soft_match_sign_ups || 0,
+            outsideWindow: client.outside_window_sign_ups || 0,
+            notMatched: client.not_matched_sign_ups || 0,
+          }}
+          meetings={{
+            total: client.total_meetings_booked || 0,
+            attributed: client.attributed_meetings_booked || 0,
+            hardMatch: client.hard_match_meetings || 0,
+            softMatch: client.soft_match_meetings || 0,
+            outsideWindow: client.outside_window_meetings || 0,
+            notMatched: client.not_matched_meetings || 0,
+          }}
+          paying={{
+            total: client.total_paying_customers || 0,
+            attributed: client.attributed_paying_customers || 0,
+            hardMatch: client.hard_match_paying || 0,
+            softMatch: client.soft_match_paying || 0,
+            outsideWindow: client.outside_window_paying || 0,
+            notMatched: client.not_matched_paying || 0,
+          }}
+        />
+      </div>
 
       {/* Quick Actions */}
       <div className="flex gap-4">
