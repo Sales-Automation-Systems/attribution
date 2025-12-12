@@ -26,9 +26,14 @@ const BATCH_DELAY_MS = 100;
 interface ProcessingStats {
   totalEvents: number;
   processedEvents: number;
+  // Match types (how we found the match)
   matchedHard: number;
   matchedSoft: number;
   noMatch: number;
+  // Attribution status (final classification)
+  attributed: number;      // Emailed AND within 31 days
+  outsideWindow: number;   // Emailed BUT > 31 days
+  neverEmailed: number;    // No email found at all
   errors: number;
 }
 
@@ -80,6 +85,9 @@ export async function processClientAttributions(
     matchedHard: 0,
     matchedSoft: 0,
     noMatch: 0,
+    attributed: 0,
+    outsideWindow: 0,
+    neverEmailed: 0,
     errors: 0,
   };
 
@@ -102,13 +110,26 @@ export async function processClientAttributions(
         try {
           const result = await processAttributionEvent(event);
 
-          // Update stats based on result
+          // Track match type (how we found the match)
           if (result.matchType === 'HARD_MATCH') {
             stats.matchedHard++;
           } else if (result.matchType === 'SOFT_MATCH') {
             stats.matchedSoft++;
           } else {
             stats.noMatch++;
+          }
+
+          // Track attribution status (final classification)
+          switch (result.attributionStatus) {
+            case 'ATTRIBUTED':
+              stats.attributed++;
+              break;
+            case 'OUTSIDE_WINDOW':
+              stats.outsideWindow++;
+              break;
+            case 'NO_MATCH':
+              stats.neverEmailed++;
+              break;
           }
 
           stats.processedEvents++;

@@ -86,6 +86,7 @@ export async function countAttributionEvents(clientId: string): Promise<number> 
 }
 
 // Email conversation queries for matching
+// Find the most recent email sent to this exact email address BEFORE the event
 export async function findHardMatchEmail(
   clientId: string,
   email: string,
@@ -100,7 +101,7 @@ export async function findHardMatchEmail(
      WHERE ec.type = 'Sent'
        AND LOWER(p.lead_email) = LOWER($1)
        AND ci.client_id = $2
-       AND ec.timestamp_email BETWEEN $3::timestamp - INTERVAL '31 days' AND $3::timestamp
+       AND ec.timestamp_email <= $3::timestamp
      ORDER BY ec.timestamp_email DESC
      LIMIT 1`,
     [email, clientId, eventTime]
@@ -108,6 +109,7 @@ export async function findHardMatchEmail(
   return rows[0] || null;
 }
 
+// Find the most recent email sent to this domain BEFORE the event
 export async function findSoftMatchEmail(
   clientId: string,
   domain: string,
@@ -122,7 +124,7 @@ export async function findSoftMatchEmail(
      WHERE ec.type = 'Sent'
        AND LOWER(p.company_domain) = LOWER($1)
        AND ci.client_id = $2
-       AND ec.timestamp_email BETWEEN $3::timestamp - INTERVAL '31 days' AND $3::timestamp
+       AND ec.timestamp_email <= $3::timestamp
      ORDER BY ec.timestamp_email DESC
      LIMIT 1`,
     [domain, clientId, eventTime]

@@ -18,16 +18,17 @@ import {
   normalizeDomain,
   extractDomain,
   daysBetween,
-  isWithinAttributionWindow,
   formatAttributionMonth,
-  getMatchReason,
   mapEventTypeToSource,
 } from './domain-utils';
 import type { AttributionEvent, EmailConversation } from '@/db/production/types';
-import type { EventSource } from '@/db/attribution/types';
+
+// Three buckets for attribution status
+export type AttributionStatus = 'ATTRIBUTED' | 'OUTSIDE_WINDOW' | 'NO_MATCH';
 
 export interface MatchResult {
   matchType: 'HARD_MATCH' | 'SOFT_MATCH' | 'NO_MATCH';
+  attributionStatus: AttributionStatus;
   isWithinWindow: boolean;
   daysSinceEmail: number | null;
   matchedEmail: string | null;
@@ -38,19 +39,27 @@ export interface MatchResult {
 
 /**
  * Process a single attribution event and find matching emails
+ * 
+ * Logic:
+ * 1. Find ANY email we sent to this person/domain BEFORE the event (no time limit)
+ * 2. If found, check if within 31 days:
+ *    - Within 31 days = ATTRIBUTED
+ *    - Outside 31 days = OUTSIDE_WINDOW
+ * 3. If no email found = NO_MATCH
  */
 export async function processAttributionEvent(
   event: AttributionEvent
 ): Promise<MatchResult> {
   const clientId = event.client_id;
-  const eventEmail = event.email?.toLowerCase() || null;
-  const eventDomain = normalizeDomain(event.domain || extractDomain(eventEmail));
+  const eventEmail = event.email?.toLowerCase() ?? null;
+  const eventDomain = normalizeDomain(event.domain ?? extractDomain(eventEmail));
 
   // Get client config
   const clientConfig = await getClientConfigByClientId(clientId);
   if (!clientConfig) {
     return {
       matchType: 'NO_MATCH',
+      attributionStatus: 'NO_MATCH',
       isWithinWindow: false,
       daysSinceEmail: null,
       matchedEmail: null,
@@ -65,27 +74,35 @@ export async function processAttributionEvent(
 
   let match: EmailConversation | null = null;
   let matchType: 'HARD_MATCH' | 'SOFT_MATCH' | 'NO_MATCH' = 'NO_MATCH';
+  let matchedProspectEmail: string | null = null;
 
-  // Step 1: Try hard match (exact email)
+  // Step 1: Try hard match (exact email) - find ANY email sent before event
   if (eventEmail) {
     match = await findHardMatchEmail(clientId, eventEmail, event.event_time);
     if (match) {
       matchType = 'HARD_MATCH';
+      matchedProspectEmail = eventEmail;
     }
   }
 
-  // Step 2: Try soft match (domain) if no hard match and not personal domain
+  // Step 2: If no hard match, try soft match (domain) - only for non-personal domains
   if (!match && eventDomain && !isPersonal) {
     match = await findSoftMatchEmail(clientId, eventDomain, event.event_time);
     if (match) {
       matchType = 'SOFT_MATCH';
+      // For soft match, we need to get the email we actually sent to
+      const firstEmail = await getFirstEmailSentToDomain(clientId, eventDomain);
+      if (firstEmail) {
+        // We'll store the domain, the actual matched email comes from the prospect
+        matchedProspectEmail = eventDomain; // Store domain for soft matches
+      }
     }
   }
 
-  // Calculate results
+  // Step 3: Calculate attribution status
   let daysSinceEmail: number | null = null;
   let isWithinWindow = false;
-  let matchedEmail: string | null = null;
+  let attributionStatus: AttributionStatus = 'NO_MATCH';
   let emailSentAt: Date | null = null;
   let prospectId: string | null = null;
 
@@ -93,46 +110,48 @@ export async function processAttributionEvent(
     emailSentAt = match.timestamp_email;
     prospectId = match.prospect_id;
     daysSinceEmail = daysBetween(match.timestamp_email, event.event_time);
-    isWithinWindow = daysSinceEmail <= 31;
-
-    // Get the actual email that was matched
-    // For hard match, it's the event email; for soft match, we need to look it up
-    if (matchType === 'HARD_MATCH') {
-      matchedEmail = eventEmail;
+    
+    // Classify into buckets
+    if (daysSinceEmail <= 31) {
+      isWithinWindow = true;
+      attributionStatus = 'ATTRIBUTED';
     } else {
-      // For soft match, get the email we sent to
-      const firstEmail = await getFirstEmailSentToDomain(clientId, eventDomain!);
-      matchedEmail = firstEmail ? eventEmail : null; // Will be looked up via prospect
+      isWithinWindow = false;
+      attributionStatus = 'OUTSIDE_WINDOW';
     }
   }
 
-  const matchReason = getMatchReason(
+  // Build match reason for audit trail
+  const matchReason = buildMatchReason(
     eventEmail,
     eventDomain,
-    matchedEmail,
+    matchedProspectEmail,
     emailSentAt,
     event.event_time,
-    isPersonal
+    daysSinceEmail,
+    isPersonal,
+    matchType,
+    attributionStatus
   );
 
-  // Store the results
+  // Step 4: Store results grouped by domain
   if (eventDomain) {
     // Get first email sent to this domain for the domain record
     let firstEmailSentAt: Date | null = null;
     if (eventEmail) {
       const firstEmailToAddress = await getFirstEmailSentToAddress(clientId, eventEmail);
-      firstEmailSentAt = firstEmailToAddress?.timestamp_email || null;
+      firstEmailSentAt = firstEmailToAddress?.timestamp_email ?? null;
     }
     if (!firstEmailSentAt && eventDomain) {
       const firstEmailToDomain = await getFirstEmailSentToDomain(clientId, eventDomain);
-      firstEmailSentAt = firstEmailToDomain?.timestamp_email || null;
+      firstEmailSentAt = firstEmailToDomain?.timestamp_email ?? null;
     }
 
-    // Upsert attributed domain
+    // Upsert attributed domain (groups all events for this domain)
     const attributedDomain = await upsertAttributedDomain({
       client_config_id: clientConfig.id,
       domain: eventDomain,
-      first_email_sent_at: firstEmailSentAt || undefined,
+      first_email_sent_at: firstEmailSentAt ?? undefined,
       first_event_at: event.event_time,
       first_attributed_month: formatAttributionMonth(event.event_time),
       has_sign_up: event.event_type === 'sign_up',
@@ -149,10 +168,10 @@ export async function processAttributionEvent(
         attributed_domain_id: attributedDomain.id,
         event_source: eventSource,
         event_time: event.event_time,
-        email: eventEmail || undefined,
+        email: eventEmail ?? undefined,
         source_id: event.id,
         source_table: 'attribution_event',
-        metadata: event.metadata || undefined,
+        metadata: event.metadata ?? undefined,
       });
     }
 
@@ -161,15 +180,15 @@ export async function processAttributionEvent(
       client_config_id: clientConfig.id,
       attribution_event_id: event.id,
       attributed_domain_id: attributedDomain.id,
-      prospect_id: prospectId || undefined,
+      prospect_id: prospectId ?? undefined,
       event_type: event.event_type,
       event_time: event.event_time,
-      event_email: eventEmail || undefined,
+      event_email: eventEmail ?? undefined,
       event_domain: eventDomain,
       match_type: matchType,
-      matched_email: matchedEmail || undefined,
-      email_sent_at: emailSentAt || undefined,
-      days_since_email: daysSinceEmail || undefined,
+      matched_email: matchedProspectEmail ?? undefined,
+      email_sent_at: emailSentAt ?? undefined,
+      days_since_email: daysSinceEmail ?? undefined,
       is_within_window: isWithinWindow,
       match_reason: matchReason,
     });
@@ -177,13 +196,44 @@ export async function processAttributionEvent(
 
   return {
     matchType,
+    attributionStatus,
     isWithinWindow,
     daysSinceEmail,
-    matchedEmail,
+    matchedEmail: matchedProspectEmail,
     emailSentAt,
     prospectId,
     matchReason,
   };
+}
+
+/**
+ * Build a human-readable match reason for audit trail
+ */
+function buildMatchReason(
+  eventEmail: string | null,
+  eventDomain: string | null,
+  matchedEmail: string | null,
+  emailSentAt: Date | null,
+  eventTime: Date,
+  daysSinceEmail: number | null,
+  isPersonalDomain: boolean,
+  matchType: 'HARD_MATCH' | 'SOFT_MATCH' | 'NO_MATCH',
+  attributionStatus: AttributionStatus
+): string {
+  if (matchType === 'NO_MATCH') {
+    if (isPersonalDomain) {
+      return `No match: ${eventDomain} is a personal email domain (soft matching disabled)`;
+    }
+    return `No match: No emails found sent to ${eventEmail ?? eventDomain} before the event`;
+  }
+
+  const matchTypeLabel = matchType === 'HARD_MATCH' ? 'Hard match (exact email)' : 'Soft match (same domain)';
+  
+  if (attributionStatus === 'ATTRIBUTED') {
+    return `${matchTypeLabel}: Email sent to ${matchedEmail} on ${emailSentAt?.toISOString().split('T')[0]}, ${daysSinceEmail} days before event. ATTRIBUTED (within 31-day window)`;
+  } else {
+    return `${matchTypeLabel}: Email sent to ${matchedEmail} on ${emailSentAt?.toISOString().split('T')[0]}, ${daysSinceEmail} days before event. OUTSIDE WINDOW (>${31} days)`;
+  }
 }
 
 /**
@@ -195,8 +245,7 @@ export async function addEmailEventsToTimeline(
   emails: EmailConversation[]
 ): Promise<void> {
   for (const email of emails) {
-    const eventSource: EventSource =
-      email.type === 'Sent' ? 'EMAIL_SENT' : 'EMAIL_RECEIVED';
+    const eventSource = email.type === 'Sent' ? 'EMAIL_SENT' : 'EMAIL_RECEIVED';
 
     await createDomainEvent({
       attributed_domain_id: attributedDomainId,
@@ -211,4 +260,3 @@ export async function addEmailEventsToTimeline(
     });
   }
 }
-
