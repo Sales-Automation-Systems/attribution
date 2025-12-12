@@ -1,8 +1,7 @@
 // Sync Clients Cron Endpoint
-// Called by Vercel Cron every hour
+// Called by Vercel Cron every hour - triggers Railway worker
 
 import { NextRequest, NextResponse } from 'next/server';
-import { PgBoss } from 'pg-boss';
 import { logToDb } from '@/db/attribution/queries';
 
 export async function GET(req: NextRequest) {
@@ -15,25 +14,31 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const boss = new PgBoss(process.env.ATTR_DATABASE_URL!);
-    await boss.start();
+    const workerUrl = process.env.WORKER_URL;
+    if (!workerUrl) {
+      throw new Error('WORKER_URL environment variable is not set');
+    }
 
-    // Queue sync job
-    const jobId = await boss.send('sync-new-clients', {});
+    const response = await fetch(`${workerUrl}/trigger-job`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jobType: 'sync-new-clients' }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error || 'Worker request failed');
+    }
 
     await logToDb({
       level: 'INFO',
       source: 'cron',
-      message: 'Triggered sync-new-clients job',
-      context: { jobId },
+      message: 'Triggered sync-new-clients via worker',
+      context: result,
     });
 
-    await boss.stop();
-
-    return NextResponse.json({
-      success: true,
-      jobId,
-    });
+    return NextResponse.json({ success: true, ...result });
   } catch (error) {
     console.error('Sync clients cron error:', error);
     

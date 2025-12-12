@@ -1,9 +1,8 @@
 // Daily Processing Cron Endpoint
-// Called by Vercel Cron at 2 AM Pacific (10 AM UTC)
+// Called by Vercel Cron at 2 AM Pacific (10 AM UTC) - triggers Railway worker
 
 import { NextRequest, NextResponse } from 'next/server';
-import { PgBoss } from 'pg-boss';
-import { getAllClientConfigs, logToDb } from '@/db/attribution/queries';
+import { logToDb } from '@/db/attribution/queries';
 
 export async function GET(req: NextRequest) {
   // Verify cron secret in production
@@ -15,33 +14,31 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const boss = new PgBoss(process.env.ATTR_DATABASE_URL!);
-    await boss.start();
+    const workerUrl = process.env.WORKER_URL;
+    if (!workerUrl) {
+      throw new Error('WORKER_URL environment variable is not set');
+    }
 
-    // Queue processing for all clients
-    const clients = await getAllClientConfigs();
-    
-    for (const client of clients) {
-      await boss.send('process-single-client', { clientId: client.client_id }, {
-        retryLimit: 3,
-        retryDelay: 30,
-        retryBackoff: true,
-      });
+    const response = await fetch(`${workerUrl}/trigger-job`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jobType: 'process-all-clients' }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error || 'Worker request failed');
     }
 
     await logToDb({
       level: 'INFO',
       source: 'cron',
-      message: `Daily processing: Queued ${clients.length} clients`,
-      context: { clientCount: clients.length },
+      message: `Daily processing triggered: ${result.queuedClients || 0} clients queued`,
+      context: result,
     });
 
-    await boss.stop();
-
-    return NextResponse.json({
-      success: true,
-      message: `Queued ${clients.length} clients for processing`,
-    });
+    return NextResponse.json({ success: true, ...result });
   } catch (error) {
     console.error('Daily processing cron error:', error);
     
