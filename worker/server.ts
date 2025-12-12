@@ -103,19 +103,26 @@ const VALID_OP_STATUSES = [
   '3 - Testimonial Done',
 ];
 
+// Clients to ALWAYS include regardless of op_status (for testing/auditing)
+const ALWAYS_INCLUDE_CLIENTS = new Set([
+  'Datacy',
+]);
+
 // ============ Sync Logic ============
 async function syncClientsFromProduction(): Promise<string[]> {
   console.log('Syncing clients from production...');
   console.log(`Only syncing clients with op_status: ${VALID_OP_STATUSES.join(', ')}`);
+  console.log(`Exception clients (always included): ${Array.from(ALWAYS_INCLUDE_CLIENTS).join(', ')}`);
   
+  // Get clients with valid op_status OR in the exception list
   const productionClients = await prodQuery<{ id: string; client_name: string; op_status: string }>(`
     SELECT id, client_name, op_status
     FROM client
     WHERE is_active = true 
       AND is_deleted = false
-      AND op_status = ANY($1)
+      AND (op_status = ANY($1) OR client_name = ANY($2))
     ORDER BY client_name
-  `, [VALID_OP_STATUSES]);
+  `, [VALID_OP_STATUSES, Array.from(ALWAYS_INCLUDE_CLIENTS)]);
   
   console.log(`Found ${productionClients.length} eligible clients in production`);
   
@@ -412,14 +419,16 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
 
 async function processAllClientsAsync(job: JobState): Promise<void> {
   try {
-    // Get eligible client IDs from production (filtered by op_status)
+    // Get eligible client IDs from production (filtered by op_status OR in exception list)
     console.log(`Filtering clients by op_status: ${VALID_OP_STATUSES.join(', ')}`);
+    console.log(`Exception clients (always included): ${Array.from(ALWAYS_INCLUDE_CLIENTS).join(', ')}`);
+    
     const eligibleClients = await prodQuery<{ id: string }>(`
       SELECT id FROM client
       WHERE is_active = true 
         AND is_deleted = false
-        AND op_status = ANY($1)
-    `, [VALID_OP_STATUSES]);
+        AND (op_status = ANY($1) OR client_name = ANY($2))
+    `, [VALID_OP_STATUSES, Array.from(ALWAYS_INCLUDE_CLIENTS)]);
     
     const eligibleClientIds = new Set(eligibleClients.map(c => c.id));
     console.log(`Found ${eligibleClientIds.size} eligible clients in production`);
