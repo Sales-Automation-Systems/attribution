@@ -32,6 +32,10 @@ export interface ClientConfig {
   not_matched_sign_ups: number;
   not_matched_meetings: number;
   not_matched_paying: number;
+  // Outside window counts (emailed, but event > 31 days after)
+  outside_window_sign_ups: number;
+  outside_window_meetings: number;
+  outside_window_paying: number;
   // Domain breakdown counts
   domains_with_replies: number;
   domains_with_signups: number;

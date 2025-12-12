@@ -174,6 +174,7 @@ export default async function ClientDashboardPage({
               attributed: client.attributed_sign_ups || 0,
               hardMatch: client.hard_match_sign_ups || 0,
               softMatch: client.soft_match_sign_ups || 0,
+              outsideWindow: client.outside_window_sign_ups || 0,
               notMatched: client.not_matched_sign_ups || 0,
             }}
             meetings={{
@@ -181,6 +182,7 @@ export default async function ClientDashboardPage({
               attributed: client.attributed_meetings_booked || 0,
               hardMatch: client.hard_match_meetings || 0,
               softMatch: client.soft_match_meetings || 0,
+              outsideWindow: client.outside_window_meetings || 0,
               notMatched: client.not_matched_meetings || 0,
             }}
             paying={{
@@ -188,6 +190,7 @@ export default async function ClientDashboardPage({
               attributed: client.attributed_paying_customers || 0,
               hardMatch: client.hard_match_paying || 0,
               softMatch: client.soft_match_paying || 0,
+              outsideWindow: client.outside_window_paying || 0,
               notMatched: client.not_matched_paying || 0,
             }}
           />

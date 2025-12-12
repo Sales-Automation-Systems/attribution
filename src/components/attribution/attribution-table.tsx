@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { CheckCircle, Clock, XCircle } from 'lucide-react';
+import { CheckCircle, Clock, AlertTriangle, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface EventBreakdown {
@@ -19,6 +19,7 @@ interface EventBreakdown {
   attributed: number;
   hardMatch: number;
   softMatch: number;
+  outsideWindow: number;
   notMatched: number;
 }
 
@@ -34,6 +35,7 @@ interface AttributionTableProps {
     attributed: number;
     hardMatch: number;
     softMatch: number;
+    outsideWindow: number;
     notMatched: number;
   };
   meetings: {
@@ -41,6 +43,7 @@ interface AttributionTableProps {
     attributed: number;
     hardMatch: number;
     softMatch: number;
+    outsideWindow: number;
     notMatched: number;
   };
   paying: {
@@ -48,6 +51,7 @@ interface AttributionTableProps {
     attributed: number;
     hardMatch: number;
     softMatch: number;
+    outsideWindow: number;
     notMatched: number;
   };
 }
@@ -65,6 +69,7 @@ export function AttributionTable({
       attributed: positiveReplies.attributed,
       hardMatch: positiveReplies.hardMatch,
       softMatch: positiveReplies.softMatch,
+      outsideWindow: 0, // Positive replies have no window
       notMatched: 0, // Positive replies are always attributed
     },
     {
@@ -73,6 +78,7 @@ export function AttributionTable({
       attributed: signUps.attributed,
       hardMatch: signUps.hardMatch,
       softMatch: signUps.softMatch,
+      outsideWindow: signUps.outsideWindow,
       notMatched: signUps.notMatched,
     },
     {
@@ -81,6 +87,7 @@ export function AttributionTable({
       attributed: meetings.attributed,
       hardMatch: meetings.hardMatch,
       softMatch: meetings.softMatch,
+      outsideWindow: meetings.outsideWindow,
       notMatched: meetings.notMatched,
     },
     {
@@ -89,6 +96,7 @@ export function AttributionTable({
       attributed: paying.attributed,
       hardMatch: paying.hardMatch,
       softMatch: paying.softMatch,
+      outsideWindow: paying.outsideWindow,
       notMatched: paying.notMatched,
     },
   ];
@@ -111,17 +119,18 @@ export function AttributionTable({
       attributed: acc.attributed + row.attributed,
       hardMatch: acc.hardMatch + row.hardMatch,
       softMatch: acc.softMatch + row.softMatch,
+      outsideWindow: acc.outsideWindow + row.outsideWindow,
       notMatched: acc.notMatched + row.notMatched,
     }),
-    { total: 0, attributed: 0, hardMatch: 0, softMatch: 0, notMatched: 0 }
+    { total: 0, attributed: 0, hardMatch: 0, softMatch: 0, outsideWindow: 0, notMatched: 0 }
   );
 
   return (
-    <div className="rounded-lg border">
+    <div className="rounded-lg border overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/50">
-            <TableHead className="w-[180px]">Event Type</TableHead>
+            <TableHead className="w-[150px]">Event Type</TableHead>
             <TableHead className="text-right">Total</TableHead>
             <TableHead className="text-right">
               <div className="flex items-center justify-end gap-1">
@@ -131,22 +140,28 @@ export function AttributionTable({
             <TableHead className="text-right">
               <div className="flex items-center justify-end gap-1">
                 <CheckCircle className="h-3 w-3 text-green-500" />
-                <span>Hard Match</span>
+                <span>Hard</span>
               </div>
             </TableHead>
             <TableHead className="text-right">
               <div className="flex items-center justify-end gap-1">
                 <Clock className="h-3 w-3 text-yellow-500" />
-                <span>Soft Match</span>
+                <span>Soft</span>
+              </div>
+            </TableHead>
+            <TableHead className="text-right">
+              <div className="flex items-center justify-end gap-1">
+                <AlertTriangle className="h-3 w-3 text-orange-500" />
+                <span>Outside Window</span>
               </div>
             </TableHead>
             <TableHead className="text-right">
               <div className="flex items-center justify-end gap-1">
                 <XCircle className="h-3 w-3 text-red-500" />
-                <span>Not Matched</span>
+                <span>No Match</span>
               </div>
             </TableHead>
-            <TableHead className="text-right w-[120px]">% Attributed</TableHead>
+            <TableHead className="text-right w-[100px]">% Ours</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -174,6 +189,15 @@ export function AttributionTable({
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right">
+                  {row.outsideWindow > 0 ? (
+                    <Badge variant="outline" className="bg-orange-500/10 text-orange-700">
+                      {row.outsideWindow.toLocaleString()}
+                    </Badge>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-right">
                   {row.notMatched > 0 ? (
                     <Badge variant="outline" className="bg-red-500/10 text-red-700">
                       {row.notMatched.toLocaleString()}
@@ -184,7 +208,7 @@ export function AttributionTable({
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-2">
-                    <Progress value={pct} className="w-16 h-2" />
+                    <Progress value={pct} className="w-12 h-2" />
                     <span className={cn('font-semibold w-10', getPercentageColor(pct))}>
                       {row.total > 0 ? `${pct}%` : '—'}
                     </span>
@@ -211,6 +235,11 @@ export function AttributionTable({
               </Badge>
             </TableCell>
             <TableCell className="text-right">
+              <Badge variant="outline" className="bg-orange-500/10 text-orange-700">
+                {totals.outsideWindow.toLocaleString()}
+              </Badge>
+            </TableCell>
+            <TableCell className="text-right">
               <Badge variant="outline" className="bg-red-500/10 text-red-700">
                 {totals.notMatched.toLocaleString()}
               </Badge>
@@ -226,4 +255,3 @@ export function AttributionTable({
     </div>
   );
 }
-

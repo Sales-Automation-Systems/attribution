@@ -156,22 +156,26 @@ interface ProcessingStats {
   totalMeetings: number;
   totalPaying: number;
   totalPositiveReplies: number;
-  // Attribution counts  
+  // Attribution counts (within 31-day window)
   attributedSignUps: number;
   attributedMeetings: number;
   attributedPaying: number;
   attributedPositiveReplies: number;
-  // Hard match breakdown per event type
+  // Hard match breakdown per event type (within window)
   hardMatchPositiveReplies: number;
   hardMatchSignUps: number;
   hardMatchMeetings: number;
   hardMatchPaying: number;
-  // Soft match breakdown per event type
+  // Soft match breakdown per event type (within window)
   softMatchPositiveReplies: number;
   softMatchSignUps: number;
   softMatchMeetings: number;
   softMatchPaying: number;
-  // Not matched counts
+  // Outside window counts (emailed, but event > 31 days after)
+  outsideWindowSignUps: number;
+  outsideWindowMeetings: number;
+  outsideWindowPaying: number;
+  // Not matched counts (never emailed this person/domain)
   notMatchedSignUps: number;
   notMatchedMeetings: number;
   notMatchedPaying: number;
@@ -231,6 +235,9 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
     softMatchSignUps: 0,
     softMatchMeetings: 0,
     softMatchPaying: 0,
+    outsideWindowSignUps: 0,
+    outsideWindowMeetings: 0,
+    outsideWindowPaying: 0,
     notMatchedSignUps: 0,
     notMatchedMeetings: 0,
     notMatchedPaying: 0,
@@ -440,10 +447,10 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
         else stats.softMatchPaying++;
       }
     } else {
-      // Outside window - not attributed
-      if (event.event_type === 'sign_up') stats.notMatchedSignUps++;
-      else if (event.event_type === 'meeting_booked') stats.notMatchedMeetings++;
-      else if (event.event_type === 'paying_customer') stats.notMatchedPaying++;
+      // Outside 31-day window - we emailed them, but event happened too late
+      if (event.event_type === 'sign_up') stats.outsideWindowSignUps++;
+      else if (event.event_type === 'meeting_booked') stats.outsideWindowMeetings++;
+      else if (event.event_type === 'paying_customer') stats.outsideWindowPaying++;
     }
     
     // Aggregate by domain (only if within window for domains view)
@@ -599,14 +606,17 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
       soft_match_sign_ups = $16,
       soft_match_meetings = $17,
       soft_match_paying = $18,
-      not_matched_sign_ups = $19,
-      not_matched_meetings = $20,
-      not_matched_paying = $21,
-      domains_with_replies = $22,
-      domains_with_signups = $23,
-      domains_with_meetings = $24,
-      domains_with_paying = $25,
-      domains_with_multiple_events = $26,
+      outside_window_sign_ups = $19,
+      outside_window_meetings = $20,
+      outside_window_paying = $21,
+      not_matched_sign_ups = $22,
+      not_matched_meetings = $23,
+      not_matched_paying = $24,
+      domains_with_replies = $25,
+      domains_with_signups = $26,
+      domains_with_meetings = $27,
+      domains_with_paying = $28,
+      domains_with_multiple_events = $29,
       last_processed_at = NOW(),
       updated_at = NOW()
     WHERE id = $1
@@ -629,6 +639,9 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
     stats.softMatchSignUps,
     stats.softMatchMeetings,
     stats.softMatchPaying,
+    stats.outsideWindowSignUps,
+    stats.outsideWindowMeetings,
+    stats.outsideWindowPaying,
     stats.notMatchedSignUps,
     stats.notMatchedMeetings,
     stats.notMatchedPaying,
@@ -642,9 +655,9 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
   console.log(`Completed ${clientConfig.client_name}:`);
   console.log(`  Emails Sent: ${stats.totalEmailsSent}`);
   console.log(`  Positive Replies: ${stats.totalPositiveReplies} (${stats.attributedPositiveReplies} attributed - ${stats.hardMatchPositiveReplies} hard, ${stats.softMatchPositiveReplies} soft)`);
-  console.log(`  Sign-ups: ${stats.totalSignUps} (${stats.attributedSignUps} attributed - ${stats.hardMatchSignUps} hard, ${stats.softMatchSignUps} soft, ${stats.notMatchedSignUps} not matched)`);
-  console.log(`  Meetings: ${stats.totalMeetings} (${stats.attributedMeetings} attributed - ${stats.hardMatchMeetings} hard, ${stats.softMatchMeetings} soft, ${stats.notMatchedMeetings} not matched)`);
-  console.log(`  Paying: ${stats.totalPaying} (${stats.attributedPaying} attributed - ${stats.hardMatchPaying} hard, ${stats.softMatchPaying} soft, ${stats.notMatchedPaying} not matched)`);
+  console.log(`  Sign-ups: ${stats.totalSignUps} (${stats.attributedSignUps} attributed, ${stats.outsideWindowSignUps} outside window, ${stats.notMatchedSignUps} not matched)`);
+  console.log(`  Meetings: ${stats.totalMeetings} (${stats.attributedMeetings} attributed, ${stats.outsideWindowMeetings} outside window, ${stats.notMatchedMeetings} not matched)`);
+  console.log(`  Paying: ${stats.totalPaying} (${stats.attributedPaying} attributed, ${stats.outsideWindowPaying} outside window, ${stats.notMatchedPaying} not matched)`);
   console.log(`  Total Domains: ${stats.totalDomains}`);
   console.log(`  Errors: ${stats.errors}`);
   
@@ -687,6 +700,7 @@ async function processAllClientsAsync(job: JobState): Promise<void> {
       attributedSignUps: 0, attributedMeetings: 0, attributedPaying: 0, attributedPositiveReplies: 0,
       hardMatchPositiveReplies: 0, hardMatchSignUps: 0, hardMatchMeetings: 0, hardMatchPaying: 0,
       softMatchPositiveReplies: 0, softMatchSignUps: 0, softMatchMeetings: 0, softMatchPaying: 0,
+      outsideWindowSignUps: 0, outsideWindowMeetings: 0, outsideWindowPaying: 0,
       notMatchedSignUps: 0, notMatchedMeetings: 0, notMatchedPaying: 0,
       totalDomains: 0, domainsWithReplies: 0, domainsWithSignups: 0, domainsWithMeetings: 0,
       domainsWithPaying: 0, domainsWithMultipleEvents: 0, totalEmailsSent: 0, errors: 0
