@@ -96,35 +96,20 @@ async function attrQuery<T>(sql: string, params?: unknown[]): Promise<T[]> {
   return result.rows as T[];
 }
 
-// ============ Valid OP Status Values ============
-const VALID_OP_STATUSES = [
-  '1 - Onboarding In Progress',
-  '2 - Onboarded',
-  '3 - Testimonial Done',
-];
-
-// Clients to ALWAYS include regardless of op_status (for testing/auditing)
-const ALWAYS_INCLUDE_CLIENTS = new Set([
-  'Datacy',
-]);
-
 // ============ Sync Logic ============
 async function syncClientsFromProduction(): Promise<string[]> {
   console.log('Syncing clients from production...');
-  console.log(`Only syncing clients with op_status: ${VALID_OP_STATUSES.join(', ')}`);
-  console.log(`Exception clients (always included): ${Array.from(ALWAYS_INCLUDE_CLIENTS).join(', ')}`);
   
-  // Get clients with valid op_status OR in the exception list
-  const productionClients = await prodQuery<{ id: string; client_name: string; op_status: string }>(`
-    SELECT id, client_name, op_status
+  // Get all active clients from production
+  const productionClients = await prodQuery<{ id: string; client_name: string }>(`
+    SELECT id, client_name
     FROM client
     WHERE is_active = true 
       AND is_deleted = false
-      AND (op_status = ANY($1) OR client_name = ANY($2))
     ORDER BY client_name
-  `, [VALID_OP_STATUSES, Array.from(ALWAYS_INCLUDE_CLIENTS)]);
+  `);
   
-  console.log(`Found ${productionClients.length} eligible clients in production`);
+  console.log(`Found ${productionClients.length} active clients in production`);
   
   const existingConfigs = await attrQuery<{ client_id: string }>(`
     SELECT client_id FROM client_config
@@ -141,7 +126,7 @@ async function syncClientsFromProduction(): Promise<string[]> {
       `, [client.id, client.client_name, slugify(client.client_name)]);
       
       newClients.push(client.client_name);
-      console.log(`Created config for: ${client.client_name} (${client.op_status})`);
+      console.log(`Created config for: ${client.client_name}`);
     }
   }
   
