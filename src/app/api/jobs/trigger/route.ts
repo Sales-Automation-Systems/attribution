@@ -35,10 +35,11 @@ export async function POST(req: NextRequest) {
         endpoint = '/sync-clients';
         break;
 
+      case 'process-client':
       case 'process-single-client':
         if (!clientId) {
           return NextResponse.json(
-            { error: 'clientId is required for process-single-client' },
+            { error: 'clientId is required for process-client' },
             { status: 400 }
           );
         }

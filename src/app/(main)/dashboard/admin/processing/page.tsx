@@ -1,4 +1,4 @@
-import { SyncClientsButton, ProcessAllButton } from './actions';
+import { SyncClientsButton, ProcessAllButton, ProcessSingleClientButton } from './actions';
 import { WorkerJobsDisplay } from './worker-jobs';
 
 export const dynamic = 'force-dynamic';
@@ -16,6 +16,12 @@ export default function ProcessingJobsPage() {
           <SyncClientsButton />
           <ProcessAllButton />
         </div>
+      </div>
+
+      {/* Single Client Processing */}
+      <div className="p-4 border rounded-lg bg-muted/30">
+        <h3 className="text-sm font-medium mb-3">Process Single Client</h3>
+        <ProcessSingleClientButton />
       </div>
 
       {/* Worker Jobs Display (client component with auto-refresh) */}
