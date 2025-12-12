@@ -7,6 +7,39 @@ export interface ClientConfig {
   slug: string;
   access_uuid: string;
   rev_share_rate: number;
+  // Top-level totals
+  total_emails_sent: number;
+  total_positive_replies: number;
+  total_sign_ups: number;
+  total_meetings_booked: number;
+  total_paying_customers: number;
+  // Attributed totals
+  attributed_positive_replies: number;
+  attributed_sign_ups: number;
+  attributed_meetings_booked: number;
+  attributed_paying_customers: number;
+  // Hard match breakdown per event type
+  hard_match_positive_replies: number;
+  hard_match_sign_ups: number;
+  hard_match_meetings: number;
+  hard_match_paying: number;
+  // Soft match breakdown per event type
+  soft_match_positive_replies: number;
+  soft_match_sign_ups: number;
+  soft_match_meetings: number;
+  soft_match_paying: number;
+  // Not matched counts
+  not_matched_sign_ups: number;
+  not_matched_meetings: number;
+  not_matched_paying: number;
+  // Domain breakdown counts
+  domains_with_replies: number;
+  domains_with_signups: number;
+  domains_with_meetings: number;
+  domains_with_paying: number;
+  domains_with_multiple_events: number;
+  // Processing
+  last_processed_at: Date | null;
   created_at: Date;
   updated_at: Date;
 }
