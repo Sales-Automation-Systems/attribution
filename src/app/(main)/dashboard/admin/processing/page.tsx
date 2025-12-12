@@ -1,8 +1,8 @@
 import { getProcessingJobs, getAllClientConfigs } from '@/db/attribution/queries';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Server, Play, RefreshCw, Clock, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { Clock, CheckCircle, XCircle } from 'lucide-react';
+import { SyncClientsButton, ProcessAllButton } from './actions';
 
 export default async function ProcessingJobsPage() {
   const [jobs, clients] = await Promise.all([
@@ -27,14 +27,8 @@ export default async function ProcessingJobsPage() {
           <p className="text-muted-foreground">Monitor and manage attribution processing</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Sync Clients
-          </Button>
-          <Button>
-            <Play className="h-4 w-4 mr-2" />
-            Process All
-          </Button>
+          <SyncClientsButton />
+          <ProcessAllButton />
         </div>
       </div>
 
