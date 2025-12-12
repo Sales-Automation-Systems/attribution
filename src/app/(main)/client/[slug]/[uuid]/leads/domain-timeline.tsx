@@ -130,10 +130,10 @@ export function DomainTimeline({ domainId, slug, uuid, isOpen }: DomainTimelineP
 
               {event.metadata && Object.keys(event.metadata).length > 0 && (
                 <div className="mt-1 text-xs text-muted-foreground">
-                  {event.metadata.subject && (
+                  {'subject' in event.metadata && event.metadata.subject && (
                     <p>Subject: {String(event.metadata.subject)}</p>
                   )}
-                  {event.metadata.campaign_name && (
+                  {'campaign_name' in event.metadata && event.metadata.campaign_name && (
                     <p>Campaign: {String(event.metadata.campaign_name)}</p>
                   )}
                 </div>
