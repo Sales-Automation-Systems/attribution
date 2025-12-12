@@ -41,6 +41,20 @@ const EVENT_LABELS: Record<string, string> = {
   PAYING_CUSTOMER: 'Paying Customer',
 };
 
+function MetadataDisplay({ metadata }: { metadata: Record<string, unknown> }) {
+  const subject = metadata.subject as string | undefined;
+  const campaignName = metadata.campaign_name as string | undefined;
+  
+  if (!subject && !campaignName) return null;
+  
+  return (
+    <div className="mt-1 text-xs text-muted-foreground">
+      {subject && <p>Subject: {subject}</p>}
+      {campaignName && <p>Campaign: {campaignName}</p>}
+    </div>
+  );
+}
+
 export function DomainTimeline({ domainId, slug, uuid, isOpen }: DomainTimelineProps) {
   const [events, setEvents] = useState<DomainEvent[]>([]);
   const [loading, setLoading] = useState(false);
@@ -129,14 +143,7 @@ export function DomainTimeline({ domainId, slug, uuid, isOpen }: DomainTimelineP
               )}
 
               {event.metadata && Object.keys(event.metadata).length > 0 && (
-                <div className="mt-1 text-xs text-muted-foreground">
-                  {'subject' in event.metadata && event.metadata.subject && (
-                    <p>Subject: {String(event.metadata.subject)}</p>
-                  )}
-                  {'campaign_name' in event.metadata && event.metadata.campaign_name && (
-                    <p>Campaign: {String(event.metadata.campaign_name)}</p>
-                  )}
-                </div>
+                <MetadataDisplay metadata={event.metadata} />
               )}
             </div>
           </div>
