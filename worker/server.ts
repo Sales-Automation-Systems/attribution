@@ -96,18 +96,28 @@ async function attrQuery<T>(sql: string, params?: unknown[]): Promise<T[]> {
   return result.rows as T[];
 }
 
+// ============ Valid OP Status Values ============
+const VALID_OP_STATUSES = [
+  '1 - Onboarding In Progress',
+  '2 - Onboarded',
+  '3 - Testimonial Done',
+];
+
 // ============ Sync Logic ============
 async function syncClientsFromProduction(): Promise<string[]> {
   console.log('Syncing clients from production...');
+  console.log(`Only syncing clients with op_status: ${VALID_OP_STATUSES.join(', ')}`);
   
-  const productionClients = await prodQuery<{ id: string; client_name: string }>(`
-    SELECT id, client_name
+  const productionClients = await prodQuery<{ id: string; client_name: string; op_status: string }>(`
+    SELECT id, client_name, op_status
     FROM client
-    WHERE is_active = true AND is_deleted = false
+    WHERE is_active = true 
+      AND is_deleted = false
+      AND op_status = ANY($1)
     ORDER BY client_name
-  `);
+  `, [VALID_OP_STATUSES]);
   
-  console.log(`Found ${productionClients.length} active clients in production`);
+  console.log(`Found ${productionClients.length} eligible clients in production`);
   
   const existingConfigs = await attrQuery<{ client_id: string }>(`
     SELECT client_id FROM client_config
@@ -124,7 +134,7 @@ async function syncClientsFromProduction(): Promise<string[]> {
       `, [client.id, client.client_name, slugify(client.client_name)]);
       
       newClients.push(client.client_name);
-      console.log(`Created config for: ${client.client_name}`);
+      console.log(`Created config for: ${client.client_name} (${client.op_status})`);
     }
   }
   
@@ -402,16 +412,31 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
 
 async function processAllClientsAsync(job: JobState): Promise<void> {
   try {
-    const clients = await attrQuery<{ client_id: string; client_name: string }>(`
+    // Get eligible client IDs from production (filtered by op_status)
+    console.log(`Filtering clients by op_status: ${VALID_OP_STATUSES.join(', ')}`);
+    const eligibleClients = await prodQuery<{ id: string }>(`
+      SELECT id FROM client
+      WHERE is_active = true 
+        AND is_deleted = false
+        AND op_status = ANY($1)
+    `, [VALID_OP_STATUSES]);
+    
+    const eligibleClientIds = new Set(eligibleClients.map(c => c.id));
+    console.log(`Found ${eligibleClientIds.size} eligible clients in production`);
+    
+    // Get client configs and filter to only eligible ones
+    const allConfigs = await attrQuery<{ client_id: string; client_name: string }>(`
       SELECT client_id, client_name FROM client_config ORDER BY client_name
     `);
     
-    console.log(`Processing ${clients.length} clients...`);
+    const clients = allConfigs.filter(c => eligibleClientIds.has(c.client_id));
+    console.log(`Processing ${clients.length} eligible clients (skipping ${allConfigs.length - clients.length} ineligible)...`);
+    
     job.progress = { current: 0, total: clients.length };
     
     const results: Array<{ client: string; stats: ProcessingStats }> = [];
     
-    // Clients to skip
+    // Clients to skip (in addition to op_status filter)
     const SKIP_CLIENTS = new Set(['Fyxer']);
     
     for (let i = 0; i < clients.length; i++) {
@@ -420,7 +445,7 @@ async function processAllClientsAsync(job: JobState): Promise<void> {
       
       // Skip excluded clients
       if (SKIP_CLIENTS.has(client.client_name)) {
-        console.log(`\n=== Skipping ${i + 1}/${clients.length}: ${client.client_name} ===`);
+        console.log(`\n=== Skipping ${i + 1}/${clients.length}: ${client.client_name} (excluded) ===`);
         results.push({
           client: client.client_name,
           stats: { totalEvents: 0, processedEvents: 0, attributed: 0, outsideWindow: 0, neverEmailed: 0, errors: 0 }
@@ -452,7 +477,7 @@ async function processAllClientsAsync(job: JobState): Promise<void> {
     const totalNever = results.reduce((sum, r) => sum + r.stats.neverEmailed, 0);
     
     console.log('\n========== PROCESSING COMPLETE ==========');
-    console.log(`Clients processed: ${clients.length}`);
+    console.log(`Eligible clients processed: ${clients.length}`);
     console.log(`Total Attributed: ${totalAttributed}`);
     console.log(`Total Outside Window: ${totalOutside}`);
     console.log(`Total Never Emailed: ${totalNever}`);
