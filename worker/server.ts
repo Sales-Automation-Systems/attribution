@@ -204,11 +204,24 @@ interface DomainResult {
   hasPositiveReply: boolean;
 }
 
+interface ClientSettings {
+  id: string;
+  client_name: string;
+  sign_ups_mode: 'per_event' | 'per_domain';
+  meetings_mode: 'per_event' | 'per_domain';
+  paying_mode: 'per_event' | 'per_domain';
+  attribution_window_days: number;
+  soft_match_enabled: boolean;
+  exclude_personal_domains: boolean;
+}
+
 async function processClient(clientId: string): Promise<ProcessingStats> {
   console.log(`Processing client: ${clientId}`);
   
-  const configs = await attrQuery<{ id: string; client_name: string }>(`
-    SELECT id, client_name FROM client_config WHERE client_id = $1
+  const configs = await attrQuery<ClientSettings>(`
+    SELECT id, client_name, sign_ups_mode, meetings_mode, paying_mode,
+           attribution_window_days, soft_match_enabled, exclude_personal_domains
+    FROM client_config WHERE client_id = $1
   `, [clientId]);
   
   if (configs.length === 0) {
@@ -216,7 +229,17 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
   }
   
   const clientConfig = configs[0];
+  const settings = {
+    signUpsMode: clientConfig.sign_ups_mode || 'per_event',
+    meetingsMode: clientConfig.meetings_mode || 'per_event',
+    payingMode: clientConfig.paying_mode || 'per_domain',
+    windowDays: clientConfig.attribution_window_days ?? 31,
+    softMatchEnabled: clientConfig.soft_match_enabled ?? true,
+    excludePersonalDomains: clientConfig.exclude_personal_domains ?? true,
+  };
+  
   console.log(`Processing: ${clientConfig.client_name}`);
+  console.log(`  Settings: window=${settings.windowDays}d, signUps=${settings.signUpsMode}, meetings=${settings.meetingsMode}, paying=${settings.payingMode}`);
   
   const stats: ProcessingStats = {
     totalSignUps: 0,
@@ -391,6 +414,11 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
   console.log('Processing attribution events...');
   const domainResults = new Map<string, DomainResult>();
   
+  // Track which domains we've already counted (for per_domain mode)
+  const countedSignUpDomains = new Set<string>();
+  const countedMeetingDomains = new Set<string>();
+  const countedPayingDomains = new Set<string>();
+  
   for (const event of events) {
     const eventEmail = event.email?.toLowerCase() ?? null;
     const eventDomain = normalizeDomain(event.domain ?? extractDomain(event.email));
@@ -401,10 +429,13 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
     let sendTime: Date | null = null;
     let matchType: 'HARD_MATCH' | 'SOFT_MATCH' = 'SOFT_MATCH';
     
+    // Try hard match (exact email)
     if (eventEmail && emailSendTimes.has(eventEmail)) {
       sendTime = emailSendTimes.get(eventEmail)!;
       matchType = 'HARD_MATCH';
-    } else if (domainSendTimes.has(eventDomain)) {
+    } 
+    // Try soft match (domain) if enabled
+    else if (settings.softMatchEnabled && domainSendTimes.has(eventDomain)) {
       sendTime = domainSendTimes.get(eventDomain)!;
       matchType = 'SOFT_MATCH';
     }
@@ -427,33 +458,49 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
       continue;
     }
     
-    // Calculate days since email (31-day window for sign_up/meeting/paying)
+    // Calculate days since email (using client-specific window)
     const daysSince = Math.floor((eventTime.getTime() - sendTime.getTime()) / (1000 * 60 * 60 * 24));
-    const isWithinWindow = daysSince <= 31;
+    const isWithinWindow = daysSince <= settings.windowDays;
     
-    // Count attributed events (within 31-day window)
-    if (isWithinWindow) {
+    // Determine the mode for this event type
+    const eventMode = event.event_type === 'sign_up' ? settings.signUpsMode :
+                      event.event_type === 'meeting_booked' ? settings.meetingsMode :
+                      settings.payingMode;
+    
+    // For per_domain mode, check if we've already counted this domain
+    const alreadyCounted = eventMode === 'per_domain' && (
+      (event.event_type === 'sign_up' && countedSignUpDomains.has(eventDomain)) ||
+      (event.event_type === 'meeting_booked' && countedMeetingDomains.has(eventDomain)) ||
+      (event.event_type === 'paying_customer' && countedPayingDomains.has(eventDomain))
+    );
+    
+    // Count attributed events (within window and not already counted for per_domain)
+    if (isWithinWindow && !alreadyCounted) {
       if (event.event_type === 'sign_up') {
         stats.attributedSignUps++;
         if (matchType === 'HARD_MATCH') stats.hardMatchSignUps++;
         else stats.softMatchSignUps++;
+        if (eventMode === 'per_domain') countedSignUpDomains.add(eventDomain);
       } else if (event.event_type === 'meeting_booked') {
         stats.attributedMeetings++;
         if (matchType === 'HARD_MATCH') stats.hardMatchMeetings++;
         else stats.softMatchMeetings++;
+        if (eventMode === 'per_domain') countedMeetingDomains.add(eventDomain);
       } else if (event.event_type === 'paying_customer') {
         stats.attributedPaying++;
         if (matchType === 'HARD_MATCH') stats.hardMatchPaying++;
         else stats.softMatchPaying++;
+        if (eventMode === 'per_domain') countedPayingDomains.add(eventDomain);
       }
-    } else {
-      // Outside 31-day window - we emailed them, but event happened too late
+    } else if (!isWithinWindow) {
+      // Outside window - we emailed them, but event happened too late
       if (event.event_type === 'sign_up') stats.outsideWindowSignUps++;
       else if (event.event_type === 'meeting_booked') stats.outsideWindowMeetings++;
       else if (event.event_type === 'paying_customer') stats.outsideWindowPaying++;
     }
+    // Note: if alreadyCounted && isWithinWindow, we skip counting (domain already attributed)
     
-    // Aggregate by domain (only if within window for domains view)
+    // Aggregate by domain (for domains view - always track)
     if (isWithinWindow) {
       const existing = domainResults.get(eventDomain);
       if (existing) {

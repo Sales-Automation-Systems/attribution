@@ -1,8 +1,6 @@
 import {
   LayoutDashboard,
   Users,
-  Target,
-  FileText,
   Settings,
   Activity,
   AlertCircle,
@@ -56,6 +54,11 @@ export const sidebarItems: NavGroup[] = [
     id: 2,
     label: 'Admin',
     items: [
+      {
+        title: 'Client Settings',
+        url: '/dashboard/admin/settings',
+        icon: Settings,
+      },
       {
         title: 'Processing Jobs',
         url: '/dashboard/admin/processing',

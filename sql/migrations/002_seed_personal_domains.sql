@@ -138,3 +138,6 @@ INSERT INTO personal_email_domain (domain) VALUES
   ('riseup.net')
 ON CONFLICT (domain) DO NOTHING;
 
+
+
+

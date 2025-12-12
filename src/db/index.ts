@@ -2,27 +2,37 @@ import { Pool } from 'pg';
 
 // Serverless-optimized pool settings
 // Vercel serverless functions have cold starts and short lifecycles
-const poolConfig = {
+const basePoolConfig = {
   max: 1, // Single connection per serverless instance
   idleTimeoutMillis: 20000,
   connectionTimeoutMillis: 30000, // Increased for cold starts
-  ssl: {
-    rejectUnauthorized: false, // Required for managed databases
-  },
 };
+
+// Helper to determine SSL config based on connection string
+function getSslConfig(connectionString?: string) {
+  if (!connectionString) return false;
+  // Railway and some local DBs don't support SSL
+  // Only enable SSL if explicitly required via sslmode=require
+  if (connectionString.includes('sslmode=require')) {
+    return { rejectUnauthorized: false };
+  }
+  return false;
+}
 
 // Production database - READ ONLY
 // DigitalOcean PostgreSQL
 export const prodPool = new Pool({
   connectionString: process.env.PROD_DATABASE_URL,
-  ...poolConfig,
+  ...basePoolConfig,
+  ssl: getSslConfig(process.env.PROD_DATABASE_URL),
 });
 
 // Attribution database - READ/WRITE
-// Railway PostgreSQL
+// Railway PostgreSQL (no SSL)
 export const attrPool = new Pool({
   connectionString: process.env.ATTR_DATABASE_URL,
-  ...poolConfig,
+  ...basePoolConfig,
+  ssl: getSslConfig(process.env.ATTR_DATABASE_URL),
 });
 
 // Helper to ensure production pool is NEVER used for writes

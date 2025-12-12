@@ -1,5 +1,7 @@
 // Attribution Database Types (READ/WRITE)
 
+export type AttributionMode = 'per_event' | 'per_domain';
+
 export interface ClientConfig {
   id: string;
   client_id: string;
@@ -7,6 +9,13 @@ export interface ClientConfig {
   slug: string;
   access_uuid: string;
   rev_share_rate: number;
+  // Attribution settings
+  sign_ups_mode: AttributionMode;
+  meetings_mode: AttributionMode;
+  paying_mode: AttributionMode;
+  attribution_window_days: number;
+  soft_match_enabled: boolean;
+  exclude_personal_domains: boolean;
   // Top-level totals
   total_emails_sent: number;
   total_positive_replies: number;
