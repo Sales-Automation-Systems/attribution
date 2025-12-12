@@ -698,27 +698,12 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
 
 async function processAllClientsAsync(job: JobState): Promise<void> {
   try {
-    // Get eligible client IDs from production (filtered by op_status OR in exception list)
-    console.log(`Filtering clients by op_status: ${VALID_OP_STATUSES.join(', ')}`);
-    console.log(`Exception clients (always included): ${Array.from(ALWAYS_INCLUDE_CLIENTS).join(', ')}`);
-    
-    const eligibleClients = await prodQuery<{ id: string }>(`
-      SELECT id FROM client
-      WHERE is_active = true 
-        AND is_deleted = false
-        AND (op_status = ANY($1) OR client_name = ANY($2))
-    `, [VALID_OP_STATUSES, Array.from(ALWAYS_INCLUDE_CLIENTS)]);
-    
-    const eligibleClientIds = new Set(eligibleClients.map(c => c.id));
-    console.log(`Found ${eligibleClientIds.size} eligible clients in production`);
-    
-    // Get client configs and filter to only eligible ones
-    const allConfigs = await attrQuery<{ client_id: string; client_name: string }>(`
+    // Get all client configs
+    const clients = await attrQuery<{ client_id: string; client_name: string }>(`
       SELECT client_id, client_name FROM client_config ORDER BY client_name
     `);
     
-    const clients = allConfigs.filter(c => eligibleClientIds.has(c.client_id));
-    console.log(`Processing ${clients.length} eligible clients (skipping ${allConfigs.length - clients.length} ineligible)...`);
+    console.log(`Processing ${clients.length} clients...`);
     
     job.progress = { current: 0, total: clients.length };
     
