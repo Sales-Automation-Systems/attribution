@@ -2,7 +2,7 @@ import { getAllClientConfigs, getDashboardStats } from '@/db/attribution/queries
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Users, Target, DollarSign, ExternalLink, Copy, CheckCircle, Clock } from 'lucide-react';
+import { Users, Target, DollarSign, ExternalLink, CheckCircle, Clock } from 'lucide-react';
 import Link from 'next/link';
 
 export default async function ClientsPage() {
@@ -98,16 +98,6 @@ export default async function ClientsPage() {
                     View Dashboard
                   </Button>
                 </Link>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  title="Copy client link"
-                  onClick={() => {
-                    // This would need client-side JS to actually copy
-                  }}
-                >
-                  <Copy className="h-3 w-3" />
-                </Button>
               </div>
 
               {/* Client Link */}
