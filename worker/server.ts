@@ -151,12 +151,34 @@ async function syncClientsFromProduction(): Promise<string[]> {
 
 // ============ Processing Logic (BATCHED) ============
 interface ProcessingStats {
-  totalEvents: number;
-  processedEvents: number;
-  attributed: number;
-  outsideWindow: number;
-  neverEmailed: number;
+  // Event counts
+  totalSignUps: number;
+  totalMeetings: number;
+  totalPaying: number;
+  totalPositiveReplies: number;
+  // Attribution counts  
+  attributedSignUps: number;
+  attributedMeetings: number;
+  attributedPaying: number;
+  attributedPositiveReplies: number;
+  // Domain counts
+  totalDomains: number;
+  // Top-level stats
+  totalEmailsSent: number;
+  // Processing
   errors: number;
+}
+
+interface DomainResult {
+  domain: string;
+  firstEmailSent: Date | null;
+  firstEvent: Date | null;
+  isWithinWindow: boolean;
+  matchType: 'HARD_MATCH' | 'SOFT_MATCH';
+  hasSignUp: boolean;
+  hasMeetingBooked: boolean;
+  hasPayingCustomer: boolean;
+  hasPositiveReply: boolean;
 }
 
 async function processClient(clientId: string): Promise<ProcessingStats> {
@@ -174,16 +196,34 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
   console.log(`Processing: ${clientConfig.client_name}`);
   
   const stats: ProcessingStats = {
-    totalEvents: 0,
-    processedEvents: 0,
-    attributed: 0,
-    outsideWindow: 0,
-    neverEmailed: 0,
+    totalSignUps: 0,
+    totalMeetings: 0,
+    totalPaying: 0,
+    totalPositiveReplies: 0,
+    attributedSignUps: 0,
+    attributedMeetings: 0,
+    attributedPaying: 0,
+    attributedPositiveReplies: 0,
+    totalDomains: 0,
+    totalEmailsSent: 0,
     errors: 0,
   };
   
-  // Fetch ALL events for this client in one query
-  console.log('Fetching all attribution events...');
+  // ============ PHASE 1: Get top-level stats ============
+  console.log('Fetching top-level stats...');
+  
+  // Count total emails sent
+  const emailCountResult = await prodQuery<{ count: string }>(`
+    SELECT COUNT(*) as count
+    FROM email_conversation ec
+    JOIN client_integration ci ON ec.client_integration_id = ci.id
+    WHERE ec.type = 'Sent' AND ci.client_id = $1
+  `, [clientId]);
+  stats.totalEmailsSent = parseInt(emailCountResult[0]?.count || '0', 10);
+  console.log(`  Total emails sent: ${stats.totalEmailsSent}`);
+  
+  // ============ PHASE 2: Fetch attribution events ============
+  console.log('Fetching attribution events...');
   const events = await prodQuery<{
     id: string;
     event_type: string;
@@ -199,15 +239,37 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
     ORDER BY ae.event_time
   `, [clientId]);
   
-  stats.totalEvents = events.length;
-  console.log(`Total events: ${events.length}`);
-  
-  if (events.length === 0) {
-    console.log('No events to process');
-    return stats;
+  // Count by type
+  for (const e of events) {
+    if (e.event_type === 'sign_up') stats.totalSignUps++;
+    else if (e.event_type === 'meeting_booked') stats.totalMeetings++;
+    else if (e.event_type === 'paying_customer') stats.totalPaying++;
   }
+  console.log(`  Sign-ups: ${stats.totalSignUps}, Meetings: ${stats.totalMeetings}, Paying: ${stats.totalPaying}`);
   
-  // Extract unique emails and domains from events
+  // ============ PHASE 3: Fetch positive replies ============
+  console.log('Fetching positive replies...');
+  const positiveReplies = await prodQuery<{
+    id: string;
+    lead_email: string;
+    company_domain: string | null;
+    last_interaction_time: Date | null;
+    category_name: string;
+  }>(`
+    SELECT p.id, p.lead_email, p.company_domain, p.last_interaction_time,
+           lc.name as category_name
+    FROM prospect p
+    JOIN lead_category lc ON p.lead_category_id = lc.id
+    JOIN client_integration ci ON p.client_integration_id = ci.id
+    WHERE lc.sentiment = 'POSITIVE'
+      AND ci.client_id = $1
+  `, [clientId]);
+  
+  stats.totalPositiveReplies = positiveReplies.length;
+  console.log(`  Positive replies: ${stats.totalPositiveReplies}`);
+  
+  // ============ PHASE 4: Build email/domain send time maps ============
+  // Collect all emails and domains we need to look up
   const emails = new Set<string>();
   const domains = new Set<string>();
   
@@ -218,23 +280,27 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
     if (domain) domains.add(domain);
   }
   
+  // Positive replies: always attributed (we emailed them, they replied)
+  // But we still need domains for consolidation
+  for (const pr of positiveReplies) {
+    const email = pr.lead_email?.toLowerCase();
+    const domain = normalizeDomain(pr.company_domain ?? extractDomain(pr.lead_email));
+    if (email) emails.add(email);
+    if (domain) domains.add(domain);
+  }
+  
   console.log(`Unique emails: ${emails.size}, unique domains: ${domains.size}`);
   
-  // BATCH LOOKUP: Query send times in chunks to avoid timeout
+  // BATCH LOOKUP: Query send times in chunks
   console.log('Fetching email send times (chunked)...');
-  
-  // Map: email -> earliest send time
   const emailSendTimes = new Map<string, Date>();
-  // Map: domain -> earliest send time  
   const domainSendTimes = new Map<string, Date>();
-  
-  // Process emails in chunks of 100
-  const emailArray = Array.from(emails);
   const CHUNK_SIZE = 100;
   
+  const emailArray = Array.from(emails);
   for (let i = 0; i < emailArray.length; i += CHUNK_SIZE) {
     const chunk = emailArray.slice(i, i + CHUNK_SIZE);
-    if (i % 200 === 0) {
+    if (i % 500 === 0 && emailArray.length > 500) {
       console.log(`  Checking emails ${i + 1}-${Math.min(i + CHUNK_SIZE, emailArray.length)}/${emailArray.length}`);
     }
     
@@ -253,15 +319,12 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
       emailSendTimes.set(row.email, row.min_sent);
     }
   }
+  console.log(`  Found ${emailSendTimes.size} emails with send history`);
   
-  console.log(`Found ${emailSendTimes.size} emails with send history`);
-  
-  // Process domains in chunks of 100
   const domainArray = Array.from(domains);
-  
   for (let i = 0; i < domainArray.length; i += CHUNK_SIZE) {
     const chunk = domainArray.slice(i, i + CHUNK_SIZE);
-    if (i % 200 === 0) {
+    if (i % 500 === 0 && domainArray.length > 500) {
       console.log(`  Checking domains ${i + 1}-${Math.min(i + CHUNK_SIZE, domainArray.length)}/${domainArray.length}`);
     }
     
@@ -280,36 +343,17 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
       domainSendTimes.set(row.domain, row.min_sent);
     }
   }
+  console.log(`  Found ${domainSendTimes.size} domains with send history`);
   
-  console.log(`Found ${domainSendTimes.size} domains with send history`)
+  // ============ PHASE 5: Process attribution events ============
+  console.log('Processing attribution events...');
+  const domainResults = new Map<string, DomainResult>();
   
-  // Process events using the pre-fetched data
-  console.log('Processing events...');
-  const domainResults = new Map<string, {
-    domain: string;
-    firstEmailSent: Date | null;
-    firstEvent: Date;
-    isWithinWindow: boolean;
-    matchType: 'HARD_MATCH' | 'SOFT_MATCH';
-    hasSignUp: boolean;
-    hasMeetingBooked: boolean;
-    hasPayingCustomer: boolean;
-  }>();
-  
-  for (let i = 0; i < events.length; i++) {
-    if (i % 100 === 0) {
-      console.log(`  Processing event ${i + 1}/${events.length}`);
-    }
-    
-    const event = events[i];
+  for (const event of events) {
     const eventEmail = event.email?.toLowerCase() ?? null;
     const eventDomain = normalizeDomain(event.domain ?? extractDomain(event.email));
     
-    if (!eventDomain) {
-      stats.neverEmailed++;
-      stats.processedEvents++;
-      continue;
-    }
+    if (!eventDomain) continue;
     
     // Look up send time - hard match first, then soft match
     let sendTime: Date | null = null;
@@ -323,31 +367,24 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
       matchType = 'SOFT_MATCH';
     }
     
-    if (!sendTime) {
-      stats.neverEmailed++;
-      stats.processedEvents++;
-      continue;
-    }
+    if (!sendTime) continue; // Not attributed - never emailed
     
     // Check if send was before event
     const eventTime = new Date(event.event_time);
-    if (sendTime > eventTime) {
-      stats.neverEmailed++;
-      stats.processedEvents++;
-      continue;
-    }
+    if (sendTime > eventTime) continue;
     
-    // Calculate days since email
+    // Calculate days since email (31-day window for sign_up/meeting/paying)
     const daysSince = Math.floor((eventTime.getTime() - sendTime.getTime()) / (1000 * 60 * 60 * 24));
     const isWithinWindow = daysSince <= 31;
     
+    // Count attributed events
     if (isWithinWindow) {
-      stats.attributed++;
-    } else {
-      stats.outsideWindow++;
+      if (event.event_type === 'sign_up') stats.attributedSignUps++;
+      else if (event.event_type === 'meeting_booked') stats.attributedMeetings++;
+      else if (event.event_type === 'paying_customer') stats.attributedPaying++;
     }
     
-    // Aggregate results by domain
+    // Aggregate by domain
     const existing = domainResults.get(eventDomain);
     if (existing) {
       existing.isWithinWindow = existing.isWithinWindow || isWithinWindow;
@@ -355,6 +392,7 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
       existing.hasMeetingBooked = existing.hasMeetingBooked || event.event_type === 'meeting_booked';
       existing.hasPayingCustomer = existing.hasPayingCustomer || event.event_type === 'paying_customer';
       if (matchType === 'HARD_MATCH') existing.matchType = 'HARD_MATCH';
+      if (!existing.firstEvent || eventTime < existing.firstEvent) existing.firstEvent = eventTime;
     } else {
       domainResults.set(eventDomain, {
         domain: eventDomain,
@@ -365,30 +403,78 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
         hasSignUp: event.event_type === 'sign_up',
         hasMeetingBooked: event.event_type === 'meeting_booked',
         hasPayingCustomer: event.event_type === 'paying_customer',
+        hasPositiveReply: false,
       });
     }
-    
-    stats.processedEvents++;
   }
   
-  // Batch insert/update attributed domains
+  // ============ PHASE 6: Process positive replies ============
+  console.log('Processing positive replies...');
+  // Positive replies are ALWAYS attributed - they replied to OUR email
+  // No 31-day window needed - if they replied, it counts
+  
+  for (const pr of positiveReplies) {
+    const email = pr.lead_email?.toLowerCase();
+    const domain = normalizeDomain(pr.company_domain ?? extractDomain(pr.lead_email));
+    
+    if (!domain) continue;
+    
+    // Get send time for this email (they replied, so we must have sent)
+    const sendTime = email ? emailSendTimes.get(email) : null;
+    
+    // Count as attributed (positive replies are always 100% attributed)
+    stats.attributedPositiveReplies++;
+    
+    // Aggregate by domain
+    const existing = domainResults.get(domain);
+    const eventTime = pr.last_interaction_time ? new Date(pr.last_interaction_time) : null;
+    
+    if (existing) {
+      existing.hasPositiveReply = true;
+      // Positive reply is always a hard match (we emailed this exact person)
+      existing.matchType = 'HARD_MATCH';
+      existing.isWithinWindow = true; // Positive replies always count
+      if (eventTime && (!existing.firstEvent || eventTime < existing.firstEvent)) {
+        existing.firstEvent = eventTime;
+      }
+    } else {
+      domainResults.set(domain, {
+        domain,
+        firstEmailSent: sendTime || null,
+        firstEvent: eventTime,
+        isWithinWindow: true, // Positive replies always count
+        matchType: 'HARD_MATCH', // We emailed this exact person
+        hasSignUp: false,
+        hasMeetingBooked: false,
+        hasPayingCustomer: false,
+        hasPositiveReply: true,
+      });
+    }
+  }
+  
+  stats.totalDomains = domainResults.size;
+  console.log(`Total attributed domains: ${stats.totalDomains}`);
+  
+  // ============ PHASE 7: Save to database ============
   console.log(`Saving ${domainResults.size} attributed domains...`);
+  
   for (const result of domainResults.values()) {
     try {
       await attrQuery(`
         INSERT INTO attributed_domain (
           client_config_id, domain, first_email_sent_at, first_event_at,
           is_within_window, match_type,
-          has_sign_up, has_meeting_booked, has_paying_customer
+          has_sign_up, has_meeting_booked, has_paying_customer, has_positive_reply
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         ON CONFLICT (client_config_id, domain) DO UPDATE SET
-          first_email_sent_at = COALESCE(attributed_domain.first_email_sent_at, EXCLUDED.first_email_sent_at),
-          first_event_at = COALESCE(attributed_domain.first_event_at, EXCLUDED.first_event_at),
+          first_email_sent_at = COALESCE(EXCLUDED.first_email_sent_at, attributed_domain.first_email_sent_at),
+          first_event_at = LEAST(COALESCE(EXCLUDED.first_event_at, attributed_domain.first_event_at), COALESCE(attributed_domain.first_event_at, EXCLUDED.first_event_at)),
           is_within_window = attributed_domain.is_within_window OR EXCLUDED.is_within_window,
           has_sign_up = attributed_domain.has_sign_up OR EXCLUDED.has_sign_up,
           has_meeting_booked = attributed_domain.has_meeting_booked OR EXCLUDED.has_meeting_booked,
           has_paying_customer = attributed_domain.has_paying_customer OR EXCLUDED.has_paying_customer,
+          has_positive_reply = attributed_domain.has_positive_reply OR EXCLUDED.has_positive_reply,
           match_type = CASE WHEN EXCLUDED.match_type = 'HARD_MATCH' THEN 'HARD_MATCH' ELSE attributed_domain.match_type END,
           updated_at = NOW()
       `, [
@@ -401,6 +487,7 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
         result.hasSignUp,
         result.hasMeetingBooked,
         result.hasPayingCustomer,
+        result.hasPositiveReply,
       ]);
     } catch (error) {
       console.error(`Error saving domain ${result.domain}:`, error);
@@ -408,10 +495,42 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
     }
   }
   
+  // ============ PHASE 8: Update client stats ============
+  console.log('Updating client stats...');
+  await attrQuery(`
+    UPDATE client_config SET
+      total_emails_sent = $2,
+      total_positive_replies = $3,
+      total_sign_ups = $4,
+      total_meetings_booked = $5,
+      total_paying_customers = $6,
+      attributed_positive_replies = $7,
+      attributed_sign_ups = $8,
+      attributed_meetings_booked = $9,
+      attributed_paying_customers = $10,
+      last_processed_at = NOW(),
+      updated_at = NOW()
+    WHERE id = $1
+  `, [
+    clientConfig.id,
+    stats.totalEmailsSent,
+    stats.totalPositiveReplies,
+    stats.totalSignUps,
+    stats.totalMeetings,
+    stats.totalPaying,
+    stats.attributedPositiveReplies,
+    stats.attributedSignUps,
+    stats.attributedMeetings,
+    stats.attributedPaying,
+  ]);
+  
   console.log(`Completed ${clientConfig.client_name}:`);
-  console.log(`  Attributed: ${stats.attributed}`);
-  console.log(`  Outside Window: ${stats.outsideWindow}`);
-  console.log(`  Never Emailed: ${stats.neverEmailed}`);
+  console.log(`  Emails Sent: ${stats.totalEmailsSent}`);
+  console.log(`  Positive Replies: ${stats.totalPositiveReplies} (${stats.attributedPositiveReplies} attributed)`);
+  console.log(`  Sign-ups: ${stats.totalSignUps} (${stats.attributedSignUps} attributed)`);
+  console.log(`  Meetings: ${stats.totalMeetings} (${stats.attributedMeetings} attributed)`);
+  console.log(`  Paying: ${stats.totalPaying} (${stats.attributedPaying} attributed)`);
+  console.log(`  Total Domains: ${stats.totalDomains}`);
   console.log(`  Errors: ${stats.errors}`);
   
   return stats;
@@ -448,6 +567,12 @@ async function processAllClientsAsync(job: JobState): Promise<void> {
     // Clients to skip (in addition to op_status filter)
     const SKIP_CLIENTS = new Set(['Fyxer']);
     
+    const emptyStats: ProcessingStats = {
+      totalSignUps: 0, totalMeetings: 0, totalPaying: 0, totalPositiveReplies: 0,
+      attributedSignUps: 0, attributedMeetings: 0, attributedPaying: 0, attributedPositiveReplies: 0,
+      totalDomains: 0, totalEmailsSent: 0, errors: 0
+    };
+    
     for (let i = 0; i < clients.length; i++) {
       const client = clients[i];
       job.progress = { current: i, total: clients.length, currentClient: client.client_name };
@@ -455,10 +580,7 @@ async function processAllClientsAsync(job: JobState): Promise<void> {
       // Skip excluded clients
       if (SKIP_CLIENTS.has(client.client_name)) {
         console.log(`\n=== Skipping ${i + 1}/${clients.length}: ${client.client_name} (excluded) ===`);
-        results.push({
-          client: client.client_name,
-          stats: { totalEvents: 0, processedEvents: 0, attributed: 0, outsideWindow: 0, neverEmailed: 0, errors: 0 }
-        });
+        results.push({ client: client.client_name, stats: { ...emptyStats } });
         continue;
       }
       
@@ -468,10 +590,7 @@ async function processAllClientsAsync(job: JobState): Promise<void> {
         results.push({ client: client.client_name, stats });
       } catch (error) {
         console.error(`Failed to process ${client.client_name}:`, error);
-        results.push({
-          client: client.client_name,
-          stats: { totalEvents: 0, processedEvents: 0, attributed: 0, outsideWindow: 0, neverEmailed: 0, errors: 1 }
-        });
+        results.push({ client: client.client_name, stats: { ...emptyStats, errors: 1 } });
       }
       
       job.progress = { current: i + 1, total: clients.length };
@@ -481,15 +600,22 @@ async function processAllClientsAsync(job: JobState): Promise<void> {
     job.completedAt = new Date();
     job.result = { clientCount: clients.length, results };
     
-    const totalAttributed = results.reduce((sum, r) => sum + r.stats.attributed, 0);
-    const totalOutside = results.reduce((sum, r) => sum + r.stats.outsideWindow, 0);
-    const totalNever = results.reduce((sum, r) => sum + r.stats.neverEmailed, 0);
+    // Aggregate totals
+    const totals = {
+      domains: results.reduce((sum, r) => sum + r.stats.totalDomains, 0),
+      positiveReplies: results.reduce((sum, r) => sum + r.stats.attributedPositiveReplies, 0),
+      signUps: results.reduce((sum, r) => sum + r.stats.attributedSignUps, 0),
+      meetings: results.reduce((sum, r) => sum + r.stats.attributedMeetings, 0),
+      paying: results.reduce((sum, r) => sum + r.stats.attributedPaying, 0),
+    };
     
     console.log('\n========== PROCESSING COMPLETE ==========');
     console.log(`Eligible clients processed: ${clients.length}`);
-    console.log(`Total Attributed: ${totalAttributed}`);
-    console.log(`Total Outside Window: ${totalOutside}`);
-    console.log(`Total Never Emailed: ${totalNever}`);
+    console.log(`Total Attributed Domains: ${totals.domains}`);
+    console.log(`Total Attributed Positive Replies: ${totals.positiveReplies}`);
+    console.log(`Total Attributed Sign-ups: ${totals.signUps}`);
+    console.log(`Total Attributed Meetings: ${totals.meetings}`);
+    console.log(`Total Attributed Paying: ${totals.paying}`);
     console.log('==========================================\n');
     
   } catch (error) {

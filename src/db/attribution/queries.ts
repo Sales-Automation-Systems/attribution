@@ -145,6 +145,16 @@ export async function getAttributedDomainByDomain(
   return rows[0] || null;
 }
 
+export async function getAttributedDomainById(
+  domainId: string
+): Promise<AttributedDomain | null> {
+  const rows = await attrQuery<AttributedDomain>(
+    'SELECT * FROM attributed_domain WHERE id = $1',
+    [domainId]
+  );
+  return rows[0] || null;
+}
+
 export async function upsertAttributedDomain(data: {
   client_config_id: string;
   domain: string;
@@ -786,6 +796,76 @@ export async function getDashboardStats(clientConfigId?: string): Promise<{
     total_hard_matches: parseInt(rows[0]?.total_hard_matches || '0', 10),
     total_soft_matches: parseInt(rows[0]?.total_soft_matches || '0', 10),
     pending_disputes: parseInt(rows[0]?.pending_disputes || '0', 10),
+  };
+}
+
+export interface ClientStats {
+  total_emails_sent: number;
+  total_positive_replies: number;
+  total_sign_ups: number;
+  total_meetings_booked: number;
+  total_paying_customers: number;
+  attributed_positive_replies: number;
+  attributed_sign_ups: number;
+  attributed_meetings_booked: number;
+  attributed_paying_customers: number;
+  last_processed_at: Date | null;
+}
+
+export async function getClientStats(clientConfigId: string): Promise<ClientStats> {
+  const rows = await attrQuery<{
+    total_emails_sent: string;
+    total_positive_replies: string;
+    total_sign_ups: string;
+    total_meetings_booked: string;
+    total_paying_customers: string;
+    attributed_positive_replies: string;
+    attributed_sign_ups: string;
+    attributed_meetings_booked: string;
+    attributed_paying_customers: string;
+    last_processed_at: Date | null;
+  }>(`
+    SELECT 
+      COALESCE(total_emails_sent, 0) as total_emails_sent,
+      COALESCE(total_positive_replies, 0) as total_positive_replies,
+      COALESCE(total_sign_ups, 0) as total_sign_ups,
+      COALESCE(total_meetings_booked, 0) as total_meetings_booked,
+      COALESCE(total_paying_customers, 0) as total_paying_customers,
+      COALESCE(attributed_positive_replies, 0) as attributed_positive_replies,
+      COALESCE(attributed_sign_ups, 0) as attributed_sign_ups,
+      COALESCE(attributed_meetings_booked, 0) as attributed_meetings_booked,
+      COALESCE(attributed_paying_customers, 0) as attributed_paying_customers,
+      last_processed_at
+    FROM client_config
+    WHERE id = $1
+  `, [clientConfigId]);
+
+  if (rows.length === 0) {
+    return {
+      total_emails_sent: 0,
+      total_positive_replies: 0,
+      total_sign_ups: 0,
+      total_meetings_booked: 0,
+      total_paying_customers: 0,
+      attributed_positive_replies: 0,
+      attributed_sign_ups: 0,
+      attributed_meetings_booked: 0,
+      attributed_paying_customers: 0,
+      last_processed_at: null,
+    };
+  }
+
+  return {
+    total_emails_sent: parseInt(rows[0].total_emails_sent, 10),
+    total_positive_replies: parseInt(rows[0].total_positive_replies, 10),
+    total_sign_ups: parseInt(rows[0].total_sign_ups, 10),
+    total_meetings_booked: parseInt(rows[0].total_meetings_booked, 10),
+    total_paying_customers: parseInt(rows[0].total_paying_customers, 10),
+    attributed_positive_replies: parseInt(rows[0].attributed_positive_replies, 10),
+    attributed_sign_ups: parseInt(rows[0].attributed_sign_ups, 10),
+    attributed_meetings_booked: parseInt(rows[0].attributed_meetings_booked, 10),
+    attributed_paying_customers: parseInt(rows[0].attributed_paying_customers, 10),
+    last_processed_at: rows[0].last_processed_at,
   };
 }
 

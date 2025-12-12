@@ -4,12 +4,39 @@ import {
   getDashboardStats,
   getAttributedDomains,
   getReconciliationPeriods,
+  getClientStats,
 } from '@/db/attribution/queries';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Target, DollarSign, CheckCircle, Clock, FileText, ExternalLink, Copy } from 'lucide-react';
+import { 
+  Mail, 
+  MessageSquare, 
+  UserPlus, 
+  Calendar, 
+  DollarSign, 
+  Target, 
+  CheckCircle, 
+  Clock, 
+  FileText, 
+  ExternalLink 
+} from 'lucide-react';
 import Link from 'next/link';
+
+function formatNumber(num: number): string {
+  if (num >= 1000000) {
+    return (num / 1000000).toFixed(1) + 'M';
+  }
+  if (num >= 1000) {
+    return (num / 1000).toFixed(1) + 'K';
+  }
+  return num.toLocaleString();
+}
+
+function getPercentage(attributed: number, total: number): string {
+  if (total === 0) return '0%';
+  return Math.round((attributed / total) * 100) + '%';
+}
 
 export default async function ClientDashboardPage({
   params,
@@ -23,8 +50,9 @@ export default async function ClientDashboardPage({
     notFound();
   }
 
-  const [stats, recentDomains, periods] = await Promise.all([
+  const [domainStats, clientStats, recentDomains, periods] = await Promise.all([
     getDashboardStats(client.id),
+    getClientStats(client.id),
     getAttributedDomains(client.id, { limit: 10 }),
     getReconciliationPeriods(client.id),
   ]);
@@ -43,39 +71,105 @@ export default async function ClientDashboardPage({
           <h1 className="text-3xl font-bold tracking-tight">{client.client_name}</h1>
           <p className="text-muted-foreground">
             {(client.rev_share_rate * 100).toFixed(0)}% revenue share
+            {clientStats.last_processed_at && (
+              <span className="ml-2 text-xs">
+                · Last updated: {new Date(clientStats.last_processed_at).toLocaleDateString()}
+              </span>
+            )}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="font-mono text-xs">
-            {client.slug}
-          </Badge>
-          <Button variant="ghost" size="icon" title="Copy link">
-            <Copy className="h-4 w-4" />
-          </Button>
-        </div>
+        <Badge variant="outline" className="font-mono text-xs">
+          {client.slug}
+        </Badge>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
+      {/* Top-Level Pipeline Stats */}
+      <div className="grid gap-4 md:grid-cols-5">
+        {/* Emails Sent */}
+        <Card className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/20 dark:to-blue-900/10 border-blue-200 dark:border-blue-800">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Attributed</CardTitle>
-            <Target className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-300">Emails Sent</CardTitle>
+            <Mail className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.total_attributed_domains}</div>
-            <p className="text-xs text-muted-foreground">Within 31-day window</p>
+            <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
+              {formatNumber(clientStats.total_emails_sent)}
+            </div>
+            <p className="text-xs text-blue-600/70 dark:text-blue-400/70">Total outreach</p>
           </CardContent>
         </Card>
 
-        <Card>
+        {/* Positive Replies */}
+        <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/20 dark:to-emerald-900/10 border-emerald-200 dark:border-emerald-800">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Paying Customers</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Positive Replies</CardTitle>
+            <MessageSquare className="h-4 w-4 text-emerald-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.total_paying_customers}</div>
-            <p className="text-xs text-muted-foreground">Revenue share applicable</p>
+            <div className="text-2xl font-bold text-emerald-900 dark:text-emerald-100">
+              {formatNumber(clientStats.total_positive_replies)}
+            </div>
+            <p className="text-xs text-emerald-600/70 dark:text-emerald-400/70">
+              100% attributed
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Sign-ups */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Sign-ups</CardTitle>
+            <UserPlus className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatNumber(clientStats.total_sign_ups)}</div>
+            <p className="text-xs text-muted-foreground">
+              <span className="text-green-600 font-medium">{clientStats.attributed_sign_ups}</span> attributed ({getPercentage(clientStats.attributed_sign_ups, clientStats.total_sign_ups)})
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Meetings Booked */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Meetings</CardTitle>
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatNumber(clientStats.total_meetings_booked)}</div>
+            <p className="text-xs text-muted-foreground">
+              <span className="text-green-600 font-medium">{clientStats.attributed_meetings_booked}</span> attributed ({getPercentage(clientStats.attributed_meetings_booked, clientStats.total_meetings_booked)})
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Paying Customers */}
+        <Card className="bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-950/20 dark:to-amber-900/10 border-amber-200 dark:border-amber-800">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-amber-700 dark:text-amber-300">Paying Customers</CardTitle>
+            <DollarSign className="h-4 w-4 text-amber-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-amber-900 dark:text-amber-100">
+              {formatNumber(clientStats.total_paying_customers)}
+            </div>
+            <p className="text-xs text-amber-600/70 dark:text-amber-400/70">
+              <span className="font-medium">{clientStats.attributed_paying_customers}</span> attributed ({getPercentage(clientStats.attributed_paying_customers, clientStats.total_paying_customers)})
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Domain Match Stats */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Attributed Domains</CardTitle>
+            <Target className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{domainStats.total_attributed_domains}</div>
+            <p className="text-xs text-muted-foreground">Within 31-day window</p>
           </CardContent>
         </Card>
 
@@ -85,7 +179,7 @@ export default async function ClientDashboardPage({
             <CheckCircle className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats.total_hard_matches}</div>
+            <div className="text-2xl font-bold text-green-600">{domainStats.total_hard_matches}</div>
             <p className="text-xs text-muted-foreground">Exact email match</p>
           </CardContent>
         </Card>
@@ -96,8 +190,19 @@ export default async function ClientDashboardPage({
             <Clock className="h-4 w-4 text-yellow-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{stats.total_soft_matches}</div>
+            <div className="text-2xl font-bold text-yellow-600">{domainStats.total_soft_matches}</div>
             <p className="text-xs text-muted-foreground">Domain-level match</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Paying Domains</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{domainStats.total_paying_customers}</div>
+            <p className="text-xs text-muted-foreground">Revenue share applicable</p>
           </CardContent>
         </Card>
       </div>
@@ -250,4 +355,3 @@ export default async function ClientDashboardPage({
     </div>
   );
 }
-
