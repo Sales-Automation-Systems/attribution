@@ -583,21 +583,21 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
     
     // Aggregate by domain
     const existing = domainResults.get(domain);
-    const eventTime = pr.last_interaction_time ? new Date(pr.last_interaction_time) : null;
+    const replyEventTime = pr.last_interaction_time ? new Date(pr.last_interaction_time) : null;
     
     if (existing) {
       existing.hasPositiveReply = true;
       // Positive reply is always a hard match (we emailed this exact person)
       existing.matchType = 'HARD_MATCH';
       existing.isWithinWindow = true; // Positive replies always count
-      if (eventTime && (!existing.firstEvent || eventTime < existing.firstEvent)) {
-        existing.firstEvent = eventTime;
+      if (replyEventTime && (!existing.firstEvent || replyEventTime < existing.firstEvent)) {
+        existing.firstEvent = replyEventTime;
       }
     } else {
       domainResults.set(domain, {
         domain,
         firstEmailSent: sendTime || null,
-        firstEvent: eventTime,
+        firstEvent: replyEventTime,
         isWithinWindow: true, // Positive replies always count
         matchType: 'HARD_MATCH', // We emailed this exact person
         hasSignUp: false,
