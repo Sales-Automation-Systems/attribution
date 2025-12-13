@@ -523,29 +523,28 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
     }
     // Note: if alreadyCounted && isWithinWindow, we skip counting (domain already attributed)
     
-    // Aggregate by domain (for domains view - always track)
-    if (isWithinWindow) {
-      const existing = domainResults.get(eventDomain);
-      if (existing) {
-        existing.isWithinWindow = existing.isWithinWindow || isWithinWindow;
-        existing.hasSignUp = existing.hasSignUp || event.event_type === 'sign_up';
-        existing.hasMeetingBooked = existing.hasMeetingBooked || event.event_type === 'meeting_booked';
-        existing.hasPayingCustomer = existing.hasPayingCustomer || event.event_type === 'paying_customer';
-        if (matchType === 'HARD_MATCH') existing.matchType = 'HARD_MATCH';
-        if (!existing.firstEvent || eventTime < existing.firstEvent) existing.firstEvent = eventTime;
-      } else {
-        domainResults.set(eventDomain, {
-          domain: eventDomain,
-          firstEmailSent: sendTime,
-          firstEvent: eventTime,
-          isWithinWindow,
-          matchType,
-          hasSignUp: event.event_type === 'sign_up',
-          hasMeetingBooked: event.event_type === 'meeting_booked',
-          hasPayingCustomer: event.event_type === 'paying_customer',
-          hasPositiveReply: false,
-        });
-      }
+    // Aggregate by domain (for domains view - track ALL matched domains, within or outside window)
+    const existing = domainResults.get(eventDomain);
+    if (existing) {
+      // If any event is within window, mark domain as within window
+      existing.isWithinWindow = existing.isWithinWindow || isWithinWindow;
+      existing.hasSignUp = existing.hasSignUp || event.event_type === 'sign_up';
+      existing.hasMeetingBooked = existing.hasMeetingBooked || event.event_type === 'meeting_booked';
+      existing.hasPayingCustomer = existing.hasPayingCustomer || event.event_type === 'paying_customer';
+      if (matchType === 'HARD_MATCH') existing.matchType = 'HARD_MATCH';
+      if (!existing.firstEvent || eventTime < existing.firstEvent) existing.firstEvent = eventTime;
+    } else {
+      domainResults.set(eventDomain, {
+        domain: eventDomain,
+        firstEmailSent: sendTime,
+        firstEvent: eventTime,
+        isWithinWindow,
+        matchType,
+        hasSignUp: event.event_type === 'sign_up',
+        hasMeetingBooked: event.event_type === 'meeting_booked',
+        hasPayingCustomer: event.event_type === 'paying_customer',
+        hasPositiveReply: false,
+      });
     }
   }
   
