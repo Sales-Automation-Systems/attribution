@@ -251,6 +251,8 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
             {dateEvents.map((event) => {
               const config = EVENT_CONFIG[event.type];
               const meta = event.metadata || {};
+              const eventEmail = event.email as string | undefined;
+              const eventSubject = event.subject as string | undefined;
               
               // Email sent metadata
               const emailBody = meta.body as string | undefined;
@@ -316,25 +318,25 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
                     )}
 
                     {/* Email address */}
-                    {event.email ? (
+                    {eventEmail && (
                       <p className="text-sm mt-1">
-                        <span className="text-muted-foreground">To:</span> {String(event.email)}
+                        <span className="text-muted-foreground">To:</span> {eventEmail}
                       </p>
-                    ) : null}
+                    )}
 
                     {/* Sender email */}
-                    {fromEmail ? (
+                    {fromEmail && (
                       <p className="text-sm">
                         <span className="text-muted-foreground">From:</span> {fromEmail}
                       </p>
-                    ) : null}
+                    )}
 
                     {/* Subject line */}
-                    {event.subject ? (
+                    {eventSubject && (
                       <p className="text-sm text-muted-foreground mt-1">
-                        <span className="font-medium">Subject:</span> {String(event.subject)}
+                        <span className="font-medium">Subject:</span> {eventSubject}
                       </p>
-                    ) : null}
+                    )}
 
                     {/* Reply subject for positive replies */}
                     {replySubject && event.type === 'POSITIVE_REPLY' && (
