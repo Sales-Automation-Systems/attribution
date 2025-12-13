@@ -226,6 +226,16 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
   console.log(`Processing: ${clientConfig.client_name}`);
   console.log(`  Settings: window=${settings.windowDays}d, signUps=${settings.signUpsMode}, meetings=${settings.meetingsMode}, paying=${settings.payingMode}`);
   
+  // ============ PHASE 0: Clear existing domain events for this client ============
+  console.log('Clearing existing domain events...');
+  await attrQuery(`
+    DELETE FROM domain_event 
+    WHERE attributed_domain_id IN (
+      SELECT id FROM attributed_domain WHERE client_config_id = $1
+    )
+  `, [clientConfig.id]);
+  console.log('  Cleared existing events');
+  
   const stats: ProcessingStats = {
     totalSignUps: 0,
     totalMeetings: 0,
@@ -399,6 +409,17 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
   console.log('Processing attribution events...');
   const domainResults = new Map<string, DomainResult>();
   
+  // Track ALL events per domain for timeline storage
+  interface DomainEvent {
+    eventSource: string;
+    eventTime: Date;
+    email: string | null;
+    sourceId: string;
+    sourceTable: string;
+    metadata: Record<string, unknown> | null;
+  }
+  const domainEvents = new Map<string, DomainEvent[]>();
+  
   // Track which domains we've already counted (for per_domain mode)
   const countedSignUpDomains = new Set<string>();
   const countedMeetingDomains = new Set<string>();
@@ -424,6 +445,23 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
       sendTime = domainSendTimes.get(eventDomain)!;
       matchType = 'SOFT_MATCH';
     }
+    
+    // Store the event for timeline (regardless of attribution)
+    const eventTypeMap: Record<string, string> = {
+      'sign_up': 'SIGN_UP',
+      'meeting_booked': 'MEETING_BOOKED',
+      'paying_customer': 'PAYING_CUSTOMER',
+    };
+    const domainEventList = domainEvents.get(eventDomain) || [];
+    domainEventList.push({
+      eventSource: eventTypeMap[event.event_type] || event.event_type,
+      eventTime: new Date(event.event_time),
+      email: eventEmail,
+      sourceId: event.id,
+      sourceTable: 'attribution_event',
+      metadata: { matched: !!sendTime, matchType: sendTime ? matchType : null },
+    });
+    domainEvents.set(eventDomain, domainEventList);
     
     // Not attributed - never emailed this person/domain
     if (!sendTime) {
@@ -526,6 +564,19 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
     // Get send time for this email (they replied, so we must have sent)
     const sendTime = email ? emailSendTimes.get(email) : null;
     
+    // Store the positive reply event for timeline
+    const eventTime = pr.last_interaction_time ? new Date(pr.last_interaction_time) : new Date();
+    const domainEventList = domainEvents.get(domain) || [];
+    domainEventList.push({
+      eventSource: 'POSITIVE_REPLY',
+      eventTime,
+      email: email || null,
+      sourceId: pr.id,
+      sourceTable: 'prospect',
+      metadata: { category: pr.category_name },
+    });
+    domainEvents.set(domain, domainEventList);
+    
     // Count as attributed (positive replies are always 100% attributed as hard match)
     stats.attributedPositiveReplies++;
     stats.hardMatchPositiveReplies++;
@@ -577,12 +628,60 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
   console.log(`  - With paying: ${stats.domainsWithPaying}`);
   console.log(`  - With multiple events: ${stats.domainsWithMultipleEvents}`);
   
+  // ============ PHASE 6.5: Fetch ALL emails sent for each attributed domain ============
+  console.log('Fetching emails for attributed domains...');
+  const attributedDomainsList = Array.from(domainResults.keys());
+  const EMAIL_BATCH_SIZE = 50;
+  
+  for (let i = 0; i < attributedDomainsList.length; i += EMAIL_BATCH_SIZE) {
+    const domainBatch = attributedDomainsList.slice(i, i + EMAIL_BATCH_SIZE);
+    if (i % 200 === 0 && attributedDomainsList.length > 200) {
+      console.log(`  Fetching emails for domains ${i + 1}-${Math.min(i + EMAIL_BATCH_SIZE, attributedDomainsList.length)}/${attributedDomainsList.length}`);
+    }
+    
+    // Fetch all emails sent to these domains
+    const emailsForDomains = await prodQuery<{
+      id: string;
+      timestamp_email: Date;
+      lead_email: string;
+      subject: string | null;
+      company_domain: string;
+    }>(`
+      SELECT ec.id, ec.timestamp_email, p.lead_email, ec.subject, LOWER(p.company_domain) as company_domain
+      FROM email_conversation ec
+      JOIN prospect p ON ec.prospect_id = p.id
+      JOIN client_integration ci ON ec.client_integration_id = ci.id
+      WHERE ec.type = 'Sent'
+        AND ci.client_id = $1
+        AND LOWER(p.company_domain) = ANY($2)
+      ORDER BY ec.timestamp_email
+    `, [clientId, domainBatch]);
+    
+    // Store each email as an event
+    for (const email of emailsForDomains) {
+      const domain = email.company_domain;
+      const domainEventList = domainEvents.get(domain) || [];
+      domainEventList.push({
+        eventSource: 'EMAIL_SENT',
+        eventTime: new Date(email.timestamp_email),
+        email: email.lead_email?.toLowerCase() || null,
+        sourceId: email.id,
+        sourceTable: 'email_conversation',
+        metadata: { subject: email.subject },
+      });
+      domainEvents.set(domain, domainEventList);
+    }
+  }
+  console.log(`  Collected events for ${domainEvents.size} domains`);
+  
   // ============ PHASE 7: Save to database ============
-  console.log(`Saving ${domainResults.size} attributed domains...`);
+  console.log(`Saving ${domainResults.size} attributed domains and their events...`);
+  let eventsSaved = 0;
   
   for (const result of domainResults.values()) {
     try {
-      await attrQuery(`
+      // Upsert the attributed_domain and get its ID
+      const upsertResult = await attrQuery<{ id: string }>(`
         INSERT INTO attributed_domain (
           client_config_id, domain, first_email_sent_at, first_event_at,
           is_within_window, match_type,
@@ -599,6 +698,7 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
           has_positive_reply = attributed_domain.has_positive_reply OR EXCLUDED.has_positive_reply,
           match_type = CASE WHEN EXCLUDED.match_type = 'HARD_MATCH' THEN 'HARD_MATCH' ELSE attributed_domain.match_type END,
           updated_at = NOW()
+        RETURNING id
       `, [
         clientConfig.id,
         result.domain,
@@ -611,11 +711,45 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
         result.hasPayingCustomer,
         result.hasPositiveReply,
       ]);
+      
+      const attributedDomainId = upsertResult[0]?.id;
+      
+      // Store all events for this domain
+      if (attributedDomainId) {
+        const events = domainEvents.get(result.domain) || [];
+        for (const event of events) {
+          try {
+            await attrQuery(`
+              INSERT INTO domain_event (
+                attributed_domain_id, event_source, event_time, email, source_id, source_table, metadata
+              )
+              VALUES ($1, $2, $3, $4, $5, $6, $7)
+              ON CONFLICT (attributed_domain_id, event_source, source_id) DO NOTHING
+            `, [
+              attributedDomainId,
+              event.eventSource,
+              event.eventTime,
+              event.email,
+              event.sourceId,
+              event.sourceTable,
+              event.metadata ? JSON.stringify(event.metadata) : null,
+            ]);
+            eventsSaved++;
+          } catch (eventError) {
+            // Ignore duplicate errors silently
+            const errMsg = (eventError as Error).message;
+            if (!errMsg.includes('duplicate') && !errMsg.includes('unique')) {
+              console.error(`Error saving event for ${result.domain}:`, eventError);
+            }
+          }
+        }
+      }
     } catch (error) {
       console.error(`Error saving domain ${result.domain}:`, error);
       stats.errors++;
     }
   }
+  console.log(`  Saved ${eventsSaved} events across ${domainResults.size} domains`);
   
   // ============ PHASE 8: Update client stats ============
   console.log('Updating client stats...');
@@ -691,6 +825,7 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
   console.log(`  Meetings: ${stats.totalMeetings} (${stats.attributedMeetings} attributed, ${stats.outsideWindowMeetings} outside window, ${stats.notMatchedMeetings} not matched)`);
   console.log(`  Paying: ${stats.totalPaying} (${stats.attributedPaying} attributed, ${stats.outsideWindowPaying} outside window, ${stats.notMatchedPaying} not matched)`);
   console.log(`  Total Domains: ${stats.totalDomains}`);
+  console.log(`  Timeline Events Saved: ${eventsSaved}`);
   console.log(`  Errors: ${stats.errors}`);
   
   return stats;
