@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Mail, MessageSquare, UserPlus, Calendar, DollarSign } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Loader2, Mail, MessageSquare, UserPlus, Calendar, DollarSign, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface TimelineEvent {
   id: string;
@@ -58,6 +59,51 @@ const EVENT_CONFIG: Record<string, {
     bgColor: 'bg-green-100 dark:bg-green-900/30',
   },
 };
+
+function EmailBodyDisplay({ body, label }: { body: string; label: string }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  // Truncate body for preview (first 200 chars)
+  const preview = body.length > 200 ? body.substring(0, 200) + '...' : body;
+  const needsTruncation = body.length > 200;
+  
+  return (
+    <div className="mt-2 border-t border-current/10 pt-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-muted-foreground">{label}</span>
+        {needsTruncation && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-xs"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsExpanded(!isExpanded);
+            }}
+          >
+            {isExpanded ? (
+              <>
+                <ChevronUp className="h-3 w-3 mr-1" />
+                Collapse
+              </>
+            ) : (
+              <>
+                <ChevronDown className="h-3 w-3 mr-1" />
+                Expand
+              </>
+            )}
+          </Button>
+        )}
+      </div>
+      <div 
+        className="mt-1 text-sm bg-background/50 rounded p-2 whitespace-pre-wrap font-mono text-xs max-h-[400px] overflow-y-auto"
+        style={{ wordBreak: 'break-word' }}
+      >
+        {isExpanded || !needsTruncation ? body : preview}
+      </div>
+    </div>
+  );
+}
 
 export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelineProps) {
   const [events, setEvents] = useState<TimelineEvent[]>([]);
@@ -165,6 +211,10 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
           <div className="space-y-2 pl-2 border-l-2 border-muted ml-2">
             {dateEvents.map((event) => {
               const config = EVENT_CONFIG[event.type];
+              const emailBody = event.metadata?.body as string | undefined;
+              const replyBody = event.metadata?.replyBody as string | undefined;
+              const replySubject = event.metadata?.replySubject as string | undefined;
+              
               return (
                 <div
                   key={event.id}
@@ -195,8 +245,15 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
                     )}
 
                     {event.subject && (
-                      <p className="text-sm text-muted-foreground mt-1 truncate">
-                        Subject: {event.subject}
+                      <p className="text-sm text-muted-foreground mt-1">
+                        <span className="font-medium">Subject:</span> {event.subject}
+                      </p>
+                    )}
+
+                    {/* Reply subject for positive replies */}
+                    {replySubject && event.type === 'POSITIVE_REPLY' && (
+                      <p className="text-sm text-muted-foreground mt-1">
+                        <span className="font-medium">Reply Subject:</span> {replySubject}
                       </p>
                     )}
 
@@ -216,6 +273,16 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
                       <p className="text-xs text-muted-foreground mt-1 italic">
                         {event.metadata.note}
                       </p>
+                    )}
+
+                    {/* Email body for sent emails */}
+                    {emailBody && event.type === 'EMAIL_SENT' && (
+                      <EmailBodyDisplay body={emailBody} label="Email Copy" />
+                    )}
+
+                    {/* Reply body for positive replies */}
+                    {replyBody && event.type === 'POSITIVE_REPLY' && (
+                      <EmailBodyDisplay body={replyBody} label="Reply Content" />
                     )}
                   </div>
                 </div>
@@ -239,4 +306,3 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
     </div>
   );
 }
-
