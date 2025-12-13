@@ -200,9 +200,9 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
                       </p>
                     )}
 
-                    {event.metadata && event.type === 'POSITIVE_REPLY' && event.metadata.category && (
+                    {event.metadata && event.type === 'POSITIVE_REPLY' && typeof event.metadata.category === 'string' && (
                       <p className="text-xs text-muted-foreground mt-1">
-                        Category: {event.metadata.category as string}
+                        Category: {event.metadata.category}
                       </p>
                     )}
                   </div>
