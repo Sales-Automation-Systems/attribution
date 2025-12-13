@@ -144,6 +144,15 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
+function renderField(label: string, value: unknown, className?: string): React.ReactNode {
+  if (value === null || value === undefined || value === '') return null;
+  return (
+    <p className={className || "text-sm text-muted-foreground mt-1"}>
+      <span className="font-medium">{label}:</span> {String(value)}
+    </p>
+  );
+}
+
 export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelineProps) {
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [loading, setLoading] = useState(false);
@@ -251,8 +260,6 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
             {dateEvents.map((event) => {
               const config = EVENT_CONFIG[event.type];
               const meta = event.metadata || {};
-              const eventEmail = event.email as string | undefined;
-              const eventSubject = event.subject as string | undefined;
               
               // Email sent metadata
               const emailBody = meta.body as string | undefined;
@@ -318,88 +325,44 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
                     )}
 
                     {/* Email address */}
-                    {eventEmail && (
-                      <p className="text-sm mt-1">
-                        <span className="text-muted-foreground">To:</span> {eventEmail}
-                      </p>
-                    )}
+                    {renderField('To', event.email, 'text-sm mt-1')}
 
                     {/* Sender email */}
-                    {fromEmail && (
-                      <p className="text-sm">
-                        <span className="text-muted-foreground">From:</span> {fromEmail}
-                      </p>
-                    )}
+                    {renderField('From', fromEmail, 'text-sm')}
 
                     {/* Subject line */}
-                    {eventSubject && (
-                      <p className="text-sm text-muted-foreground mt-1">
-                        <span className="font-medium">Subject:</span> {eventSubject}
-                      </p>
-                    )}
+                    {renderField('Subject', event.subject)}
 
                     {/* Reply subject for positive replies */}
-                    {replySubject && event.type === 'POSITIVE_REPLY' && (
-                      <p className="text-sm text-muted-foreground mt-1">
-                        <span className="font-medium">Reply Subject:</span> {replySubject}
-                      </p>
-                    )}
+                    {event.type === 'POSITIVE_REPLY' && renderField('Reply Subject', replySubject)}
 
                     {/* Campaign name */}
-                    {campaignName && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        <span className="font-medium">Campaign:</span> {campaignName}
-                      </p>
-                    )}
+                    {renderField('Campaign', campaignName, 'text-xs text-muted-foreground mt-1')}
 
                     {/* Reply category */}
-                    {event.metadata && event.type === 'POSITIVE_REPLY' && typeof event.metadata.category === 'string' && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        <span className="font-medium">Category:</span> {event.metadata.category}
-                      </p>
-                    )}
+                    {event.type === 'POSITIVE_REPLY' && renderField('Category', meta.category, 'text-xs text-muted-foreground mt-1')}
 
                     {/* Company name (for positive replies) */}
-                    {companyName && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        <span className="font-medium">Company:</span> {companyName}
-                      </p>
-                    )}
+                    {renderField('Company', companyName, 'text-xs text-muted-foreground mt-1')}
 
                     {/* Deal value for paying customers */}
-                    {dealValue && typeof dealValue === 'number' && (
+                    {typeof dealValue === 'number' && dealValue > 0 && (
                       <p className="text-sm font-semibold text-green-600 mt-2">
                         Deal Value: {formatCurrency(dealValue)}
                       </p>
                     )}
 
                     {/* Meeting title */}
-                    {meetingTitle && typeof meetingTitle === 'string' && (
-                      <p className="text-sm mt-1">
-                        <span className="font-medium">Meeting:</span> {meetingTitle}
-                      </p>
-                    )}
+                    {renderField('Meeting', meetingTitle, 'text-sm mt-1')}
 
                     {/* Plan type for sign-ups/paying */}
-                    {planType && typeof planType === 'string' && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        <span className="font-medium">Plan:</span> {planType}
-                      </p>
-                    )}
+                    {renderField('Plan', planType, 'text-xs text-muted-foreground mt-1')}
 
                     {/* Product name */}
-                    {productName && typeof productName === 'string' && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        <span className="font-medium">Product:</span> {productName}
-                      </p>
-                    )}
+                    {renderField('Product', productName, 'text-xs text-muted-foreground mt-1')}
 
                     {/* Source */}
-                    {source && typeof source === 'string' && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        <span className="font-medium">Source:</span> {source}
-                      </p>
-                    )}
+                    {renderField('Source', source, 'text-xs text-muted-foreground mt-1')}
 
                     {/* Email body for sent emails */}
                     {emailBody && event.type === 'EMAIL_SENT' && (
