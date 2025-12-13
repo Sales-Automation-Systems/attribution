@@ -67,6 +67,14 @@ type EventTypeFilter = 'all' | 'reply' | 'signup' | 'meeting' | 'paying';
 type MatchTypeFilter = 'all' | 'HARD_MATCH' | 'SOFT_MATCH' | 'NO_MATCH';
 type StatusFilter = 'all' | 'within_window' | 'outside_window';
 
+const EVENT_COLUMN_LABELS: Record<EventTypeFilter, string> = {
+  all: 'First Event',
+  reply: 'Reply Date',
+  signup: 'Sign Up Date',
+  meeting: 'Meeting Date',
+  paying: 'Paying Date',
+};
+
 export function LeadsView({ domains, clientName, slug, uuid, settings }: LeadsViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [eventTypeFilter, setEventTypeFilter] = useState<EventTypeFilter>('all');
@@ -315,7 +323,7 @@ export function LeadsView({ domains, clientName, slug, uuid, settings }: LeadsVi
                   <TableHead className="text-center">Events</TableHead>
                   <TableHead className="text-center">Match Type</TableHead>
                   <TableHead className="text-center">Email Sent</TableHead>
-                  <TableHead className="text-center">First Event</TableHead>
+                  <TableHead className="text-center">{EVENT_COLUMN_LABELS[eventTypeFilter]}</TableHead>
                   <TableHead className="text-center">Days</TableHead>
                   <TableHead className="text-center">Status</TableHead>
                 </TableRow>
