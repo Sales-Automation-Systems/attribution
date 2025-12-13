@@ -554,16 +554,21 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
   // No 31-day window needed - if they replied, it counts
   // All positive replies are hard matches (we emailed this exact person, they replied)
   
+  // Build a map of prospect IDs to fetch reply content later
+  const prospectIds: string[] = [];
+  
   for (const pr of positiveReplies) {
     const email = pr.lead_email?.toLowerCase();
     const domain = normalizeDomain(pr.company_domain ?? extractDomain(pr.lead_email));
     
     if (!domain) continue;
     
+    prospectIds.push(pr.id);
+    
     // Get send time for this email (they replied, so we must have sent)
     const sendTime = email ? emailSendTimes.get(email) : null;
     
-    // Store the positive reply event for timeline
+    // Store the positive reply event for timeline (body will be added later)
     const eventTime = pr.last_interaction_time ? new Date(pr.last_interaction_time) : new Date();
     const domainEventList = domainEvents.get(domain) || [];
     domainEventList.push({
@@ -627,6 +632,61 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
   console.log(`  - With paying: ${stats.domainsWithPaying}`);
   console.log(`  - With multiple events: ${stats.domainsWithMultipleEvents}`);
   
+  // Fetch reply content for positive replies (from email_conversation where type='Received')
+  if (prospectIds.length > 0) {
+    console.log(`Fetching reply content for ${prospectIds.length} positive replies...`);
+    const PROSPECT_BATCH_SIZE = 100;
+    const replyContentMap = new Map<string, { body: string | null; subject: string | null; timestamp: Date }>();
+    
+    for (let i = 0; i < prospectIds.length; i += PROSPECT_BATCH_SIZE) {
+      const batch = prospectIds.slice(i, i + PROSPECT_BATCH_SIZE);
+      const replies = await prodQuery<{
+        prospect_id: string;
+        body: string | null;
+        subject: string | null;
+        timestamp_email: Date;
+      }>(`
+        SELECT ec.prospect_id, ec.body, ec.subject, ec.timestamp_email
+        FROM email_conversation ec
+        WHERE ec.type = 'Received'
+          AND ec.prospect_id = ANY($1)
+        ORDER BY ec.timestamp_email DESC
+      `, [batch]);
+      
+      // Store the most recent reply for each prospect
+      for (const reply of replies) {
+        if (!replyContentMap.has(reply.prospect_id)) {
+          replyContentMap.set(reply.prospect_id, {
+            body: reply.body,
+            subject: reply.subject,
+            timestamp: reply.timestamp_email,
+          });
+        }
+      }
+    }
+    
+    // Update POSITIVE_REPLY events with reply content
+    for (const [domain, events] of domainEvents.entries()) {
+      for (const event of events) {
+        if (event.eventSource === 'POSITIVE_REPLY' && event.sourceId) {
+          const replyContent = replyContentMap.get(event.sourceId);
+          if (replyContent) {
+            event.metadata = {
+              ...event.metadata,
+              replyBody: replyContent.body,
+              replySubject: replyContent.subject,
+            };
+            // Use actual reply timestamp if we have it
+            if (replyContent.timestamp) {
+              event.eventTime = new Date(replyContent.timestamp);
+            }
+          }
+        }
+      }
+    }
+    console.log(`  Found reply content for ${replyContentMap.size} prospects`);
+  }
+  
   // ============ PHASE 6.5: Fetch ALL emails sent for each attributed domain ============
   console.log('Fetching emails for attributed domains...');
   const attributedDomainsList = Array.from(domainResults.keys());
@@ -638,15 +698,16 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
       console.log(`  Fetching emails for domains ${i + 1}-${Math.min(i + EMAIL_BATCH_SIZE, attributedDomainsList.length)}/${attributedDomainsList.length}`);
     }
     
-    // Fetch all emails sent to these domains
+    // Fetch all emails sent to these domains (including body)
     const emailsForDomains = await prodQuery<{
       id: string;
       timestamp_email: Date;
       lead_email: string;
       subject: string | null;
+      body: string | null;
       company_domain: string;
     }>(`
-      SELECT ec.id, ec.timestamp_email, p.lead_email, ec.subject, LOWER(p.company_domain) as company_domain
+      SELECT ec.id, ec.timestamp_email, p.lead_email, ec.subject, ec.body, LOWER(p.company_domain) as company_domain
       FROM email_conversation ec
       JOIN prospect p ON ec.prospect_id = p.id
       JOIN client_integration ci ON ec.client_integration_id = ci.id
@@ -666,7 +727,7 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
         email: email.lead_email?.toLowerCase() || null,
         sourceId: email.id,
         sourceTable: 'email_conversation',
-        metadata: { subject: email.subject },
+        metadata: { subject: email.subject, body: email.body },
       });
       domainEvents.set(domain, domainEventList);
     }
@@ -1075,15 +1136,16 @@ app.post('/audit-domain', async (req, res) => {
       ORDER BY p.last_interaction_time
     `, [clientId, normalizedDomain, `%@${normalizedDomain}`]);
     
-    // 3. Get all emails sent to this domain
+    // 3. Get all emails sent to this domain (including body)
     const emailsSent = await prodQuery<{
       id: string;
       timestamp_email: Date;
       lead_email: string;
       subject: string | null;
       type: string;
+      body: string | null;
     }>(`
-      SELECT ec.id, ec.timestamp_email, p.lead_email, ec.subject, ec.type
+      SELECT ec.id, ec.timestamp_email, p.lead_email, ec.subject, ec.type, ec.body
       FROM email_conversation ec
       JOIN prospect p ON ec.prospect_id = p.id
       JOIN client_integration ci ON ec.client_integration_id = ci.id
@@ -1141,6 +1203,7 @@ app.post('/audit-domain', async (req, res) => {
           id: e.id,
           email: e.lead_email,
           subject: e.subject,
+          body: e.body,
           type: e.type,
           time: e.timestamp_email,
         })),
