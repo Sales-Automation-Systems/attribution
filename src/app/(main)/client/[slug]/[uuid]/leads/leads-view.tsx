@@ -5,7 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Select,
   SelectContent,
@@ -34,13 +33,17 @@ import {
   DollarSign,
   ChevronDown,
   ChevronUp,
+  ChevronRight,
   LayoutGrid,
   List,
   CheckCircle2,
   Clock,
   XCircle,
   Filter,
+  Mail,
+  ExternalLink,
 } from 'lucide-react';
+import { DomainTimeline } from './domain-timeline';
 
 interface Domain {
   id: string;
@@ -78,7 +81,6 @@ export function LeadsView({ domains, clientName, slug, uuid, settings }: LeadsVi
   const [eventTypeFilter, setEventTypeFilter] = useState<EventTypeFilter>('all');
   const [matchTypeFilter, setMatchTypeFilter] = useState<MatchTypeFilter>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');
   const [expandedDomains, setExpandedDomains] = useState<Set<string>>(new Set());
 
   // Apply filters
@@ -150,6 +152,17 @@ export function LeadsView({ domains, clientName, slug, uuid, settings }: LeadsVi
       month: 'short',
       day: 'numeric',
       year: 'numeric',
+    });
+  };
+
+  const formatDateTime = (date: Date | null) => {
+    if (!date) return '—';
+    return new Date(date).toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
     });
   };
 
@@ -237,22 +250,7 @@ export function LeadsView({ domains, clientName, slug, uuid, settings }: LeadsVi
               <Filter className="h-4 w-4 text-muted-foreground" />
               <CardTitle className="text-base">Filters</CardTitle>
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant={viewMode === 'table' ? 'secondary' : 'ghost'}
-                size="sm"
-                onClick={() => setViewMode('table')}
-              >
-                <List className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={viewMode === 'cards' ? 'secondary' : 'ghost'}
-                size="sm"
-                onClick={() => setViewMode('cards')}
-              >
-                <LayoutGrid className="h-4 w-4" />
-              </Button>
-            </div>
+            <p className="text-xs text-muted-foreground">Click on any row to see event details</p>
           </div>
         </CardHeader>
         <CardContent>
@@ -326,169 +324,205 @@ export function LeadsView({ domains, clientName, slug, uuid, settings }: LeadsVi
             No domains match your current filters. Try adjusting your criteria.
           </p>
         </Card>
-      ) : viewMode === 'table' ? (
+      ) : (
         <Card>
           <div className="rounded-lg border overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
+                  <TableHead className="w-[30px]"></TableHead>
                   <TableHead className="w-[200px]">Domain</TableHead>
                   <TableHead className="text-center">Events</TableHead>
                   <TableHead className="text-center">Match Type</TableHead>
                   <TableHead className="text-center">Email Sent</TableHead>
                   <TableHead className="text-center">First Event</TableHead>
-                  <TableHead className="text-center">Days to Convert</TableHead>
+                  <TableHead className="text-center">Days</TableHead>
                   <TableHead className="text-center">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredDomains.map((domain) => {
                   const days = getDaysSinceEmail(domain.first_email_sent_at, domain.first_event_at);
+                  const isExpanded = expandedDomains.has(domain.id);
+
                   return (
-                    <TableRow key={domain.id} className="hover:bg-muted/30">
-                      <TableCell className="font-medium">{domain.domain}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center justify-center gap-1">
-                          {domain.has_positive_reply && (
-                            <Badge variant="outline" className="bg-purple-500/10 text-xs px-1.5">
-                              <MessageSquare className="h-3 w-3" />
-                            </Badge>
+                    <>
+                      <TableRow
+                        key={domain.id}
+                        className="cursor-pointer hover:bg-muted/50 transition-colors"
+                        onClick={() => toggleDomain(domain.id)}
+                      >
+                        <TableCell className="w-[30px]">
+                          {isExpanded ? (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
                           )}
-                          {domain.has_sign_up && (
-                            <Badge variant="outline" className="bg-blue-500/10 text-xs px-1.5">
-                              <UserPlus className="h-3 w-3" />
-                            </Badge>
-                          )}
-                          {domain.has_meeting_booked && (
-                            <Badge variant="outline" className="bg-yellow-500/10 text-xs px-1.5">
-                              <Calendar className="h-3 w-3" />
-                            </Badge>
-                          )}
-                          {domain.has_paying_customer && (
-                            <Badge className="bg-green-500 text-xs px-1.5">
-                              <DollarSign className="h-3 w-3" />
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant={domain.match_type === 'HARD_MATCH' ? 'default' : 'secondary'}>
-                          {domain.match_type === 'HARD_MATCH' ? 'Hard' : domain.match_type === 'SOFT_MATCH' ? 'Soft' : 'None'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-center text-sm text-muted-foreground">
-                        {formatDate(domain.first_email_sent_at)}
-                      </TableCell>
-                      <TableCell className="text-center text-sm">
-                        {formatDate(domain.first_event_at)}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {days !== null ? (
-                          <span className={days <= settings.attribution_window_days ? 'text-green-600 font-medium' : 'text-amber-600'}>
-                            {days}d
-                          </span>
-                        ) : (
-                          '—'
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {domain.is_within_window ? (
-                          <Badge variant="outline" className="bg-green-500/10 text-green-700">
-                            <CheckCircle2 className="h-3 w-3 mr-1" />
-                            Within
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            {domain.domain}
+                            <a
+                              href={`https://${domain.domain}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-muted-foreground hover:text-primary"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center justify-center gap-1">
+                            {domain.has_positive_reply && (
+                              <Badge variant="outline" className="bg-purple-500/10 text-xs px-1.5">
+                                <MessageSquare className="h-3 w-3" />
+                              </Badge>
+                            )}
+                            {domain.has_sign_up && (
+                              <Badge variant="outline" className="bg-blue-500/10 text-xs px-1.5">
+                                <UserPlus className="h-3 w-3" />
+                              </Badge>
+                            )}
+                            {domain.has_meeting_booked && (
+                              <Badge variant="outline" className="bg-yellow-500/10 text-xs px-1.5">
+                                <Calendar className="h-3 w-3" />
+                              </Badge>
+                            )}
+                            {domain.has_paying_customer && (
+                              <Badge className="bg-green-500 text-xs px-1.5">
+                                <DollarSign className="h-3 w-3" />
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant={domain.match_type === 'HARD_MATCH' ? 'default' : 'secondary'}>
+                            {domain.match_type === 'HARD_MATCH' ? 'Hard' : domain.match_type === 'SOFT_MATCH' ? 'Soft' : 'None'}
                           </Badge>
-                        ) : (
-                          <Badge variant="outline" className="bg-amber-500/10 text-amber-700">
-                            <Clock className="h-3 w-3 mr-1" />
-                            Outside
-                          </Badge>
-                        )}
-                      </TableCell>
-                    </TableRow>
+                        </TableCell>
+                        <TableCell className="text-center text-sm text-muted-foreground">
+                          {formatDate(domain.first_email_sent_at)}
+                        </TableCell>
+                        <TableCell className="text-center text-sm">
+                          {formatDate(domain.first_event_at)}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {days !== null ? (
+                            <span className={days <= settings.attribution_window_days ? 'text-green-600 font-medium' : 'text-amber-600'}>
+                              {days}d
+                            </span>
+                          ) : (
+                            '—'
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {domain.is_within_window ? (
+                            <Badge variant="outline" className="bg-green-500/10 text-green-700">
+                              <CheckCircle2 className="h-3 w-3 mr-1" />
+                              Within
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-amber-500/10 text-amber-700">
+                              <Clock className="h-3 w-3 mr-1" />
+                              Outside
+                            </Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                      {/* Expanded Detail Row */}
+                      {isExpanded && (
+                        <TableRow key={`${domain.id}-detail`} className="bg-muted/30">
+                          <TableCell colSpan={8} className="p-0">
+                            <div className="p-6 border-t">
+                              {/* Domain Summary */}
+                              <div className="grid grid-cols-4 gap-6 mb-6">
+                                <div>
+                                  <p className="text-xs text-muted-foreground mb-1">Domain</p>
+                                  <p className="font-semibold">{domain.domain}</p>
+                                </div>
+                                <div>
+                                  <p className="text-xs text-muted-foreground mb-1">First Email Sent</p>
+                                  <p className="font-medium">{formatDateTime(domain.first_email_sent_at)}</p>
+                                </div>
+                                <div>
+                                  <p className="text-xs text-muted-foreground mb-1">First Event</p>
+                                  <p className="font-medium">{formatDateTime(domain.first_event_at)}</p>
+                                </div>
+                                <div>
+                                  <p className="text-xs text-muted-foreground mb-1">Attribution</p>
+                                  <div className="flex items-center gap-2">
+                                    <Badge variant={domain.match_type === 'HARD_MATCH' ? 'default' : 'secondary'}>
+                                      {domain.match_type === 'HARD_MATCH' ? 'Hard Match' : 'Soft Match'}
+                                    </Badge>
+                                    {domain.is_within_window ? (
+                                      <Badge variant="outline" className="bg-green-500/10 text-green-700">
+                                        Within {settings.attribution_window_days}d
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="outline" className="bg-amber-500/10 text-amber-700">
+                                        Outside Window
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Events present */}
+                              <div className="mb-6">
+                                <p className="text-xs text-muted-foreground mb-2">Events Detected</p>
+                                <div className="flex gap-2">
+                                  {domain.has_positive_reply && (
+                                    <Badge variant="outline" className="bg-purple-500/10">
+                                      <MessageSquare className="h-3 w-3 mr-1" />
+                                      Positive Reply
+                                    </Badge>
+                                  )}
+                                  {domain.has_sign_up && (
+                                    <Badge variant="outline" className="bg-blue-500/10">
+                                      <UserPlus className="h-3 w-3 mr-1" />
+                                      Sign-up
+                                    </Badge>
+                                  )}
+                                  {domain.has_meeting_booked && (
+                                    <Badge variant="outline" className="bg-yellow-500/10">
+                                      <Calendar className="h-3 w-3 mr-1" />
+                                      Meeting Booked
+                                    </Badge>
+                                  )}
+                                  {domain.has_paying_customer && (
+                                    <Badge className="bg-green-500">
+                                      <DollarSign className="h-3 w-3 mr-1" />
+                                      Paying Customer
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Timeline */}
+                              <div>
+                                <p className="text-xs text-muted-foreground mb-3">Event Timeline</p>
+                                <div className="bg-background rounded-lg border p-4">
+                                  <DomainTimeline
+                                    domainId={domain.id}
+                                    slug={slug}
+                                    uuid={uuid}
+                                    isOpen={isExpanded}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </>
                   );
                 })}
               </TableBody>
             </Table>
           </div>
         </Card>
-      ) : (
-        <div className="space-y-3">
-          {filteredDomains.map((domain) => {
-            const isExpanded = expandedDomains.has(domain.id);
-            const days = getDaysSinceEmail(domain.first_email_sent_at, domain.first_event_at);
-
-            return (
-              <Collapsible key={domain.id} open={isExpanded} onOpenChange={() => toggleDomain(domain.id)}>
-                <Card>
-                  <CollapsibleTrigger asChild>
-                    <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors py-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div>
-                            <CardTitle className="text-base">{domain.domain}</CardTitle>
-                            <CardDescription className="text-xs">
-                              {formatDate(domain.first_event_at)}
-                              {days !== null && ` • ${days} days to convert`}
-                            </CardDescription>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {domain.has_positive_reply && (
-                            <Badge variant="outline" className="bg-purple-500/10 text-xs">Reply</Badge>
-                          )}
-                          {domain.has_sign_up && (
-                            <Badge variant="outline" className="bg-blue-500/10 text-xs">Sign-up</Badge>
-                          )}
-                          {domain.has_meeting_booked && (
-                            <Badge variant="outline" className="bg-yellow-500/10 text-xs">Meeting</Badge>
-                          )}
-                          {domain.has_paying_customer && (
-                            <Badge className="bg-green-500 text-xs">Paying</Badge>
-                          )}
-                          <Badge variant={domain.match_type === 'HARD_MATCH' ? 'default' : 'secondary'} className="text-xs">
-                            {domain.match_type === 'HARD_MATCH' ? 'Hard' : 'Soft'}
-                          </Badge>
-                          {domain.is_within_window ? (
-                            <CheckCircle2 className="h-4 w-4 text-green-600" />
-                          ) : (
-                            <Clock className="h-4 w-4 text-amber-600" />
-                          )}
-                          {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                        </div>
-                      </div>
-                    </CardHeader>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <CardContent className="border-t pt-4">
-                      <div className="grid grid-cols-3 gap-4 text-sm">
-                        <div>
-                          <p className="text-muted-foreground text-xs">First Email Sent</p>
-                          <p className="font-medium">{formatDate(domain.first_email_sent_at)}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground text-xs">First Event</p>
-                          <p className="font-medium">{formatDate(domain.first_event_at)}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground text-xs">Attribution Window</p>
-                          {domain.is_within_window ? (
-                            <Badge variant="outline" className="bg-green-500/10 text-green-700 text-xs">
-                              Within {settings.attribution_window_days} days
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="bg-amber-500/10 text-amber-700 text-xs">
-                              Outside window ({days}d)
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </CollapsibleContent>
-                </Card>
-              </Collapsible>
-            );
-          })}
-        </div>
       )}
 
       {/* Results count */}
@@ -498,4 +532,3 @@ export function LeadsView({ domains, clientName, slug, uuid, settings }: LeadsVi
     </div>
   );
 }
-
