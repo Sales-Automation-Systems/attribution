@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, Fragment } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -326,9 +326,8 @@ export function LeadsView({ domains, clientName, slug, uuid, settings }: LeadsVi
                   const isExpanded = expandedDomains.has(domain.id);
 
                   return (
-                    <>
+                    <Fragment key={domain.id}>
                       <TableRow
-                        key={domain.id}
                         className="cursor-pointer hover:bg-muted/50 transition-colors"
                         onClick={() => toggleDomain(domain.id)}
                       >
@@ -453,7 +452,7 @@ export function LeadsView({ domains, clientName, slug, uuid, settings }: LeadsVi
                           </TableCell>
                         </TableRow>
                       )}
-                    </>
+                    </Fragment>
                   );
                 })}
               </TableBody>
