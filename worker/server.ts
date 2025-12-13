@@ -282,7 +282,7 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
   stats.totalEmailsSent = parseInt(emailCountResult[0]?.count || '0', 10);
   console.log(`  Total emails sent: ${stats.totalEmailsSent}`);
   
-  // ============ PHASE 2: Fetch attribution events ============
+  // ============ PHASE 2: Fetch attribution events with metadata ============
   console.log('Fetching attribution events...');
   const events = await prodQuery<{
     id: string;
@@ -290,8 +290,9 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
     email: string | null;
     domain: string | null;
     event_time: Date;
+    metadata: Record<string, unknown> | null;
   }>(`
-    SELECT ae.id, ae.event_type, ae.email, ae.domain, ae.event_time
+    SELECT ae.id, ae.event_type, ae.email, ae.domain, ae.event_time, ae.metadata
     FROM attribution_event ae
     JOIN client_integration ci ON ae.client_integration_id = ci.id
     WHERE ci.client_id = $1
@@ -307,16 +308,22 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
   }
   console.log(`  Sign-ups: ${stats.totalSignUps}, Meetings: ${stats.totalMeetings}, Paying: ${stats.totalPaying}`);
   
-  // ============ PHASE 3: Fetch positive replies ============
+  // ============ PHASE 3: Fetch positive replies with full prospect info ============
   console.log('Fetching positive replies...');
   const positiveReplies = await prodQuery<{
     id: string;
     lead_email: string;
+    first_name: string | null;
+    last_name: string | null;
+    job_title: string | null;
+    company_name: string | null;
     company_domain: string | null;
+    linkedin_url: string | null;
     last_interaction_time: Date | null;
     category_name: string;
   }>(`
-    SELECT p.id, p.lead_email, p.company_domain, p.last_interaction_time,
+    SELECT p.id, p.lead_email, p.first_name, p.last_name, p.job_title,
+           p.company_name, p.company_domain, p.linkedin_url, p.last_interaction_time,
            lc.name as category_name
     FROM prospect p
     JOIN lead_category lc ON p.lead_category_id = lc.id
@@ -446,7 +453,7 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
       matchType = 'SOFT_MATCH';
     }
     
-    // Store the event for timeline (regardless of attribution)
+    // Store the event for timeline with full metadata
     const eventTypeMap: Record<string, string> = {
       'sign_up': 'SIGN_UP',
       'meeting_booked': 'MEETING_BOOKED',
@@ -459,7 +466,12 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
       email: eventEmail,
       sourceId: event.id,
       sourceTable: 'attribution_event',
-      metadata: { matched: !!sendTime, matchType: sendTime ? matchType : null },
+      metadata: {
+        matched: !!sendTime,
+        matchType: sendTime ? matchType : null,
+        // Include all metadata from the attribution event (deal value, meeting title, etc.)
+        ...(event.metadata || {}),
+      },
     });
     domainEvents.set(eventDomain, domainEventList);
     
@@ -568,7 +580,7 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
     // Get send time for this email (they replied, so we must have sent)
     const sendTime = email ? emailSendTimes.get(email) : null;
     
-    // Store the positive reply event for timeline (body will be added later)
+    // Store the positive reply event for timeline with full prospect info
     const eventTime = pr.last_interaction_time ? new Date(pr.last_interaction_time) : new Date();
     const domainEventList = domainEvents.get(domain) || [];
     domainEventList.push({
@@ -577,7 +589,13 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
       email: email || null,
       sourceId: pr.id,
       sourceTable: 'prospect',
-      metadata: { category: pr.category_name },
+      metadata: {
+        category: pr.category_name,
+        contactName: [pr.first_name, pr.last_name].filter(Boolean).join(' ') || null,
+        jobTitle: pr.job_title,
+        companyName: pr.company_name,
+        linkedinUrl: pr.linkedin_url,
+      },
     });
     domainEvents.set(domain, domainEventList);
     
@@ -698,26 +716,35 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
       console.log(`  Fetching emails for domains ${i + 1}-${Math.min(i + EMAIL_BATCH_SIZE, attributedDomainsList.length)}/${attributedDomainsList.length}`);
     }
     
-    // Fetch all emails sent to these domains (including body)
+    // Fetch all emails sent to these domains (with full details)
     const emailsForDomains = await prodQuery<{
       id: string;
       timestamp_email: Date;
       lead_email: string;
+      first_name: string | null;
+      last_name: string | null;
+      job_title: string | null;
       subject: string | null;
       body: string | null;
+      from_email: string | null;
+      campaign_name: string | null;
+      step_number: number | null;
       company_domain: string;
     }>(`
-      SELECT ec.id, ec.timestamp_email, p.lead_email, ec.subject, ec.body, LOWER(p.company_domain) as company_domain
+      SELECT ec.id, ec.timestamp_email, p.lead_email, p.first_name, p.last_name, p.job_title,
+             ec.subject, ec.body, ec.from_email, c.name as campaign_name, ec.step_number,
+             LOWER(p.company_domain) as company_domain
       FROM email_conversation ec
       JOIN prospect p ON ec.prospect_id = p.id
       JOIN client_integration ci ON ec.client_integration_id = ci.id
+      LEFT JOIN campaign c ON ec.campaign_id = c.id
       WHERE ec.type = 'Sent'
         AND ci.client_id = $1
         AND LOWER(p.company_domain) = ANY($2)
       ORDER BY ec.timestamp_email
     `, [clientId, domainBatch]);
     
-    // Store each email as an event
+    // Store each email as an event with full metadata
     for (const email of emailsForDomains) {
       const domain = email.company_domain;
       const domainEventList = domainEvents.get(domain) || [];
@@ -727,7 +754,15 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
         email: email.lead_email?.toLowerCase() || null,
         sourceId: email.id,
         sourceTable: 'email_conversation',
-        metadata: { subject: email.subject, body: email.body },
+        metadata: {
+          subject: email.subject,
+          body: email.body,
+          fromEmail: email.from_email,
+          campaignName: email.campaign_name,
+          stepNumber: email.step_number,
+          recipientName: [email.first_name, email.last_name].filter(Boolean).join(' ') || null,
+          recipientTitle: email.job_title,
+        },
       });
       domainEvents.set(domain, domainEventList);
     }
@@ -1101,15 +1136,16 @@ app.post('/audit-domain', async (req, res) => {
   const normalizedDomain = domain.toLowerCase().trim();
   
   try {
-    // 1. Get all attribution_events for this domain
+    // 1. Get all attribution_events for this domain (including metadata)
     const attributionEvents = await prodQuery<{
       id: string;
       event_type: string;
       email: string | null;
       domain: string | null;
       event_time: Date;
+      metadata: Record<string, unknown> | null;
     }>(`
-      SELECT ae.id, ae.event_type, ae.email, ae.domain, ae.event_time
+      SELECT ae.id, ae.event_type, ae.email, ae.domain, ae.event_time, ae.metadata
       FROM attribution_event ae
       JOIN client_integration ci ON ae.client_integration_id = ci.id
       WHERE ci.client_id = $1
@@ -1117,16 +1153,22 @@ app.post('/audit-domain', async (req, res) => {
       ORDER BY ae.event_time
     `, [clientId, normalizedDomain, `%${normalizedDomain}%`]);
     
-    // 2. Get all prospects (positive replies) for this domain
+    // 2. Get all prospects with full details
     const prospects = await prodQuery<{
       id: string;
       lead_email: string;
+      first_name: string | null;
+      last_name: string | null;
+      job_title: string | null;
+      company_name: string | null;
       company_domain: string | null;
+      linkedin_url: string | null;
       last_interaction_time: Date | null;
       category_name: string;
       sentiment: string;
     }>(`
-      SELECT p.id, p.lead_email, p.company_domain, p.last_interaction_time,
+      SELECT p.id, p.lead_email, p.first_name, p.last_name, p.job_title,
+             p.company_name, p.company_domain, p.linkedin_url, p.last_interaction_time,
              lc.name as category_name, lc.sentiment
       FROM prospect p
       JOIN lead_category lc ON p.lead_category_id = lc.id
@@ -1136,7 +1178,7 @@ app.post('/audit-domain', async (req, res) => {
       ORDER BY p.last_interaction_time
     `, [clientId, normalizedDomain, `%@${normalizedDomain}`]);
     
-    // 3. Get all emails sent to this domain (including body)
+    // 3. Get all emails with campaign info and sender details
     const emailsSent = await prodQuery<{
       id: string;
       timestamp_email: Date;
@@ -1144,11 +1186,19 @@ app.post('/audit-domain', async (req, res) => {
       subject: string | null;
       type: string;
       body: string | null;
+      from_email: string | null;
+      campaign_name: string | null;
+      step_number: number | null;
+      first_name: string | null;
+      last_name: string | null;
     }>(`
-      SELECT ec.id, ec.timestamp_email, p.lead_email, ec.subject, ec.type, ec.body
+      SELECT ec.id, ec.timestamp_email, p.lead_email, ec.subject, ec.type, ec.body,
+             ec.from_email, c.name as campaign_name, ec.step_number,
+             p.first_name, p.last_name
       FROM email_conversation ec
       JOIN prospect p ON ec.prospect_id = p.id
       JOIN client_integration ci ON ec.client_integration_id = ci.id
+      LEFT JOIN campaign c ON ec.campaign_id = c.id
       WHERE ci.client_id = $1
         AND (LOWER(p.company_domain) = $2 OR LOWER(p.lead_email) LIKE $3)
       ORDER BY ec.timestamp_email
@@ -1190,11 +1240,17 @@ app.post('/audit-domain', async (req, res) => {
           email: e.email,
           domain: e.domain,
           time: e.event_time,
+          metadata: e.metadata, // Deal value, meeting info, etc.
         })),
         prospects: prospects.map(p => ({
           id: p.id,
           email: p.lead_email,
+          firstName: p.first_name,
+          lastName: p.last_name,
+          jobTitle: p.job_title,
+          companyName: p.company_name,
           domain: p.company_domain,
+          linkedinUrl: p.linkedin_url,
           category: p.category_name,
           sentiment: p.sentiment,
           time: p.last_interaction_time,
@@ -1202,10 +1258,15 @@ app.post('/audit-domain', async (req, res) => {
         emails: emailsSent.slice(0, 50).map(e => ({
           id: e.id,
           email: e.lead_email,
+          firstName: e.first_name,
+          lastName: e.last_name,
           subject: e.subject,
           body: e.body,
           type: e.type,
           time: e.timestamp_email,
+          fromEmail: e.from_email,
+          campaignName: e.campaign_name,
+          stepNumber: e.step_number,
         })),
       },
     });

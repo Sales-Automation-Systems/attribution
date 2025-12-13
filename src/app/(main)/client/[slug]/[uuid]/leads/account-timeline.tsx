@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, Mail, MessageSquare, UserPlus, Calendar, DollarSign, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, Mail, MessageSquare, UserPlus, Calendar, DollarSign, ChevronDown, ChevronUp, Linkedin, User, Briefcase } from 'lucide-react';
 
 interface TimelineEvent {
   id: string;
@@ -63,7 +63,6 @@ const EVENT_CONFIG: Record<string, {
 function EmailBodyDisplay({ body, label }: { body: string; label: string }) {
   const [isExpanded, setIsExpanded] = useState(false);
   
-  // Truncate body for preview (first 200 chars)
   const preview = body.length > 200 ? body.substring(0, 200) + '...' : body;
   const needsTruncation = body.length > 200;
   
@@ -103,6 +102,46 @@ function EmailBodyDisplay({ body, label }: { body: string; label: string }) {
       </div>
     </div>
   );
+}
+
+function ContactInfo({ name, title, linkedinUrl }: { name?: string | null; title?: string | null; linkedinUrl?: string | null }) {
+  if (!name && !title) return null;
+  
+  return (
+    <div className="flex items-center gap-2 mt-1 text-sm">
+      <User className="h-3 w-3 text-muted-foreground" />
+      <span className="font-medium">{name}</span>
+      {title && (
+        <>
+          <span className="text-muted-foreground">•</span>
+          <span className="text-muted-foreground flex items-center gap-1">
+            <Briefcase className="h-3 w-3" />
+            {title}
+          </span>
+        </>
+      )}
+      {linkedinUrl && (
+        <a 
+          href={linkedinUrl} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="text-blue-600 hover:text-blue-800"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Linkedin className="h-3 w-3" />
+        </a>
+      )}
+    </div>
+  );
+}
+
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value);
 }
 
 export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelineProps) {
@@ -211,9 +250,30 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
           <div className="space-y-2 pl-2 border-l-2 border-muted ml-2">
             {dateEvents.map((event) => {
               const config = EVENT_CONFIG[event.type];
-              const emailBody = event.metadata?.body as string | undefined;
-              const replyBody = event.metadata?.replyBody as string | undefined;
-              const replySubject = event.metadata?.replySubject as string | undefined;
+              const meta = event.metadata || {};
+              
+              // Email sent metadata
+              const emailBody = meta.body as string | undefined;
+              const fromEmail = meta.fromEmail as string | undefined;
+              const campaignName = meta.campaignName as string | undefined;
+              const stepNumber = meta.stepNumber as number | undefined;
+              const recipientName = meta.recipientName as string | undefined;
+              const recipientTitle = meta.recipientTitle as string | undefined;
+              
+              // Positive reply metadata
+              const replyBody = meta.replyBody as string | undefined;
+              const replySubject = meta.replySubject as string | undefined;
+              const contactName = meta.contactName as string | undefined;
+              const jobTitle = meta.jobTitle as string | undefined;
+              const linkedinUrl = meta.linkedinUrl as string | undefined;
+              const companyName = meta.companyName as string | undefined;
+              
+              // Attribution event metadata (deal value, meeting title, etc.)
+              const dealValue = meta.deal_value || meta.dealValue || meta.value || meta.amount;
+              const meetingTitle = meta.meeting_title || meta.meetingTitle || meta.title;
+              const planType = meta.plan_type || meta.planType || meta.plan;
+              const productName = meta.product_name || meta.productName || meta.product;
+              const source = meta.source;
               
               return (
                 <div
@@ -230,20 +290,46 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
                   {/* Event content */}
                   <div className={`rounded-lg p-3 ${config.bgColor}`}>
                     <div className="flex items-center justify-between mb-1">
-                      <Badge variant="outline" className={`${config.color} border-current`}>
-                        {config.label}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className={`${config.color} border-current`}>
+                          {config.label}
+                        </Badge>
+                        {stepNumber && (
+                          <span className="text-xs text-muted-foreground">
+                            Step {stepNumber}
+                          </span>
+                        )}
+                      </div>
                       <span className="text-xs text-muted-foreground">
                         {formatTime(event.date)}
                       </span>
                     </div>
 
+                    {/* Contact info for emails */}
+                    {event.type === 'EMAIL_SENT' && (recipientName || recipientTitle) && (
+                      <ContactInfo name={recipientName} title={recipientTitle} />
+                    )}
+
+                    {/* Contact info for positive replies */}
+                    {event.type === 'POSITIVE_REPLY' && (contactName || jobTitle) && (
+                      <ContactInfo name={contactName} title={jobTitle} linkedinUrl={linkedinUrl} />
+                    )}
+
+                    {/* Email address */}
                     {event.email && (
-                      <p className="text-sm font-medium mt-1">
-                        {event.email}
+                      <p className="text-sm mt-1">
+                        <span className="text-muted-foreground">To:</span> {event.email}
                       </p>
                     )}
 
+                    {/* Sender email */}
+                    {fromEmail && (
+                      <p className="text-sm">
+                        <span className="text-muted-foreground">From:</span> {fromEmail}
+                      </p>
+                    )}
+
+                    {/* Subject line */}
                     {event.subject && (
                       <p className="text-sm text-muted-foreground mt-1">
                         <span className="font-medium">Subject:</span> {event.subject}
@@ -257,21 +343,59 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
                       </p>
                     )}
 
-                    {event.campaignName && (
+                    {/* Campaign name */}
+                    {campaignName && (
                       <p className="text-xs text-muted-foreground mt-1">
-                        Campaign: {event.campaignName}
+                        <span className="font-medium">Campaign:</span> {campaignName}
                       </p>
                     )}
 
+                    {/* Reply category */}
                     {event.metadata && event.type === 'POSITIVE_REPLY' && typeof event.metadata.category === 'string' && (
                       <p className="text-xs text-muted-foreground mt-1">
-                        Category: {event.metadata.category}
+                        <span className="font-medium">Category:</span> {event.metadata.category}
                       </p>
                     )}
 
-                    {event.metadata && typeof event.metadata.note === 'string' && (
-                      <p className="text-xs text-muted-foreground mt-1 italic">
-                        {event.metadata.note}
+                    {/* Company name (for positive replies) */}
+                    {companyName && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        <span className="font-medium">Company:</span> {companyName}
+                      </p>
+                    )}
+
+                    {/* Deal value for paying customers */}
+                    {dealValue && typeof dealValue === 'number' && (
+                      <p className="text-sm font-semibold text-green-600 mt-2">
+                        Deal Value: {formatCurrency(dealValue)}
+                      </p>
+                    )}
+
+                    {/* Meeting title */}
+                    {meetingTitle && typeof meetingTitle === 'string' && (
+                      <p className="text-sm mt-1">
+                        <span className="font-medium">Meeting:</span> {meetingTitle}
+                      </p>
+                    )}
+
+                    {/* Plan type for sign-ups/paying */}
+                    {planType && typeof planType === 'string' && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        <span className="font-medium">Plan:</span> {planType}
+                      </p>
+                    )}
+
+                    {/* Product name */}
+                    {productName && typeof productName === 'string' && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        <span className="font-medium">Product:</span> {productName}
+                      </p>
+                    )}
+
+                    {/* Source */}
+                    {source && typeof source === 'string' && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        <span className="font-medium">Source:</span> {source}
                       </p>
                     )}
 
