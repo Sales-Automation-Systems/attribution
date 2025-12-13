@@ -111,8 +111,11 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
 
   if (events.length === 0) {
     return (
-      <div className="py-6 text-center text-sm text-muted-foreground">
-        No events found for this account.
+      <div className="py-6 text-center">
+        <p className="text-sm text-muted-foreground mb-2">No events found for this account.</p>
+        <p className="text-xs text-muted-foreground">
+          This could mean the data hasn&apos;t been synced yet or the domain format doesn&apos;t match.
+        </p>
       </div>
     );
   }

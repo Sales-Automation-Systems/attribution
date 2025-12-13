@@ -16,26 +16,32 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string; uuid: string; domainId: string }> }
 ) {
+  const debug: string[] = [];
+  
   try {
     const { slug, uuid, domainId } = await params;
+    debug.push(`Params: slug=${slug}, uuid=${uuid}, domainId=${domainId}`);
 
     // Verify client access
     const client = await getClientConfigBySlugAndUuid(slug, uuid);
     if (!client) {
-      return NextResponse.json({ error: 'Client not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Client not found', debug }, { status: 404 });
     }
+    debug.push(`Client found: ${client.client_name}, client_id=${client.client_id}`);
 
     // Get domain info
     const domain = await getAttributedDomainById(domainId);
     if (!domain || domain.client_config_id !== client.id) {
-      return NextResponse.json({ error: 'Domain not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Domain not found', debug }, { status: 404 });
     }
+    debug.push(`Domain found: ${domain.domain}`);
 
     const domainName = domain.domain.toLowerCase();
     const timeline: TimelineEvent[] = [];
 
-    // 1. Get emails sent to this domain (simplified query)
+    // 1. Get emails sent to this domain
     try {
+      debug.push(`Querying emails for client_id=${client.client_id}, domain=${domainName}`);
       const emailsSent = await prodQuery<{
         id: string;
         timestamp_email: Date;
@@ -53,6 +59,8 @@ export async function GET(
         LIMIT 100
       `, [client.client_id, domainName]);
 
+      debug.push(`Emails found: ${emailsSent.length}`);
+      
       for (const email of emailsSent) {
         timeline.push({
           id: `email-${email.id}`,
@@ -63,7 +71,7 @@ export async function GET(
         });
       }
     } catch (e) {
-      console.error('Error fetching emails:', e);
+      debug.push(`Email query error: ${(e as Error).message}`);
     }
 
     // 2. Get positive replies from this domain
@@ -84,6 +92,8 @@ export async function GET(
         ORDER BY p.last_interaction_time
       `, [client.client_id, domainName]);
 
+      debug.push(`Positive replies found: ${positiveReplies.length}`);
+
       for (const reply of positiveReplies) {
         if (reply.last_interaction_time) {
           timeline.push({
@@ -96,7 +106,7 @@ export async function GET(
         }
       }
     } catch (e) {
-      console.error('Error fetching replies:', e);
+      debug.push(`Replies query error: ${(e as Error).message}`);
     }
 
     // 3. Get attribution events (sign-ups, meetings, paying)
@@ -114,6 +124,8 @@ export async function GET(
           AND LOWER(ae.domain) = $2
         ORDER BY ae.event_time
       `, [client.client_id, domainName]);
+
+      debug.push(`Attribution events found: ${attrEvents.length}`);
 
       for (const event of attrEvents) {
         let eventType: TimelineEvent['type'];
@@ -139,14 +151,17 @@ export async function GET(
         });
       }
     } catch (e) {
-      console.error('Error fetching events:', e);
+      debug.push(`Events query error: ${(e as Error).message}`);
     }
 
     // Sort by date
     timeline.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
+    debug.push(`Total timeline events: ${timeline.length}`);
+
     return NextResponse.json({ 
       timeline,
+      debug,
       domain: {
         name: domain.domain,
         matchType: domain.match_type,
@@ -154,9 +169,9 @@ export async function GET(
       }
     });
   } catch (error) {
-    console.error('Error fetching domain timeline:', error);
+    debug.push(`Main error: ${(error as Error).message}`);
     return NextResponse.json(
-      { error: 'Failed to fetch timeline', details: (error as Error).message },
+      { error: 'Failed to fetch timeline', debug, details: (error as Error).message },
       { status: 500 }
     );
   }
