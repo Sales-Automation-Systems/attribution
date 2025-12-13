@@ -64,6 +64,7 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [hasDetailedEvents, setHasDetailedEvents] = useState(false);
 
   useEffect(() => {
     if (isOpen && !loaded) {
@@ -81,6 +82,7 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
         throw new Error(data.details || data.error || 'Failed to fetch timeline');
       }
       setEvents(data.timeline || []);
+      setHasDetailedEvents(data.hasDetailedEvents || false);
       setLoaded(true);
     } catch (err) {
       console.error('Timeline fetch error:', err);
@@ -209,6 +211,12 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
                         Category: {event.metadata.category}
                       </p>
                     )}
+
+                    {event.metadata && typeof event.metadata.note === 'string' && (
+                      <p className="text-xs text-muted-foreground mt-1 italic">
+                        {event.metadata.note}
+                      </p>
+                    )}
                   </div>
                 </div>
               );
@@ -221,6 +229,11 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
       <div className="pt-4 border-t">
         <p className="text-xs text-muted-foreground text-center">
           {events.length} event{events.length !== 1 ? 's' : ''} total
+          {!hasDetailedEvents && events.length > 0 && (
+            <span className="block mt-1 text-amber-600 dark:text-amber-400">
+              Showing summary view • Full history available after next sync
+            </span>
+          )}
         </p>
       </div>
     </div>
