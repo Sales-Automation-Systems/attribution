@@ -316,7 +316,7 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
                     )}
 
                     {/* Email address */}
-                    {event.email && (
+                    {typeof event.email === 'string' && event.email && (
                       <p className="text-sm mt-1">
                         <span className="text-muted-foreground">To:</span> {event.email}
                       </p>
@@ -330,7 +330,7 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
                     )}
 
                     {/* Subject line */}
-                    {event.subject && (
+                    {typeof event.subject === 'string' && event.subject && (
                       <p className="text-sm text-muted-foreground mt-1">
                         <span className="font-medium">Subject:</span> {event.subject}
                       </p>
