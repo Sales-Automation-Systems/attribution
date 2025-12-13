@@ -316,25 +316,25 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
                     )}
 
                     {/* Email address */}
-                    {typeof event.email === 'string' && event.email && (
+                    {event.email ? (
                       <p className="text-sm mt-1">
-                        <span className="text-muted-foreground">To:</span> {event.email}
+                        <span className="text-muted-foreground">To:</span> {String(event.email)}
                       </p>
-                    )}
+                    ) : null}
 
                     {/* Sender email */}
-                    {fromEmail && (
+                    {fromEmail ? (
                       <p className="text-sm">
                         <span className="text-muted-foreground">From:</span> {fromEmail}
                       </p>
-                    )}
+                    ) : null}
 
                     {/* Subject line */}
-                    {typeof event.subject === 'string' && event.subject && (
+                    {event.subject ? (
                       <p className="text-sm text-muted-foreground mt-1">
-                        <span className="font-medium">Subject:</span> {event.subject}
+                        <span className="font-medium">Subject:</span> {String(event.subject)}
                       </p>
-                    )}
+                    ) : null}
 
                     {/* Reply subject for positive replies */}
                     {replySubject && event.type === 'POSITIVE_REPLY' && (
