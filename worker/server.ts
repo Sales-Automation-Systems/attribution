@@ -1029,6 +1029,130 @@ app.post('/create-indexes', async (req, res) => {
   res.json({ success: true, results });
 });
 
+// Audit endpoint to check all production data for a domain
+app.post('/audit-domain', async (req, res) => {
+  const { clientId, domain } = req.body;
+  
+  if (!clientId || !domain) {
+    return res.status(400).json({ error: 'clientId and domain are required' });
+  }
+  
+  console.log(`Auditing domain: ${domain} for client: ${clientId}`);
+  const normalizedDomain = domain.toLowerCase().trim();
+  
+  try {
+    // 1. Get all attribution_events for this domain
+    const attributionEvents = await prodQuery<{
+      id: string;
+      event_type: string;
+      email: string | null;
+      domain: string | null;
+      event_time: Date;
+    }>(`
+      SELECT ae.id, ae.event_type, ae.email, ae.domain, ae.event_time
+      FROM attribution_event ae
+      JOIN client_integration ci ON ae.client_integration_id = ci.id
+      WHERE ci.client_id = $1
+        AND (LOWER(ae.domain) = $2 OR LOWER(ae.domain) LIKE $3)
+      ORDER BY ae.event_time
+    `, [clientId, normalizedDomain, `%${normalizedDomain}%`]);
+    
+    // 2. Get all prospects (positive replies) for this domain
+    const prospects = await prodQuery<{
+      id: string;
+      lead_email: string;
+      company_domain: string | null;
+      last_interaction_time: Date | null;
+      category_name: string;
+      sentiment: string;
+    }>(`
+      SELECT p.id, p.lead_email, p.company_domain, p.last_interaction_time,
+             lc.name as category_name, lc.sentiment
+      FROM prospect p
+      JOIN lead_category lc ON p.lead_category_id = lc.id
+      JOIN client_integration ci ON p.client_integration_id = ci.id
+      WHERE ci.client_id = $1
+        AND (LOWER(p.company_domain) = $2 OR LOWER(p.lead_email) LIKE $3)
+      ORDER BY p.last_interaction_time
+    `, [clientId, normalizedDomain, `%@${normalizedDomain}`]);
+    
+    // 3. Get all emails sent to this domain
+    const emailsSent = await prodQuery<{
+      id: string;
+      timestamp_email: Date;
+      lead_email: string;
+      subject: string | null;
+      type: string;
+    }>(`
+      SELECT ec.id, ec.timestamp_email, p.lead_email, ec.subject, ec.type
+      FROM email_conversation ec
+      JOIN prospect p ON ec.prospect_id = p.id
+      JOIN client_integration ci ON ec.client_integration_id = ci.id
+      WHERE ci.client_id = $1
+        AND (LOWER(p.company_domain) = $2 OR LOWER(p.lead_email) LIKE $3)
+      ORDER BY ec.timestamp_email
+      LIMIT 100
+    `, [clientId, normalizedDomain, `%@${normalizedDomain}`]);
+    
+    // Summarize by event type
+    const eventTypeSummary: Record<string, number> = {};
+    for (const e of attributionEvents) {
+      eventTypeSummary[e.event_type] = (eventTypeSummary[e.event_type] || 0) + 1;
+    }
+    
+    const prospectSummary = {
+      total: prospects.length,
+      positive: prospects.filter(p => p.sentiment === 'POSITIVE').length,
+      negative: prospects.filter(p => p.sentiment === 'NEGATIVE').length,
+      neutral: prospects.filter(p => p.sentiment === 'NEUTRAL').length,
+    };
+    
+    const emailSummary = {
+      total: emailsSent.length,
+      sent: emailsSent.filter(e => e.type === 'Sent').length,
+      received: emailsSent.filter(e => e.type === 'Received').length,
+    };
+    
+    res.json({
+      success: true,
+      domain: normalizedDomain,
+      clientId,
+      summary: {
+        attributionEvents: eventTypeSummary,
+        prospects: prospectSummary,
+        emails: emailSummary,
+      },
+      details: {
+        attributionEvents: attributionEvents.map(e => ({
+          id: e.id,
+          type: e.event_type,
+          email: e.email,
+          domain: e.domain,
+          time: e.event_time,
+        })),
+        prospects: prospects.map(p => ({
+          id: p.id,
+          email: p.lead_email,
+          domain: p.company_domain,
+          category: p.category_name,
+          sentiment: p.sentiment,
+          time: p.last_interaction_time,
+        })),
+        emails: emailsSent.slice(0, 50).map(e => ({
+          id: e.id,
+          email: e.lead_email,
+          subject: e.subject,
+          type: e.type,
+          time: e.timestamp_email,
+        })),
+      },
+    });
+  } catch (error) {
+    console.error('Audit failed:', error);
+    res.status(500).json({ success: false, error: (error as Error).message });
+  }
+});
+
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`Worker API listening on port ${PORT}`);
