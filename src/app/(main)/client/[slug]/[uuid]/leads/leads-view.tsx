@@ -21,29 +21,20 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
-import {
   Search,
   MessageSquare,
   UserPlus,
   Calendar,
   DollarSign,
   ChevronDown,
-  ChevronUp,
   ChevronRight,
-  LayoutGrid,
-  List,
   CheckCircle2,
   Clock,
   XCircle,
   Filter,
-  Mail,
   ExternalLink,
 } from 'lucide-react';
-import { DomainTimeline } from './domain-timeline';
+import { AccountTimeline } from './account-timeline';
 
 interface Domain {
   id: string;
@@ -152,17 +143,6 @@ export function LeadsView({ domains, clientName, slug, uuid, settings }: LeadsVi
       month: 'short',
       day: 'numeric',
       year: 'numeric',
-    });
-  };
-
-  const formatDateTime = (date: Date | null) => {
-    if (!date) return '—';
-    return new Date(date).toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
     });
   };
 
@@ -433,84 +413,41 @@ export function LeadsView({ domains, clientName, slug, uuid, settings }: LeadsVi
                       </TableRow>
                       {/* Expanded Detail Row */}
                       {isExpanded && (
-                        <TableRow key={`${domain.id}-detail`} className="bg-muted/30">
+                        <TableRow key={`${domain.id}-detail`} className="bg-muted/20 hover:bg-muted/20">
                           <TableCell colSpan={8} className="p-0">
                             <div className="p-6 border-t">
-                              {/* Domain Summary */}
-                              <div className="grid grid-cols-4 gap-6 mb-6">
-                                <div>
-                                  <p className="text-xs text-muted-foreground mb-1">Domain</p>
-                                  <p className="font-semibold">{domain.domain}</p>
-                                </div>
-                                <div>
-                                  <p className="text-xs text-muted-foreground mb-1">First Email Sent</p>
-                                  <p className="font-medium">{formatDateTime(domain.first_email_sent_at)}</p>
-                                </div>
-                                <div>
-                                  <p className="text-xs text-muted-foreground mb-1">First Event</p>
-                                  <p className="font-medium">{formatDateTime(domain.first_event_at)}</p>
-                                </div>
-                                <div>
-                                  <p className="text-xs text-muted-foreground mb-1">Attribution</p>
-                                  <div className="flex items-center gap-2">
-                                    <Badge variant={domain.match_type === 'HARD_MATCH' ? 'default' : 'secondary'}>
-                                      {domain.match_type === 'HARD_MATCH' ? 'Hard Match' : 'Soft Match'}
-                                    </Badge>
-                                    {domain.is_within_window ? (
-                                      <Badge variant="outline" className="bg-green-500/10 text-green-700">
-                                        Within {settings.attribution_window_days}d
-                                      </Badge>
-                                    ) : (
-                                      <Badge variant="outline" className="bg-amber-500/10 text-amber-700">
-                                        Outside Window
-                                      </Badge>
-                                    )}
+                              {/* Header with domain info and attribution status */}
+                              <div className="flex items-center justify-between mb-4 pb-4 border-b">
+                                <div className="flex items-center gap-4">
+                                  <div>
+                                    <h3 className="font-semibold text-lg">{domain.domain}</h3>
+                                    <p className="text-sm text-muted-foreground">Full account history</p>
                                   </div>
                                 </div>
-                              </div>
-
-                              {/* Events present */}
-                              <div className="mb-6">
-                                <p className="text-xs text-muted-foreground mb-2">Events Detected</p>
-                                <div className="flex gap-2">
-                                  {domain.has_positive_reply && (
-                                    <Badge variant="outline" className="bg-purple-500/10">
-                                      <MessageSquare className="h-3 w-3 mr-1" />
-                                      Positive Reply
+                                <div className="flex items-center gap-2">
+                                  <Badge variant={domain.match_type === 'HARD_MATCH' ? 'default' : 'secondary'}>
+                                    {domain.match_type === 'HARD_MATCH' ? 'Hard Match' : 'Soft Match'}
+                                  </Badge>
+                                  {domain.is_within_window ? (
+                                    <Badge variant="outline" className="bg-green-500/10 text-green-700">
+                                      Within {settings.attribution_window_days}d Window
                                     </Badge>
-                                  )}
-                                  {domain.has_sign_up && (
-                                    <Badge variant="outline" className="bg-blue-500/10">
-                                      <UserPlus className="h-3 w-3 mr-1" />
-                                      Sign-up
-                                    </Badge>
-                                  )}
-                                  {domain.has_meeting_booked && (
-                                    <Badge variant="outline" className="bg-yellow-500/10">
-                                      <Calendar className="h-3 w-3 mr-1" />
-                                      Meeting Booked
-                                    </Badge>
-                                  )}
-                                  {domain.has_paying_customer && (
-                                    <Badge className="bg-green-500">
-                                      <DollarSign className="h-3 w-3 mr-1" />
-                                      Paying Customer
+                                  ) : (
+                                    <Badge variant="outline" className="bg-amber-500/10 text-amber-700">
+                                      Outside Window
                                     </Badge>
                                   )}
                                 </div>
                               </div>
 
-                              {/* Timeline */}
-                              <div>
-                                <p className="text-xs text-muted-foreground mb-3">Event Timeline</p>
-                                <div className="bg-background rounded-lg border p-4">
-                                  <DomainTimeline
-                                    domainId={domain.id}
-                                    slug={slug}
-                                    uuid={uuid}
-                                    isOpen={isExpanded}
-                                  />
-                                </div>
+                              {/* Account Timeline */}
+                              <div className="max-h-[400px] overflow-y-auto">
+                                <AccountTimeline
+                                  domainId={domain.id}
+                                  slug={slug}
+                                  uuid={uuid}
+                                  isOpen={isExpanded}
+                                />
                               </div>
                             </div>
                           </TableCell>
