@@ -76,13 +76,14 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
     setError(null);
     try {
       const response = await fetch(`/api/clients/${slug}/${uuid}/domains/${domainId}/timeline`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch timeline');
-      }
       const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.details || data.error || 'Failed to fetch timeline');
+      }
       setEvents(data.timeline || []);
       setLoaded(true);
     } catch (err) {
+      console.error('Timeline fetch error:', err);
       setError((err as Error).message);
     } finally {
       setLoading(false);
