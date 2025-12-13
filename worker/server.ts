@@ -282,7 +282,7 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
   stats.totalEmailsSent = parseInt(emailCountResult[0]?.count || '0', 10);
   console.log(`  Total emails sent: ${stats.totalEmailsSent}`);
   
-  // ============ PHASE 2: Fetch attribution events with metadata ============
+  // ============ PHASE 2: Fetch attribution events ============
   console.log('Fetching attribution events...');
   const events = await prodQuery<{
     id: string;
@@ -290,9 +290,8 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
     email: string | null;
     domain: string | null;
     event_time: Date;
-    metadata: Record<string, unknown> | null;
   }>(`
-    SELECT ae.id, ae.event_type, ae.email, ae.domain, ae.event_time, ae.metadata
+    SELECT ae.id, ae.event_type, ae.email, ae.domain, ae.event_time
     FROM attribution_event ae
     JOIN client_integration ci ON ae.client_integration_id = ci.id
     WHERE ci.client_id = $1
@@ -453,7 +452,7 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
       matchType = 'SOFT_MATCH';
     }
     
-    // Store the event for timeline with full metadata
+    // Store the event for timeline
     const eventTypeMap: Record<string, string> = {
       'sign_up': 'SIGN_UP',
       'meeting_booked': 'MEETING_BOOKED',
@@ -469,8 +468,6 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
       metadata: {
         matched: !!sendTime,
         matchType: sendTime ? matchType : null,
-        // Include all metadata from the attribution event (deal value, meeting title, etc.)
-        ...(event.metadata || {}),
       },
     });
     domainEvents.set(eventDomain, domainEventList);
@@ -1136,16 +1133,15 @@ app.post('/audit-domain', async (req, res) => {
   const normalizedDomain = domain.toLowerCase().trim();
   
   try {
-    // 1. Get all attribution_events for this domain (including metadata)
+    // 1. Get all attribution_events for this domain
     const attributionEvents = await prodQuery<{
       id: string;
       event_type: string;
       email: string | null;
       domain: string | null;
       event_time: Date;
-      metadata: Record<string, unknown> | null;
     }>(`
-      SELECT ae.id, ae.event_type, ae.email, ae.domain, ae.event_time, ae.metadata
+      SELECT ae.id, ae.event_type, ae.email, ae.domain, ae.event_time
       FROM attribution_event ae
       JOIN client_integration ci ON ae.client_integration_id = ci.id
       WHERE ci.client_id = $1
@@ -1240,7 +1236,6 @@ app.post('/audit-domain', async (req, res) => {
           email: e.email,
           domain: e.domain,
           time: e.event_time,
-          metadata: e.metadata, // Deal value, meeting info, etc.
         })),
         prospects: prospects.map(p => ({
           id: p.id,
