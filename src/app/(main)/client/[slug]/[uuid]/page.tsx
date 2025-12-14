@@ -42,6 +42,7 @@ export default async function ClientDashboardPage({
     domain: d.domain,
     first_email_sent_at: d.first_email_sent_at ? new Date(d.first_email_sent_at) : null,
     first_event_at: d.first_event_at ? new Date(d.first_event_at) : null,
+    last_event_at: d.last_event_at ? new Date(d.last_event_at) : null,
     has_positive_reply: d.has_positive_reply,
     has_sign_up: d.has_sign_up,
     has_meeting_booked: d.has_meeting_booked,

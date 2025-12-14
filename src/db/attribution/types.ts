@@ -76,6 +76,7 @@ export interface AttributedDomain {
   domain: string;
   first_email_sent_at: Date | null;
   first_event_at: Date | null;
+  last_event_at: Date | null;
   first_attributed_month: string | null;
   has_positive_reply: boolean;
   has_sign_up: boolean;

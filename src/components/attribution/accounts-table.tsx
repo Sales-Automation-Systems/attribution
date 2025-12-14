@@ -40,6 +40,7 @@ export interface AccountDomain {
   domain: string;
   first_email_sent_at: Date | null;
   first_event_at: Date | null;
+  last_event_at: Date | null;
   has_positive_reply: boolean;
   has_sign_up: boolean;
   has_meeting_booked: boolean;
@@ -468,7 +469,7 @@ export function AccountsTable({
                   </TableHead>
                   <TableHead className="text-center">Events</TableHead>
                   <TableHead className="text-center">Email Sent</TableHead>
-                  <TableHead className="text-center">First Event</TableHead>
+                  <TableHead className="text-center">Last Event</TableHead>
                   <TableHead className="text-center">
                     <DefinitionTooltip term="days">Days</DefinitionTooltip>
                   </TableHead>
@@ -536,7 +537,7 @@ export function AccountsTable({
                         {formatDate(domain.first_email_sent_at)}
                       </TableCell>
                       <TableCell className="text-center text-sm">
-                        {formatDate(domain.first_event_at)}
+                        {formatDate(domain.last_event_at || domain.first_event_at)}
                       </TableCell>
                       <TableCell className="text-center">
                         {days !== null ? (

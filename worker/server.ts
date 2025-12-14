@@ -267,6 +267,7 @@ interface DomainResult {
   domain: string;
   firstEmailSent: Date | null;
   firstEvent: Date | null;
+  lastEvent: Date | null;
   isWithinWindow: boolean;
   matchType: 'HARD_MATCH' | 'SOFT_MATCH' | 'NO_MATCH';
   matchedEmail: string | null; // The specific email that was hard-matched
@@ -570,11 +571,13 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
         existing.hasMeetingBooked = existing.hasMeetingBooked || event.event_type === 'meeting_booked';
         existing.hasPayingCustomer = existing.hasPayingCustomer || event.event_type === 'paying_customer';
         if (!existing.firstEvent || eventTime < existing.firstEvent) existing.firstEvent = eventTime;
+        if (!existing.lastEvent || eventTime > existing.lastEvent) existing.lastEvent = eventTime;
       } else {
         domainResults.set(eventDomain, {
           domain: eventDomain,
           firstEmailSent: null, // We never emailed them
           firstEvent: eventTime,
+          lastEvent: eventTime,
           isWithinWindow: false,
           matchType: 'NO_MATCH',
           matchedEmail: null,
@@ -602,11 +605,13 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
         existing.hasMeetingBooked = existing.hasMeetingBooked || event.event_type === 'meeting_booked';
         existing.hasPayingCustomer = existing.hasPayingCustomer || event.event_type === 'paying_customer';
         if (!existing.firstEvent || eventTime < existing.firstEvent) existing.firstEvent = eventTime;
+        if (!existing.lastEvent || eventTime > existing.lastEvent) existing.lastEvent = eventTime;
       } else {
         domainResults.set(eventDomain, {
           domain: eventDomain,
           firstEmailSent: sendTime, // We emailed them, but AFTER the event
           firstEvent: eventTime,
+          lastEvent: eventTime,
           isWithinWindow: false,
           matchType: 'NO_MATCH', // Not a match because email came after event
           matchedEmail: null,
@@ -677,11 +682,13 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
         }
       }
       if (!existing.firstEvent || eventTime < existing.firstEvent) existing.firstEvent = eventTime;
+      if (!existing.lastEvent || eventTime > existing.lastEvent) existing.lastEvent = eventTime;
     } else {
       domainResults.set(eventDomain, {
         domain: eventDomain,
         firstEmailSent: sendTime,
         firstEvent: eventTime,
+        lastEvent: eventTime,
         isWithinWindow,
         matchType,
         matchedEmail: matchType === 'HARD_MATCH' ? eventEmail : null,
@@ -749,11 +756,15 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
       if (replyEventTime && (!existing.firstEvent || replyEventTime < existing.firstEvent)) {
         existing.firstEvent = replyEventTime;
       }
+      if (replyEventTime && (!existing.lastEvent || replyEventTime > existing.lastEvent)) {
+        existing.lastEvent = replyEventTime;
+      }
     } else {
       domainResults.set(domain, {
         domain,
         firstEmailSent: sendTime || null,
         firstEvent: replyEventTime,
+        lastEvent: replyEventTime,
         isWithinWindow: true, // Positive replies always count
         matchType: 'HARD_MATCH', // We emailed this exact person
         matchedEmail: email || null, // Store matched email for Focus View
@@ -911,14 +922,15 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
       // Upsert the attributed_domain and get its ID
       const upsertResult = await attrQuery<{ id: string }>(`
         INSERT INTO attributed_domain (
-          client_config_id, domain, first_email_sent_at, first_event_at,
+          client_config_id, domain, first_email_sent_at, first_event_at, last_event_at,
           is_within_window, match_type, matched_email, status,
           has_sign_up, has_meeting_booked, has_paying_customer, has_positive_reply
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         ON CONFLICT (client_config_id, domain) DO UPDATE SET
           first_email_sent_at = COALESCE(EXCLUDED.first_email_sent_at, attributed_domain.first_email_sent_at),
           first_event_at = LEAST(COALESCE(EXCLUDED.first_event_at, attributed_domain.first_event_at), COALESCE(attributed_domain.first_event_at, EXCLUDED.first_event_at)),
+          last_event_at = GREATEST(COALESCE(EXCLUDED.last_event_at, attributed_domain.last_event_at), COALESCE(attributed_domain.last_event_at, EXCLUDED.last_event_at)),
           is_within_window = attributed_domain.is_within_window OR EXCLUDED.is_within_window,
           has_sign_up = attributed_domain.has_sign_up OR EXCLUDED.has_sign_up,
           has_meeting_booked = attributed_domain.has_meeting_booked OR EXCLUDED.has_meeting_booked,
@@ -944,6 +956,7 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
         result.domain,
         result.firstEmailSent,
         result.firstEvent,
+        result.lastEvent, // New: last event timestamp
         result.isWithinWindow,
         result.matchType,
         result.matchedEmail,
