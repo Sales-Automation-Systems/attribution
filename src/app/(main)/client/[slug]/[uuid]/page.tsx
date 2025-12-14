@@ -101,10 +101,13 @@ export default async function ClientDashboardPage({
                 {Number(client.total_positive_replies || 0).toLocaleString('en-US')}
               </div>
               <div className="text-xs text-purple-600 dark:text-purple-400 mt-1">
-                <DefinitionTooltip term="ours" showUnderline={false}>
-                  <span>{Number(client.attributed_positive_replies || 0).toLocaleString('en-US')} ours</span>
-                </DefinitionTooltip>{' '}
-                (100%)
+                {client.total_positive_replies && client.total_emails_sent ? (
+                  <span>
+                    {Number(Math.round(Number(client.total_emails_sent) / Number(client.total_positive_replies))).toLocaleString('en-US')}:1 email-to-reply ratio
+                  </span>
+                ) : (
+                  <span>—</span>
+                )}
               </div>
             </CardContent>
           </Card>
