@@ -262,10 +262,17 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
   // #region agent log
   if (typeof window !== 'undefined') {
     setTimeout(() => {
-      const stickyHeaders = document.querySelectorAll('.sticky.top-0.bg-background');
-      const timelineContainer = document.querySelector('.space-y-4');
-      fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'account-timeline.tsx:262',message:'Timeline elements',data:{stickyHeaderCount:stickyHeaders.length,timelineExists:!!timelineContainer},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C,D,E'})}).catch(()=>{});
-    }, 800);
+      const scrollContainer = document.querySelector('.overflow-y-auto');
+      const stickyHeaders = document.querySelectorAll('.sticky');
+      if (scrollContainer) {
+        const scrollStyles = window.getComputedStyle(scrollContainer);
+        fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'account-timeline.tsx:262',message:'Scroll container debug',data:{paddingTop:scrollStyles.paddingTop,paddingBottom:scrollStyles.paddingBottom,backgroundColor:scrollStyles.backgroundColor,stickyCount:stickyHeaders.length},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix-2',hypothesisId:'F,G,H,I'})}).catch(()=>{});
+      }
+      if (stickyHeaders.length > 0) {
+        const stickyStyles = window.getComputedStyle(stickyHeaders[0]);
+        fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'account-timeline.tsx:270',message:'Sticky header debug',data:{top:stickyStyles.top,backgroundColor:stickyStyles.backgroundColor,marginBottom:stickyStyles.marginBottom,zIndex:stickyStyles.zIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix-2',hypothesisId:'F,G'})}).catch(()=>{});
+      }
+    }, 1000);
   }
   // #endregion
 
@@ -306,7 +313,7 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
       {Object.entries(eventsByDate).map(([dateKey, dateEvents]) => (
         <div key={dateKey} className="relative">
           {/* Date Header */}
-          <div className="sticky top-0 bg-background z-10 py-2 mb-2">
+          <div className="sticky top-0 bg-background z-10 py-2 -mx-6 px-6 shadow-[0_1px_0_0_hsl(var(--border))]">
             <p className="text-xs font-medium text-muted-foreground">
               {formatDate(dateEvents[0].date)}
             </p>
