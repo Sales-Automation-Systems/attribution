@@ -1,12 +1,10 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 import {
   Table,
   TableBody,
@@ -25,7 +23,6 @@ import {
   Clock,
   CircleSlash,
   XCircle,
-  Filter,
   ExternalLink,
   Eye,
   Flag,
@@ -295,178 +292,161 @@ export function AccountsTable({
   };
 
   return (
-    <div className="space-y-4">
-      {/* Filters Card */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <CardTitle className="text-base">Filters</CardTitle>
-            </div>
-            <div className="flex items-center gap-4">
-              {/* Focus View Toggle */}
-              <div className="flex items-center gap-2">
-                <DefinitionTooltip term="focusView" showUnderline={false}>
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      id="focus-view"
-                      checked={focusView}
-                      onCheckedChange={setFocusView}
-                    />
-                    <Label htmlFor="focus-view" className="text-sm cursor-pointer flex items-center gap-1">
-                      <Eye className="h-3.5 w-3.5" />
-                      Focus View
-                    </Label>
-                  </div>
-                </DefinitionTooltip>
-              </div>
-              {focusView && (
-                <span className="text-xs text-muted-foreground">
-                  Showing {filteredDomains.length} of {domains.length} matched accounts
-                </span>
-              )}
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search domains..."
-              className="pl-8"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
+    <div className="space-y-3">
+      {/* Compact Filter Bar */}
+      <div className="flex flex-wrap items-center gap-2 p-3 rounded-lg border bg-muted/30">
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            placeholder="Search..."
+            className="pl-7 h-8 w-40 text-sm"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
 
-          {/* Event Type Chips */}
-          <div className="space-y-2">
-            <Label className="text-xs text-muted-foreground">Event Type</Label>
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => toggleEventFilter('reply')}
-                className={cn(
-                  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-colors',
-                  eventTypeFilters.has('reply')
-                    ? 'bg-purple-500/20 border-purple-500/50 text-purple-700 dark:text-purple-300'
-                    : 'bg-muted/50 border-transparent text-muted-foreground hover:bg-muted'
-                )}
-              >
-                <MessageSquare className="h-3.5 w-3.5" />
-                Replies
-                {eventTypeFilters.has('reply') && <span className="ml-1">✓</span>}
-              </button>
-              <button
-                onClick={() => toggleEventFilter('signup')}
-                className={cn(
-                  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-colors',
-                  eventTypeFilters.has('signup')
-                    ? 'bg-blue-500/20 border-blue-500/50 text-blue-700 dark:text-blue-300'
-                    : 'bg-muted/50 border-transparent text-muted-foreground hover:bg-muted'
-                )}
-              >
-                <UserPlus className="h-3.5 w-3.5" />
-                Sign-ups
-                {eventTypeFilters.has('signup') && <span className="ml-1">✓</span>}
-              </button>
-              <button
-                onClick={() => toggleEventFilter('meeting')}
-                className={cn(
-                  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-colors',
-                  eventTypeFilters.has('meeting')
-                    ? 'bg-yellow-500/20 border-yellow-500/50 text-yellow-700 dark:text-yellow-300'
-                    : 'bg-muted/50 border-transparent text-muted-foreground hover:bg-muted'
-                )}
-              >
-                <Calendar className="h-3.5 w-3.5" />
-                Meetings
-                {eventTypeFilters.has('meeting') && <span className="ml-1">✓</span>}
-              </button>
-              <button
-                onClick={() => toggleEventFilter('paying')}
-                className={cn(
-                  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-colors',
-                  eventTypeFilters.has('paying')
-                    ? 'bg-green-500/20 border-green-500/50 text-green-700 dark:text-green-300'
-                    : 'bg-muted/50 border-transparent text-muted-foreground hover:bg-muted'
-                )}
-              >
-                <DollarSign className="h-3.5 w-3.5" />
-                Paying
-                {eventTypeFilters.has('paying') && <span className="ml-1">✓</span>}
-              </button>
-            </div>
-          </div>
+        <div className="h-6 w-px bg-border" />
 
-          {/* Status Chips */}
-          <div className="space-y-2">
-            <Label className="text-xs text-muted-foreground">Status</Label>
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => toggleStatusFilter('attributed')}
-                className={cn(
-                  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-colors',
-                  statusFilters.has('attributed')
-                    ? 'bg-green-500/20 border-green-500/50 text-green-700 dark:text-green-300'
-                    : 'bg-muted/50 border-transparent text-muted-foreground hover:bg-muted'
-                )}
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                Attributed
-                {statusFilters.has('attributed') && <span className="ml-1">✓</span>}
-              </button>
-              <button
-                onClick={() => toggleStatusFilter('outside_window')}
-                className={cn(
-                  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-colors',
-                  statusFilters.has('outside_window')
-                    ? 'bg-yellow-500/20 border-yellow-500/50 text-yellow-700 dark:text-yellow-300'
-                    : 'bg-muted/50 border-transparent text-muted-foreground hover:bg-muted'
-                )}
-              >
-                <Clock className="h-3.5 w-3.5" />
-                Outside Window
-                {statusFilters.has('outside_window') && <span className="ml-1">✓</span>}
-              </button>
-              <button
-                onClick={() => toggleStatusFilter('unattributed')}
-                className={cn(
-                  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-colors',
-                  statusFilters.has('unattributed')
-                    ? 'bg-gray-500/20 border-gray-500/50 text-gray-700 dark:text-gray-300'
-                    : 'bg-muted/50 border-transparent text-muted-foreground hover:bg-muted'
-                )}
-              >
-                <CircleSlash className="h-3.5 w-3.5" />
-                Unattributed
-                {statusFilters.has('unattributed') && <span className="ml-1">✓</span>}
-              </button>
-              <button
-                onClick={() => toggleStatusFilter('disputed')}
-                className={cn(
-                  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-colors',
-                  statusFilters.has('disputed')
-                    ? 'bg-orange-500/20 border-orange-500/50 text-orange-700 dark:text-orange-300'
-                    : 'bg-muted/50 border-transparent text-muted-foreground hover:bg-muted'
-                )}
-              >
-                <Flag className="h-3.5 w-3.5" />
-                Disputed
-                {statusFilters.has('disputed') && <span className="ml-1">✓</span>}
-              </button>
-            </div>
-          </div>
+        {/* Event Type Chips */}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => toggleEventFilter('reply')}
+            className={cn(
+              'inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors',
+              eventTypeFilters.has('reply')
+                ? 'bg-purple-500/20 text-purple-700 dark:text-purple-300'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            )}
+          >
+            <MessageSquare className="h-3 w-3" />
+            Replies
+          </button>
+          <button
+            onClick={() => toggleEventFilter('signup')}
+            className={cn(
+              'inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors',
+              eventTypeFilters.has('signup')
+                ? 'bg-blue-500/20 text-blue-700 dark:text-blue-300'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            )}
+          >
+            <UserPlus className="h-3 w-3" />
+            Sign-ups
+          </button>
+          <button
+            onClick={() => toggleEventFilter('meeting')}
+            className={cn(
+              'inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors',
+              eventTypeFilters.has('meeting')
+                ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            )}
+          >
+            <Calendar className="h-3 w-3" />
+            Meetings
+          </button>
+          <button
+            onClick={() => toggleEventFilter('paying')}
+            className={cn(
+              'inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors',
+              eventTypeFilters.has('paying')
+                ? 'bg-green-500/20 text-green-700 dark:text-green-300'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            )}
+          >
+            <DollarSign className="h-3 w-3" />
+            Paying
+          </button>
+        </div>
 
-          {/* Clear Filters */}
-          {hasActiveFilters && (
-            <Button variant="ghost" size="sm" onClick={clearFilters}>
-              Clear all filters
-            </Button>
-          )}
-        </CardContent>
-      </Card>
+        <div className="h-6 w-px bg-border" />
+
+        {/* Status Chips */}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => toggleStatusFilter('attributed')}
+            className={cn(
+              'inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors',
+              statusFilters.has('attributed')
+                ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            )}
+          >
+            <CheckCircle2 className="h-3 w-3" />
+            Attributed
+          </button>
+          <button
+            onClick={() => toggleStatusFilter('outside_window')}
+            className={cn(
+              'inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors',
+              statusFilters.has('outside_window')
+                ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            )}
+          >
+            <Clock className="h-3 w-3" />
+            Outside
+          </button>
+          <button
+            onClick={() => toggleStatusFilter('unattributed')}
+            className={cn(
+              'inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors',
+              statusFilters.has('unattributed')
+                ? 'bg-slate-500/20 text-slate-700 dark:text-slate-300'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            )}
+          >
+            <CircleSlash className="h-3 w-3" />
+            Unattributed
+          </button>
+          <button
+            onClick={() => toggleStatusFilter('disputed')}
+            className={cn(
+              'inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors',
+              statusFilters.has('disputed')
+                ? 'bg-orange-500/20 text-orange-700 dark:text-orange-300'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            )}
+          >
+            <Flag className="h-3 w-3" />
+            Disputed
+          </button>
+        </div>
+
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* Focus View Toggle */}
+        <DefinitionTooltip term="focusView" showUnderline={false}>
+          <button
+            onClick={() => setFocusView(!focusView)}
+            className={cn(
+              'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors',
+              focusView
+                ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            )}
+          >
+            <Eye className="h-3 w-3" />
+            Focus
+          </button>
+        </DefinitionTooltip>
+
+        {/* Clear Filters */}
+        {hasActiveFilters && (
+          <>
+            <div className="h-6 w-px bg-border" />
+            <button
+              onClick={clearFilters}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            >
+              <XCircle className="h-3 w-3" />
+              Clear
+            </button>
+          </>
+        )}
+      </div>
 
       {/* Results */}
       {filteredDomains.length === 0 ? (
