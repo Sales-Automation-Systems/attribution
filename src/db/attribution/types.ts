@@ -57,6 +57,19 @@ export interface ClientConfig {
   updated_at: Date;
 }
 
+// Domain status types
+export type DomainStatus =
+  | 'ATTRIBUTED'      // Within 31-day window, billable
+  | 'OUTSIDE_WINDOW'  // Matched but outside window, not billable unless promoted
+  | 'UNATTRIBUTED'    // No email match, not billable unless promoted
+  | 'CLIENT_PROMOTED' // Client manually added, billable
+  | 'DISPUTED'        // Client disputed, pending review
+  | 'REJECTED'        // Dispute rejected, still billable
+  | 'CONFIRMED';      // Manually confirmed attribution
+
+// Match type including manual entries
+export type MatchType = 'HARD_MATCH' | 'SOFT_MATCH' | 'NO_MATCH' | 'MANUAL' | null;
+
 export interface AttributedDomain {
   id: string;
   client_config_id: string;
@@ -69,12 +82,18 @@ export interface AttributedDomain {
   has_meeting_booked: boolean;
   has_paying_customer: boolean;
   is_within_window: boolean;
-  match_type: 'HARD_MATCH' | 'SOFT_MATCH' | 'NO_MATCH' | null;
-  status: 'ATTRIBUTED' | 'DISPUTED' | 'REJECTED' | 'CONFIRMED';
+  match_type: MatchType;
+  status: DomainStatus;
+  // Dispute fields
   dispute_reason: string | null;
   dispute_submitted_at: Date | null;
   dispute_resolved_at: Date | null;
   dispute_resolution_notes: string | null;
+  // Promotion fields (for CLIENT_PROMOTED status)
+  promoted_at: Date | null;
+  promoted_by: string | null;
+  promotion_notes: string | null;
+  // Timestamps
   created_at: Date;
   updated_at: Date;
 }
