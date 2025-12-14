@@ -62,7 +62,7 @@ function EventCard({
                 </DefinitionTooltip>
               </CardTitle>
               <CardDescription className="text-xs">
-                {data.total.toLocaleString()} total from client
+                {data.total.toLocaleString('en-US')} total from client
               </CardDescription>
             </div>
           </div>
@@ -76,7 +76,7 @@ function EventCard({
               <CheckCircle2 className="h-4 w-4 text-green-500" />
               <DefinitionTooltip term="attributed">
                 <span className="text-sm font-medium text-green-600 dark:text-green-400">
-                  {data.attributed.toLocaleString()} Attributed
+                  {data.attributed.toLocaleString('en-US')} Attributed
                 </span>
               </DefinitionTooltip>
             </div>
@@ -97,7 +97,7 @@ function EventCard({
             <Clock className="h-3.5 w-3.5 text-yellow-500" />
             <DefinitionTooltip term="outsideWindow" showUnderline={false}>
               <span className="text-yellow-600 dark:text-yellow-400">
-                {data.outsideWindow.toLocaleString()}
+                {data.outsideWindow.toLocaleString('en-US')}
               </span>
             </DefinitionTooltip>
             <span className="text-muted-foreground text-xs">
@@ -110,7 +110,7 @@ function EventCard({
             <CircleSlash className="h-3.5 w-3.5 text-gray-400" />
             <DefinitionTooltip term="unattributed" showUnderline={false}>
               <span className="text-gray-500 dark:text-gray-400">
-                {data.unattributed.toLocaleString()}
+                {data.unattributed.toLocaleString('en-US')}
               </span>
             </DefinitionTooltip>
             <span className="text-muted-foreground text-xs">
@@ -149,7 +149,7 @@ export function AttributionBreakdown({ signUps, meetings, paying }: AttributionB
           <div className="text-center">
             <DefinitionTooltip term="attributed" showUnderline={false}>
               <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                {totalAttributed.toLocaleString()}
+                {totalAttributed.toLocaleString('en-US')}
               </div>
             </DefinitionTooltip>
             <div className="text-xs text-muted-foreground">Attributed</div>
@@ -157,7 +157,7 @@ export function AttributionBreakdown({ signUps, meetings, paying }: AttributionB
           <div className="text-center">
             <DefinitionTooltip term="outsideWindow" showUnderline={false}>
               <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
-                {totalOutsideWindow.toLocaleString()}
+                {totalOutsideWindow.toLocaleString('en-US')}
               </div>
             </DefinitionTooltip>
             <div className="text-xs text-muted-foreground">Outside Window</div>
@@ -165,7 +165,7 @@ export function AttributionBreakdown({ signUps, meetings, paying }: AttributionB
           <div className="text-center">
             <DefinitionTooltip term="unattributed" showUnderline={false}>
               <div className="text-2xl font-bold text-gray-500 dark:text-gray-400">
-                {totalUnattributed.toLocaleString()}
+                {totalUnattributed.toLocaleString('en-US')}
               </div>
             </DefinitionTooltip>
             <div className="text-xs text-muted-foreground">Unattributed</div>

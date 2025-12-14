@@ -88,7 +88,7 @@ export default async function ClientDashboardPage({
                 </DefinitionTooltip>
               </div>
               <div className="text-2xl font-bold">
-                {(client.total_emails_sent || 0).toLocaleString()}
+                {(client.total_emails_sent || 0).toLocaleString('en-US')}
               </div>
             </CardContent>
           </Card>
@@ -101,11 +101,11 @@ export default async function ClientDashboardPage({
                 </DefinitionTooltip>
               </div>
               <div className="text-2xl font-bold text-purple-700 dark:text-purple-400">
-                {(client.total_positive_replies || 0).toLocaleString()}
+                {(client.total_positive_replies || 0).toLocaleString('en-US')}
               </div>
               <div className="text-xs text-purple-600 dark:text-purple-400 mt-1">
                 <DefinitionTooltip term="ours" showUnderline={false}>
-                  <span>{(client.attributed_positive_replies || 0).toLocaleString()} ours</span>
+                  <span>{(client.attributed_positive_replies || 0).toLocaleString('en-US')} ours</span>
                 </DefinitionTooltip>{' '}
                 (100%)
               </div>
@@ -120,11 +120,11 @@ export default async function ClientDashboardPage({
                 </DefinitionTooltip>
               </div>
               <div className="text-2xl font-bold text-blue-700 dark:text-blue-400">
-                {(client.total_sign_ups || 0).toLocaleString()}
+                {(client.total_sign_ups || 0).toLocaleString('en-US')}
               </div>
               <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
                 <DefinitionTooltip term="ours" showUnderline={false}>
-                  <span>{(client.attributed_sign_ups || 0).toLocaleString()} ours</span>
+                  <span>{(client.attributed_sign_ups || 0).toLocaleString('en-US')} ours</span>
                 </DefinitionTooltip>{' '}
                 ({client.total_sign_ups ? Math.round(((client.attributed_sign_ups || 0) / client.total_sign_ups) * 100) : 0}%)
               </div>
@@ -139,11 +139,11 @@ export default async function ClientDashboardPage({
                 </DefinitionTooltip>
               </div>
               <div className="text-2xl font-bold text-amber-700 dark:text-amber-400">
-                {(client.total_meetings_booked || 0).toLocaleString()}
+                {(client.total_meetings_booked || 0).toLocaleString('en-US')}
               </div>
               <div className="text-xs text-amber-600 dark:text-amber-400 mt-1">
                 <DefinitionTooltip term="ours" showUnderline={false}>
-                  <span>{(client.attributed_meetings_booked || 0).toLocaleString()} ours</span>
+                  <span>{(client.attributed_meetings_booked || 0).toLocaleString('en-US')} ours</span>
                 </DefinitionTooltip>{' '}
                 ({client.total_meetings_booked ? Math.round(((client.attributed_meetings_booked || 0) / client.total_meetings_booked) * 100) : 0}%)
               </div>
@@ -158,11 +158,11 @@ export default async function ClientDashboardPage({
                 </DefinitionTooltip>
               </div>
               <div className="text-2xl font-bold text-green-700 dark:text-green-400">
-                {(client.total_paying_customers || 0).toLocaleString()}
+                {(client.total_paying_customers || 0).toLocaleString('en-US')}
               </div>
               <div className="text-xs text-green-600 dark:text-green-400 mt-1">
                 <DefinitionTooltip term="ours" showUnderline={false}>
-                  <span>{(client.attributed_paying_customers || 0).toLocaleString()} ours</span>
+                  <span>{(client.attributed_paying_customers || 0).toLocaleString('en-US')} ours</span>
                 </DefinitionTooltip>{' '}
                 ({client.total_paying_customers ? Math.round(((client.attributed_paying_customers || 0) / client.total_paying_customers) * 100) : 0}%)
               </div>
