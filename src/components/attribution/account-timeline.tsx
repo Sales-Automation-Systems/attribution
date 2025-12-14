@@ -296,7 +296,7 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
       {Object.entries(eventsByDate).map(([dateKey, dateEvents]) => (
         <div key={dateKey} className="relative">
           {/* Date Header */}
-          <div className="sticky top-0 bg-background/95 backdrop-blur-sm z-10 py-2 mb-2">
+          <div className="sticky top-0 bg-background z-10 py-2 mb-2">
             <p className="text-xs font-medium text-muted-foreground">
               {formatDate(dateEvents[0].date)}
             </p>

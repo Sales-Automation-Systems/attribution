@@ -112,7 +112,7 @@ export function TimelineDialog({ domain, isOpen, onClose, slug, uuid }: Timeline
 
   return (
     <Dialog open={isOpen} onOpenChange={() => onClose()}>
-      <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden flex flex-col p-0">
+      <DialogContent className="max-w-6xl max-h-[85vh] overflow-hidden flex flex-col p-0">
         {/* Header */}
         <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
           <div className="flex items-start justify-between gap-4">
