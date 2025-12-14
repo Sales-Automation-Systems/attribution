@@ -133,17 +133,23 @@ export function ClientDashboardWrapper({
   }, [domains, slug]);
 
   return (
-    <div className="space-y-4">
-      {/* Action Buttons */}
-      <div className="flex items-center justify-end gap-2">
-        <Button variant="outline" size="sm" onClick={handleExportCSV}>
-          <Download className="h-4 w-4 mr-2" />
-          Export CSV
-        </Button>
-        <Button size="sm" onClick={() => setAddEventModal(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Event
-        </Button>
+    <div className="space-y-3">
+      {/* Header Row - Title, Description, and Actions */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-baseline gap-2">
+          <h2 className="text-lg font-semibold">All Accounts</h2>
+          <span className="text-sm text-muted-foreground">· Click any row for full history</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleExportCSV}>
+            <Download className="h-4 w-4 mr-1.5" />
+            Export CSV
+          </Button>
+          <Button size="sm" onClick={() => setAddEventModal(true)}>
+            <Plus className="h-4 w-4 mr-1.5" />
+            Add Event
+          </Button>
+        </div>
       </div>
 
       {/* Accounts Table */}

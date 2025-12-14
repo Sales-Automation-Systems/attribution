@@ -200,12 +200,6 @@ export default async function ClientDashboardPage({
 
       {/* Section 3: All Accounts Table with Actions */}
       <div>
-        <h2 className="text-lg font-semibold mb-3">
-          <DefinitionTooltip term="accounts">All Accounts</DefinitionTooltip>
-        </h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          Click on any row to see full account history and timeline
-        </p>
         <ClientDashboardWrapper
           domains={serializedDomains}
           totalCount={totalCount}

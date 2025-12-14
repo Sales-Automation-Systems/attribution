@@ -306,7 +306,7 @@ export function AccountsTable({
           />
         </div>
 
-        <div className="h-6 w-px bg-border" />
+        <div className="h-5 w-px bg-foreground/30" />
 
         {/* Event Type Chips */}
         <div className="flex items-center gap-1">
@@ -360,7 +360,7 @@ export function AccountsTable({
           </button>
         </div>
 
-        <div className="h-6 w-px bg-border" />
+        <div className="h-5 w-px bg-foreground/30" />
 
         {/* Status Chips */}
         <div className="flex items-center gap-1">
@@ -436,7 +436,7 @@ export function AccountsTable({
         {/* Clear Filters */}
         {hasActiveFilters && (
           <>
-            <div className="h-6 w-px bg-border" />
+            <div className="h-5 w-px bg-foreground/30" />
             <button
               onClick={clearFilters}
               className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
