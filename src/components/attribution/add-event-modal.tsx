@@ -134,7 +134,7 @@ export function AddEventModal({
           </DialogTitle>
           <DialogDescription>
             Manually log an event that will be added to your attribution. This event
-            will be marked as &quot;Client-Promoted&quot; and will be billable.
+            will be marked as &quot;Client-Attributed&quot; and will be billable.
           </DialogDescription>
         </DialogHeader>
 

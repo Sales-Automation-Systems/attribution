@@ -13,10 +13,10 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArrowUpCircle, AlertTriangle, Loader2, DollarSign } from 'lucide-react';
+import { ArrowUpCircle, Loader2, DollarSign } from 'lucide-react';
 import { DefinitionTooltip } from '@/components/ui/definition-tooltip';
 
-interface PromoteModalProps {
+interface AttributeModalProps {
   isOpen: boolean;
   onClose: () => void;
   domainId: string;
@@ -28,7 +28,7 @@ interface PromoteModalProps {
   onSuccess?: () => void;
 }
 
-export function PromoteModal({
+export function AttributeModal({
   isOpen,
   onClose,
   domainId,
@@ -38,7 +38,7 @@ export function PromoteModal({
   revShareRate,
   currentStatus,
   onSuccess,
-}: PromoteModalProps) {
+}: AttributeModalProps) {
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,7 +55,7 @@ export function PromoteModal({
 
     try {
       const response = await fetch(
-        `/api/clients/${slug}/${uuid}/domains/${domainId}/promote`,
+        `/api/clients/${slug}/${uuid}/domains/${domainId}/attribute`,
         {
           method: 'POST',
           headers: {
@@ -69,7 +69,7 @@ export function PromoteModal({
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || 'Failed to promote domain');
+        throw new Error(data.error || 'Failed to attribute domain');
       }
 
       // Success
@@ -97,7 +97,7 @@ export function PromoteModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ArrowUpCircle className="h-5 w-5 text-blue-500" />
-            <DefinitionTooltip term="promote">Attribute This Account</DefinitionTooltip>
+            <DefinitionTooltip term="manualAttribution">Attribute This Account</DefinitionTooltip>
           </DialogTitle>
           <DialogDescription>
             Add <strong>{domainName}</strong> to your billable attribution.
@@ -143,12 +143,12 @@ export function PromoteModal({
           <div className="flex items-start space-x-3 p-3 rounded-lg border">
             <input
               type="checkbox"
-              id="confirm-promote"
+              id="confirm-attribute"
               checked={confirmed}
               onChange={(e) => setConfirmed(e.target.checked)}
               className="mt-1"
             />
-            <label htmlFor="confirm-promote" className="text-sm">
+            <label htmlFor="confirm-attribute" className="text-sm">
               I understand that attributing this account will make it billable at my
               current revenue share rate, and this action cannot be easily undone.
             </label>

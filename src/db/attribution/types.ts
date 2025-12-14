@@ -60,8 +60,8 @@ export interface ClientConfig {
 // Domain status types
 export type DomainStatus =
   | 'ATTRIBUTED'      // Within 31-day window, billable
-  | 'OUTSIDE_WINDOW'  // Matched but outside window, not billable unless promoted
-  | 'UNATTRIBUTED'    // No email match, not billable unless promoted
+  | 'OUTSIDE_WINDOW'  // Matched but outside window, not billable unless manually attributed
+  | 'UNATTRIBUTED'    // No email match, not billable unless manually attributed
   | 'CLIENT_PROMOTED' // Client manually added, billable
   | 'DISPUTED'        // Client disputed, pending review
   | 'REJECTED'        // Dispute rejected, still billable
@@ -89,7 +89,8 @@ export interface AttributedDomain {
   dispute_submitted_at: Date | null;
   dispute_resolved_at: Date | null;
   dispute_resolution_notes: string | null;
-  // Promotion fields (for CLIENT_PROMOTED status)
+  // Client attribution fields (for CLIENT_PROMOTED status - manually attributed by client)
+  // Note: DB columns remain as promoted_* for backward compatibility
   promoted_at: Date | null;
   promoted_by: string | null;
   promotion_notes: string | null;

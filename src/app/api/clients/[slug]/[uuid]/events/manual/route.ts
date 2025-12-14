@@ -78,10 +78,10 @@ export async function POST(
       updateFields.push(`first_event_at = LEAST(first_event_at, $${paramIndex++})`);
       updateValues.push(eventDateParsed);
 
-      // If not already promoted or attributed, set to CLIENT_PROMOTED
+      // If not already client-attributed, set to CLIENT_PROMOTED status
       updateFields.push(`status = CASE WHEN status IN ('OUTSIDE_WINDOW', 'UNATTRIBUTED', 'ATTRIBUTED') AND NOT is_within_window THEN 'CLIENT_PROMOTED' ELSE status END`);
       
-      // Update promoted_at and promoted_by if promoting
+      // Update attribution fields (columns still named promoted_* for DB compat)
       updateFields.push(`promoted_at = CASE WHEN status IN ('OUTSIDE_WINDOW', 'UNATTRIBUTED') THEN NOW() ELSE promoted_at END`);
       updateFields.push(`promoted_by = CASE WHEN status IN ('OUTSIDE_WINDOW', 'UNATTRIBUTED') THEN 'client' ELSE promoted_by END`);
       

@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { attrPool } from '@/db';
 
+/**
+ * POST /api/clients/[slug]/[uuid]/domains/[domainId]/attribute
+ * 
+ * Manually attribute a domain that is either:
+ * - OUTSIDE_WINDOW (we emailed them but event happened after 31 days)
+ * - UNATTRIBUTED (no email match found)
+ * 
+ * This changes the status to CLIENT_PROMOTED (client-attributed)
+ * which makes it billable at the client's revenue share rate.
+ */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string; uuid: string; domainId: string }> }
@@ -43,25 +53,27 @@ export async function POST(
 
     const domain = domainResult.rows[0];
 
-    // Check if already promoted or attributed
+    // Check if already client-attributed
     if (domain.status === 'CLIENT_PROMOTED') {
       return NextResponse.json(
-        { error: 'This domain has already been promoted' },
+        { error: 'This domain has already been client-attributed' },
         { status: 400 }
       );
     }
 
+    // Check if already auto-attributed (within window)
     if (domain.status === 'ATTRIBUTED' && domain.is_within_window) {
       return NextResponse.json(
-        { error: 'This domain is already attributed' },
+        { error: 'This domain is already attributed (within attribution window)' },
         { status: 400 }
       );
     }
 
-    // Determine who is promoting (in a real app, this would come from auth)
-    const promotedBy = 'client'; // Could be user email from session
+    // Determine who is attributing (in a real app, this would come from auth)
+    const attributedBy = 'client'; // Could be user email from session
 
     // Update the domain status to CLIENT_PROMOTED
+    // Note: We keep the database column names as promoted_* for backward compatibility
     await attrPool.query(
       `UPDATE attributed_domain 
        SET status = 'CLIENT_PROMOTED',
@@ -70,19 +82,19 @@ export async function POST(
            promotion_notes = $2,
            updated_at = NOW()
        WHERE id = $3`,
-      [promotedBy, notes?.trim() || null, domainId]
+      [attributedBy, notes?.trim() || null, domainId]
     );
 
     return NextResponse.json({
       success: true,
-      message: 'Domain promoted successfully',
+      message: 'Domain attributed successfully',
       domainId,
       domain: domain.domain,
       previousStatus: domain.status,
       newStatus: 'CLIENT_PROMOTED',
     });
   } catch (error) {
-    console.error('Error promoting domain:', error);
+    console.error('Error attributing domain:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

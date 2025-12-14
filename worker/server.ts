@@ -562,7 +562,7 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
       else if (event.event_type === 'meeting_booked') stats.notMatchedMeetings++;
       else if (event.event_type === 'paying_customer') stats.notMatchedPaying++;
       
-      // STILL store the domain for visibility (clients can promote unattributed events)
+      // STILL store the domain for visibility (clients can manually attribute unattributed events)
       const eventTime = new Date(event.event_time);
       const existing = domainResults.get(eventDomain);
       if (existing) {
@@ -595,7 +595,7 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
       else if (event.event_type === 'meeting_booked') stats.notMatchedMeetings++;
       else if (event.event_type === 'paying_customer') stats.notMatchedPaying++;
       
-      // STILL store the domain for visibility (clients can promote unattributed events)
+      // STILL store the domain for visibility (clients can manually attribute unattributed events)
       const existing = domainResults.get(eventDomain);
       if (existing) {
         existing.hasSignUp = existing.hasSignUp || event.event_type === 'sign_up';

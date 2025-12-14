@@ -59,15 +59,15 @@ interface AccountsTableProps {
   uuid: string;
   attributionWindowDays: number;
   onDispute?: (domainId: string) => void;
-  onPromote?: (domainId: string) => void;
+  onAttribute?: (domainId: string) => void;
 }
 
 type EventTypeFilter = 'reply' | 'signup' | 'meeting' | 'paying';
-type StatusFilterType = 'attributed' | 'outside_window' | 'unattributed' | 'disputed' | 'client_promoted';
+type StatusFilterType = 'attributed' | 'outside_window' | 'unattributed' | 'disputed' | 'client_attributed';
 
 // Map domain status to our filter types
 function getStatusFilterType(domain: AccountDomain): StatusFilterType {
-  if (domain.status === 'CLIENT_PROMOTED') return 'client_promoted';
+  if (domain.status === 'CLIENT_PROMOTED') return 'client_attributed';
   if (domain.status === 'DISPUTED') return 'disputed';
   if (domain.status === 'OUTSIDE_WINDOW' || (!domain.is_within_window && domain.match_type !== 'NO_MATCH' && domain.match_type !== null)) return 'outside_window';
   if (domain.status === 'UNATTRIBUTED' || domain.match_type === 'NO_MATCH' || domain.match_type === null) return 'unattributed';
@@ -81,7 +81,7 @@ export function AccountsTable({
   uuid,
   attributionWindowDays,
   onDispute,
-  onPromote,
+  onAttribute,
 }: AccountsTableProps) {
   // State
   const [searchQuery, setSearchQuery] = useState('');
@@ -150,7 +150,7 @@ export function AccountsTable({
     const outsideWindow = filteredDomains.filter((d) => getStatusFilterType(d) === 'outside_window').length;
     const unattributed = filteredDomains.filter((d) => getStatusFilterType(d) === 'unattributed').length;
     const disputed = filteredDomains.filter((d) => d.status === 'DISPUTED').length;
-    const clientPromoted = filteredDomains.filter((d) => d.status === 'CLIENT_PROMOTED').length;
+    const clientAttributed = filteredDomains.filter((d) => d.status === 'CLIENT_PROMOTED').length;
     const withReplies = filteredDomains.filter((d) => d.has_positive_reply).length;
     const withSignups = filteredDomains.filter((d) => d.has_sign_up).length;
     const withMeetings = filteredDomains.filter((d) => d.has_meeting_booked).length;
@@ -162,7 +162,7 @@ export function AccountsTable({
       outsideWindow,
       unattributed,
       disputed,
-      clientPromoted,
+      clientAttributed,
       withReplies,
       withSignups,
       withMeetings,
@@ -237,9 +237,9 @@ export function AccountsTable({
             </Badge>
           </DefinitionTooltip>
         );
-      case 'client_promoted':
+      case 'client_attributed':
         return (
-          <DefinitionTooltip term="clientPromoted" showUnderline={false}>
+          <DefinitionTooltip term="clientAttributed" showUnderline={false}>
             <Badge variant="outline" className="bg-blue-500/10 text-blue-700 dark:text-blue-400">
               <ArrowUpCircle className="h-3 w-3 mr-1" />
               Client-Attributed
@@ -281,7 +281,7 @@ export function AccountsTable({
             className="h-7 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
             onClick={(e) => {
               e.stopPropagation();
-              onPromote?.(domain.id);
+              onAttribute?.(domain.id);
             }}
           >
             <ArrowUpCircle className="h-3 w-3 mr-1" />

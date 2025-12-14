@@ -47,8 +47,8 @@ interface TimelineDialogProps {
 }
 
 // Map domain status to filter types for consistent display
-function getStatusType(domain: TimelineDomain): 'attributed' | 'outside_window' | 'unattributed' | 'disputed' | 'client_promoted' {
-  if (domain.status === 'CLIENT_PROMOTED') return 'client_promoted';
+function getStatusType(domain: TimelineDomain): 'attributed' | 'outside_window' | 'unattributed' | 'disputed' | 'client_attributed' {
+  if (domain.status === 'CLIENT_PROMOTED') return 'client_attributed';
   if (domain.status === 'DISPUTED') return 'disputed';
   if (domain.status === 'OUTSIDE_WINDOW' || (!domain.is_within_window && domain.match_type !== 'NO_MATCH' && domain.match_type !== null)) return 'outside_window';
   if (domain.status === 'UNATTRIBUTED' || domain.match_type === 'NO_MATCH' || domain.match_type === null) return 'unattributed';
@@ -98,9 +98,9 @@ export function TimelineDialog({ domain, isOpen, onClose, slug, uuid }: Timeline
             </Badge>
           </DefinitionTooltip>
         );
-      case 'client_promoted':
+      case 'client_attributed':
         return (
-          <DefinitionTooltip term="clientPromoted" showUnderline={false}>
+          <DefinitionTooltip term="clientAttributed" showUnderline={false}>
             <Badge variant="outline" className="bg-blue-500/10 text-blue-700 dark:text-blue-400">
               <ArrowUpCircle className="h-3 w-3 mr-1" />
               Client-Attributed

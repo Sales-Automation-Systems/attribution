@@ -1,17 +1,18 @@
 -- Migration: 011_client_actions.sql
--- Description: Add support for client actions (disputes, promotions, manual events)
+-- Description: Add support for client actions (disputes, manual attribution, manual events)
 -- 
 -- New status values:
---   - CLIENT_PROMOTED: Client manually added this to attribution
+--   - CLIENT_PROMOTED: Client manually attributed this (UI calls this "Client-Attributed")
 --   - OUTSIDE_WINDOW: Event matched but outside 31-day window (replaces using is_within_window)
 --   - UNATTRIBUTED: No email match found (replaces NO_MATCH status)
 --
 -- New match_type value:
 --   - MANUAL: Client manually added this event
 --
--- New fields for tracking promotions:
---   - promoted_at: When the client promoted this domain
---   - promoted_by: Who promoted it (email or user ID)
+-- New fields for tracking client attributions:
+-- (DB columns named promoted_* for historical reasons, UI shows as "attributed")
+--   - promoted_at: When the client attributed this domain
+--   - promoted_by: Who attributed it (email or user ID)
 --   - promotion_notes: Optional notes from the client
 
 -- Add promotion tracking fields to attributed_domain
@@ -44,9 +45,9 @@ COMMENT ON COLUMN attributed_domain.promotion_notes IS 'Optional notes provided 
 -- 
 -- Valid status values after this migration:
 --   'ATTRIBUTED' - Within 31-day window, billable
---   'OUTSIDE_WINDOW' - Matched but outside window, not billable unless promoted
---   'UNATTRIBUTED' - No email match, not billable unless promoted
---   'CLIENT_PROMOTED' - Client manually added, billable
+--   'OUTSIDE_WINDOW' - Matched but outside window, not billable unless manually attributed
+--   'UNATTRIBUTED' - No email match, not billable unless manually attributed
+--   'CLIENT_PROMOTED' - Client manually attributed, billable (UI shows as "Client-Attributed")
 --   'DISPUTED' - Client disputed, pending review
 --   'REJECTED' - Dispute rejected, still billable
 --   'CONFIRMED' - Manually confirmed attribution

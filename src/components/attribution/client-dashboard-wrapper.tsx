@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { AccountsTable, type AccountDomain } from './accounts-table';
 import { DisputeModal } from './dispute-modal';
-import { PromoteModal } from './promote-modal';
+import { AttributeModal } from './attribute-modal';
 import { AddEventModal } from './add-event-modal';
 import { Button } from '@/components/ui/button';
 import { Plus, Download } from 'lucide-react';
@@ -36,7 +36,7 @@ export function ClientDashboardWrapper({
     domain?: AccountDomain;
   }>({ isOpen: false, domainId: '', domainName: '' });
 
-  const [promoteModal, setPromoteModal] = useState<{
+  const [attributeModal, setAttributeModal] = useState<{
     isOpen: boolean;
     domainId: string;
     domainName: string;
@@ -67,8 +67,8 @@ export function ClientDashboardWrapper({
     [findDomain]
   );
 
-  // Handle promote
-  const handlePromote = useCallback(
+  // Handle attribute (manually attribute an outside-window or unattributed domain)
+  const handleAttribute = useCallback(
     (domainId: string) => {
       const domain = findDomain(domainId);
       if (domain) {
@@ -77,7 +77,7 @@ export function ClientDashboardWrapper({
           (domain.match_type === 'HARD_MATCH' || domain.match_type === 'SOFT_MATCH')
             ? 'outside_window'
             : 'unattributed';
-        setPromoteModal({
+        setAttributeModal({
           isOpen: true,
           domainId,
           domainName: domain.domain,
@@ -154,7 +154,7 @@ export function ClientDashboardWrapper({
         uuid={uuid}
         attributionWindowDays={attributionWindowDays}
         onDispute={handleDispute}
-        onPromote={handlePromote}
+        onAttribute={handleAttribute}
       />
 
       {/* Modals */}
@@ -172,17 +172,17 @@ export function ClientDashboardWrapper({
         onSuccess={handleSuccess}
       />
 
-      <PromoteModal
-        isOpen={promoteModal.isOpen}
+      <AttributeModal
+        isOpen={attributeModal.isOpen}
         onClose={() =>
-          setPromoteModal({ isOpen: false, domainId: '', domainName: '', currentStatus: 'unattributed' })
+          setAttributeModal({ isOpen: false, domainId: '', domainName: '', currentStatus: 'unattributed' })
         }
-        domainId={promoteModal.domainId}
-        domainName={promoteModal.domainName}
+        domainId={attributeModal.domainId}
+        domainName={attributeModal.domainName}
         slug={slug}
         uuid={uuid}
         revShareRate={revShareRate}
-        currentStatus={promoteModal.currentStatus}
+        currentStatus={attributeModal.currentStatus}
         onSuccess={handleSuccess}
       />
 
@@ -197,4 +197,3 @@ export function ClientDashboardWrapper({
     </div>
   );
 }
-

@@ -90,12 +90,12 @@ export const UI_DEFINITIONS = {
     definition: 'Filter to show only Hard Match accounts for high-confidence attribution.',
     source: null,
   },
-  promote: {
-    term: 'Attribute',
+  manualAttribution: {
+    term: 'Manual Attribution',
     definition: 'Add this event to your billable attribution. It will be included in your revenue share calculation.',
     source: null,
   },
-  clientPromoted: {
+  clientAttributed: {
     term: 'Client-Attributed',
     definition: 'You manually added this to attribution. Billable at your revenue share rate.',
     source: null,
