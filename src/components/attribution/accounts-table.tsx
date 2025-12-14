@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -81,12 +82,74 @@ export function AccountsTable({
   onDispute,
   onAttribute,
 }: AccountsTableProps) {
-  // State
-  const [searchQuery, setSearchQuery] = useState('');
-  const [eventTypeFilters, setEventTypeFilters] = useState<Set<EventTypeFilter>>(new Set());
-  const [statusFilters, setStatusFilters] = useState<Set<StatusFilterType>>(new Set());
-  const [focusView, setFocusView] = useState(false);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // Initialize state from URL params
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get('search') || '');
+  const [eventTypeFilters, setEventTypeFilters] = useState<Set<EventTypeFilter>>(() => {
+    const events = searchParams.get('events');
+    if (events) {
+      return new Set(events.split(',').filter(e => ['reply', 'signup', 'meeting', 'paying'].includes(e)) as EventTypeFilter[]);
+    }
+    return new Set();
+  });
+  const [statusFilters, setStatusFilters] = useState<Set<StatusFilterType>>(() => {
+    const status = searchParams.get('status');
+    if (status) {
+      return new Set(status.split(',').filter(s => 
+        ['attributed', 'outside_window', 'unattributed', 'disputed', 'client_attributed'].includes(s)
+      ) as StatusFilterType[]);
+    }
+    return new Set();
+  });
+  const [focusView, setFocusView] = useState(() => searchParams.get('focus') === 'true');
   const [selectedDomain, setSelectedDomain] = useState<AccountDomain | null>(null);
+
+  // Update URL when filters change
+  const updateURL = useCallback((params: Record<string, string | null>) => {
+    const newSearchParams = new URLSearchParams(searchParams.toString());
+    
+    Object.entries(params).forEach(([key, value]) => {
+      if (value === null || value === '') {
+        newSearchParams.delete(key);
+      } else {
+        newSearchParams.set(key, value);
+      }
+    });
+
+    const queryString = newSearchParams.toString();
+    router.replace(`${pathname}${queryString ? `?${queryString}` : ''}`, { scroll: false });
+  }, [searchParams, router, pathname]);
+
+  // Sync URL with filter state changes
+  useEffect(() => {
+    const params: Record<string, string | null> = {
+      search: searchQuery || null,
+      events: eventTypeFilters.size > 0 ? Array.from(eventTypeFilters).join(',') : null,
+      status: statusFilters.size > 0 ? Array.from(statusFilters).join(',') : null,
+      focus: focusView ? 'true' : null,
+    };
+    updateURL(params);
+  }, [searchQuery, eventTypeFilters, statusFilters, focusView, updateURL]);
+
+  // Open account from URL on mount
+  useEffect(() => {
+    const accountParam = searchParams.get('account');
+    if (accountParam && !selectedDomain) {
+      const domain = domains.find(d => d.domain === accountParam);
+      if (domain) {
+        setSelectedDomain(domain);
+      }
+    }
+  }, [searchParams, domains, selectedDomain]);
+
+  // Update URL when selecting/deselecting account
+  const handleSelectDomain = useCallback((domain: AccountDomain | null) => {
+    setSelectedDomain(domain);
+    updateURL({ account: domain?.domain || null });
+  }, [updateURL]);
 
   // Toggle event type filter
   const toggleEventFilter = (type: EventTypeFilter) => {
@@ -185,12 +248,13 @@ export function AccountsTable({
     return days;
   };
 
-  const clearFilters = () => {
+  const clearFilters = useCallback(() => {
     setSearchQuery('');
     setEventTypeFilters(new Set());
     setStatusFilters(new Set());
     setFocusView(false);
-  };
+    // URL will be updated by the useEffect
+  }, []);
 
   const hasActiveFilters = searchQuery || eventTypeFilters.size > 0 || statusFilters.size > 0 || focusView;
 
@@ -485,7 +549,7 @@ export function AccountsTable({
                     <TableRow
                       key={domain.id}
                       className="cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={() => setSelectedDomain(domain)}
+                      onClick={() => handleSelectDomain(domain)}
                     >
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
@@ -590,7 +654,7 @@ export function AccountsTable({
       <TimelineDialog
         domain={selectedDomain}
         isOpen={!!selectedDomain}
-        onClose={() => setSelectedDomain(null)}
+        onClose={() => handleSelectDomain(null)}
         slug={slug}
         uuid={uuid}
       />

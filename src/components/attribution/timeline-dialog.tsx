@@ -112,7 +112,7 @@ export function TimelineDialog({ domain, isOpen, onClose, slug, uuid }: Timeline
 
   return (
     <Dialog open={isOpen} onOpenChange={() => onClose()}>
-      <DialogContent className="max-w-6xl max-h-[85vh] overflow-hidden flex flex-col p-0">
+      <DialogContent className="w-[calc(100vw-2rem)] md:w-[calc(100vw-6rem)] lg:w-[calc(100vw-8rem)] max-h-[85vh] overflow-hidden flex flex-col p-0">
         {/* Header */}
         <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
           <div className="flex items-start justify-between gap-4">
@@ -191,7 +191,7 @@ export function TimelineDialog({ domain, isOpen, onClose, slug, uuid }: Timeline
         </DialogHeader>
 
         {/* Scrollable Timeline Body */}
-        <div className="flex-1 overflow-y-auto px-6 py-4">
+        <div className="flex-1 overflow-y-auto px-6 py-4 bg-background">
           <AccountTimeline
             domainId={domain.id}
             slug={slug}
