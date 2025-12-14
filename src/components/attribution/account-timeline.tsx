@@ -182,23 +182,22 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
     }
   };
 
-  // Filter events based on Focus View
-  const filteredEvents = useMemo(() => {
-    if (!focusView || !matchedEmail) {
-      return events;
-    }
-    // In Focus View: keep all non-EMAIL_SENT events, filter EMAIL_SENT to only matched email
-    return events.filter(event => {
-      if (event.type !== 'EMAIL_SENT') {
-        return true; // Keep all success events
-      }
-      // Only show EMAIL_SENT if it's to the matched contact
-      return event.email?.toLowerCase() === matchedEmail.toLowerCase();
-    });
-  }, [events, focusView, matchedEmail]);
+  // Determine which events should be dimmed (not hidden) in Focus View
+  const getDimmedStatus = (event: TimelineEvent): boolean => {
+    if (!focusView || !matchedEmail) return false;
+    if (event.type !== 'EMAIL_SENT') return false;
+    // Dim EMAIL_SENT events that aren't to the matched contact
+    return event.email?.toLowerCase() !== matchedEmail.toLowerCase();
+  };
 
-  // Count how many events are filtered out
-  const filteredOutCount = events.length - filteredEvents.length;
+  // Count how many events are dimmed
+  const dimmedCount = useMemo(() => {
+    if (!focusView || !matchedEmail) return 0;
+    return events.filter(event => 
+      event.type === 'EMAIL_SENT' && 
+      event.email?.toLowerCase() !== matchedEmail.toLowerCase()
+    ).length;
+  }, [events, focusView, matchedEmail]);
   const isHardMatch = matchType === 'HARD_MATCH';
   const canUseFocusView = isHardMatch && matchedEmail;
 
@@ -250,8 +249,8 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
     });
   };
 
-  // Group events by date
-  const eventsByDate = filteredEvents.reduce((acc, event) => {
+  // Group events by date (using all events, not filtered)
+  const eventsByDate = events.reduce((acc, event) => {
     const dateKey = new Date(event.date).toDateString();
     if (!acc[dateKey]) {
       acc[dateKey] = [];
@@ -272,9 +271,9 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
                 <p className="text-sm font-medium text-emerald-800 dark:text-emerald-200">
                   Hard Match: {matchedEmail}
                 </p>
-                {focusView && filteredOutCount > 0 && (
+                {focusView && dimmedCount > 0 && (
                   <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                    Hiding {filteredOutCount} email{filteredOutCount !== 1 ? 's' : ''} to other contacts
+                    {dimmedCount} other email{dimmedCount !== 1 ? 's' : ''} dimmed
                   </p>
                 )}
               </div>
@@ -308,10 +307,38 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
             {dateEvents.map((event) => {
               const config = EVENT_CONFIG[event.type];
               const meta = event.metadata || {};
+              const isDimmed = getDimmedStatus(event);
               
               // Check if this event is from the matched contact
               const isMatchedContact = matchedEmail && event.email?.toLowerCase() === matchedEmail.toLowerCase();
               
+              // DIMMED VIEW: Condensed single-line for non-focused emails
+              if (isDimmed) {
+                return (
+                  <div
+                    key={event.id}
+                    className="relative pl-6 pb-1 opacity-40 hover:opacity-60 transition-opacity duration-200"
+                  >
+                    {/* Smaller timeline dot */}
+                    <div className="absolute -left-[7px] top-1.5 w-3 h-3 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
+                      <Mail className="h-2 w-2 text-slate-400 dark:text-slate-500" />
+                    </div>
+
+                    {/* Condensed single-line content */}
+                    <div className="flex items-center gap-3 py-1 px-2 rounded bg-slate-100/50 dark:bg-slate-800/30 text-xs text-muted-foreground">
+                      <span className="font-mono tabular-nums shrink-0">
+                        {formatTime(event.date)}
+                      </span>
+                      <Mail className="h-3 w-3 shrink-0" />
+                      <span className="truncate">
+                        → {event.email}
+                      </span>
+                    </div>
+                  </div>
+                );
+              }
+              
+              // FULL VIEW: Normal expanded event card
               // Email sent metadata
               const emailBody = meta.body as string | undefined;
               const fromEmail = meta.fromEmail as string | undefined;
@@ -439,9 +466,9 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
       {/* Summary */}
       <div className="pt-4 border-t">
         <p className="text-xs text-muted-foreground text-center">
-          {filteredEvents.length} event{filteredEvents.length !== 1 ? 's' : ''} shown
-          {focusView && filteredOutCount > 0 && (
-            <span className="text-emerald-600 dark:text-emerald-400"> ({events.length} total)</span>
+          {events.length} event{events.length !== 1 ? 's' : ''}
+          {focusView && dimmedCount > 0 && (
+            <span className="text-emerald-600 dark:text-emerald-400"> • {dimmedCount} dimmed</span>
           )}
           {!hasDetailedEvents && events.length > 0 && (
             <span className="block mt-1 text-amber-600 dark:text-amber-400">
