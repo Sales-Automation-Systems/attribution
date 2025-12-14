@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { attributionPool } from '@/db';
-import { v4 as uuidv4 } from 'uuid';
+import { attrPool } from '@/db';
+import { randomUUID } from 'crypto';
 
 export async function POST(
   request: NextRequest,
@@ -27,7 +27,7 @@ export async function POST(
     }
 
     // Verify the client exists
-    const clientResult = await attributionPool.query(
+    const clientResult = await attrPool.query(
       `SELECT id FROM client_config WHERE slug = $1 AND access_uuid = $2`,
       [slug, uuid]
     );
@@ -45,7 +45,7 @@ export async function POST(
     cleanDomain = cleanDomain.split('/')[0];
 
     // Check if domain already exists for this client
-    const existingDomain = await attributionPool.query(
+    const existingDomain = await attrPool.query(
       `SELECT id FROM attributed_domain WHERE client_config_id = $1 AND domain = $2`,
       [clientConfigId, cleanDomain]
     );
@@ -93,15 +93,15 @@ export async function POST(
 
       updateFields.push(`updated_at = NOW()`);
 
-      await attributionPool.query(
+      await attrPool.query(
         `UPDATE attributed_domain SET ${updateFields.join(', ')} WHERE id = $${paramIndex}`,
         [...updateValues, domainId]
       );
     } else {
       // Create new domain record
-      domainId = uuidv4();
+      domainId = randomUUID();
 
-      await attributionPool.query(
+      await attrPool.query(
         `INSERT INTO attributed_domain (
           id, client_config_id, domain, first_event_at,
           has_positive_reply, has_sign_up, has_meeting_booked, has_paying_customer,
@@ -129,7 +129,7 @@ export async function POST(
     }
 
     // Also create a domain_event record
-    const eventId = uuidv4();
+    const eventId = randomUUID();
     const eventSource =
       eventType === 'sign_up'
         ? 'SIGN_UP'
@@ -137,7 +137,7 @@ export async function POST(
           ? 'MEETING_BOOKED'
           : 'PAYING_CUSTOMER';
 
-    await attributionPool.query(
+    await attrPool.query(
       `INSERT INTO domain_event (
         id, attributed_domain_id, event_source, event_time, email,
         source_id, source_table, metadata, created_at

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { attributionPool } from '@/db';
+import { attrPool } from '@/db';
 
 export async function POST(
   request: NextRequest,
@@ -13,7 +13,7 @@ export async function POST(
     const { notes } = body;
 
     // Verify the client exists and the domain belongs to them
-    const clientResult = await attributionPool.query(
+    const clientResult = await attrPool.query(
       `SELECT id FROM client_config WHERE slug = $1 AND access_uuid = $2`,
       [slug, uuid]
     );
@@ -28,7 +28,7 @@ export async function POST(
     const clientConfigId = clientResult.rows[0].id;
 
     // Verify the domain exists and belongs to this client
-    const domainResult = await attributionPool.query(
+    const domainResult = await attrPool.query(
       `SELECT id, domain, status, is_within_window, match_type FROM attributed_domain 
        WHERE id = $1 AND client_config_id = $2`,
       [domainId, clientConfigId]
@@ -62,7 +62,7 @@ export async function POST(
     const promotedBy = 'client'; // Could be user email from session
 
     // Update the domain status to CLIENT_PROMOTED
-    await attributionPool.query(
+    await attrPool.query(
       `UPDATE attributed_domain 
        SET status = 'CLIENT_PROMOTED',
            promoted_at = NOW(),
