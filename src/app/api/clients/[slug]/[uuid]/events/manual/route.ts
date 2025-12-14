@@ -11,7 +11,11 @@ export async function POST(
 
     // Parse request body
     const body = await request.json();
-    const { domain, eventType, eventDate, contactEmail, notes, submittedBy } = body;
+    const { domain, eventType, eventDate, contactEmail, notes } = body;
+    
+    // TODO: Get submittedBy from auth session in production
+    // For now, use placeholder
+    const submittedBy = 'client-user@placeholder';
 
     // Validate required fields
     if (!domain || typeof domain !== 'string' || domain.trim().length === 0) {
@@ -83,7 +87,8 @@ export async function POST(
       
       // Update attribution fields (columns still named promoted_* for DB compat)
       updateFields.push(`promoted_at = CASE WHEN status IN ('OUTSIDE_WINDOW', 'UNATTRIBUTED') THEN NOW() ELSE promoted_at END`);
-      updateFields.push(`promoted_by = CASE WHEN status IN ('OUTSIDE_WINDOW', 'UNATTRIBUTED') THEN '${submittedBy?.trim() || 'client'}' ELSE promoted_by END`);
+      updateFields.push(`promoted_by = CASE WHEN status IN ('OUTSIDE_WINDOW', 'UNATTRIBUTED') THEN $${paramIndex++} ELSE promoted_by END`);
+      updateValues.push(submittedBy);
       
       // Update promotion notes
       if (notes) {
@@ -123,7 +128,7 @@ export async function POST(
           eventType === 'sign_up',
           eventType === 'meeting_booked',
           eventType === 'paying_customer',
-          submittedBy?.trim() || 'client',
+          submittedBy,
           notes ? `[Manual ${eventType}] ${notes}` : null,
         ]
       );
@@ -152,7 +157,7 @@ export async function POST(
         eventSource,
         eventDateParsed,
         contactEmail || null,
-        JSON.stringify({ notes, addedBy: submittedBy?.trim() || 'client', manual: true }),
+        JSON.stringify({ notes, addedBy: submittedBy, manual: true }),
       ]
     );
 

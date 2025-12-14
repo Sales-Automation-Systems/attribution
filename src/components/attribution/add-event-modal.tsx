@@ -51,7 +51,6 @@ export function AddEventModal({
   revShareRate,
   onSuccess,
 }: AddEventModalProps) {
-  const [submittedBy, setSubmittedBy] = useState('');
   const [domain, setDomain] = useState('');
   const [eventType, setEventType] = useState<EventType | ''>('');
   const [eventDate, setEventDate] = useState<Date | undefined>(undefined);
@@ -85,7 +84,7 @@ export function AddEventModal({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          submittedBy: submittedBy.trim() || null,
+          // submittedBy will come from auth session in production
           domain: domain.trim().toLowerCase(),
           eventType,
           eventDate: eventDate ? format(eventDate, 'yyyy-MM-dd') : null,
@@ -110,7 +109,6 @@ export function AddEventModal({
   };
 
   const handleClose = () => {
-    setSubmittedBy('');
     setDomain('');
     setEventType('');
     setEventDate(undefined);
@@ -143,17 +141,6 @@ export function AddEventModal({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* Submitted By */}
-          <div className="space-y-2">
-            <Label htmlFor="submittedBy">Your Name/Email</Label>
-            <Input
-              id="submittedBy"
-              placeholder="e.g. john@company.com"
-              value={submittedBy}
-              onChange={(e) => setSubmittedBy(e.target.value)}
-            />
-          </div>
-
           {/* Domain */}
           <div className="space-y-2">
             <Label htmlFor="domain">

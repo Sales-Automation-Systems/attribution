@@ -10,7 +10,11 @@ export async function POST(
 
     // Parse request body
     const body = await request.json();
-    const { reason, evidenceLink, eventTypes, submittedBy } = body;
+    const { reason, evidenceLink, eventTypes } = body;
+    
+    // TODO: Get submittedBy from auth session in production
+    // For now, use placeholder
+    const submittedBy = 'client-user@placeholder';
 
     // Validate required fields
     if (!reason || typeof reason !== 'string' || reason.trim().length === 0) {

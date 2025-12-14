@@ -382,6 +382,10 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
               const productName = meta.product_name || meta.productName || meta.product;
               const source = meta.source;
               
+              // Manual event metadata
+              const isManualEvent = meta.manual === true;
+              const addedBy = meta.addedBy as string | undefined;
+              
               return (
                 <div
                   key={event.id}
@@ -466,6 +470,18 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
 
                     {/* Source */}
                     {renderField('Source', source, 'text-xs text-muted-foreground mt-1')}
+
+                    {/* Manual event indicator */}
+                    {isManualEvent && (
+                      <div className="mt-2 pt-2 border-t border-current/10 flex items-center gap-1">
+                        <Badge variant="outline" className="text-xs bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400">
+                          Manually Added
+                        </Badge>
+                        {addedBy && addedBy !== 'client-user@placeholder' && (
+                          <span className="text-xs text-muted-foreground">by {addedBy}</span>
+                        )}
+                      </div>
+                    )}
 
                     {/* Email body for sent emails */}
                     {emailBody && event.type === 'EMAIL_SENT' && (

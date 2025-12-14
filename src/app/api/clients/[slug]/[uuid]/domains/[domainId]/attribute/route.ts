@@ -20,7 +20,11 @@ export async function POST(
 
     // Parse request body
     const body = await request.json();
-    const { notes, submittedBy } = body;
+    const { notes } = body;
+    
+    // TODO: Get submittedBy from auth session in production
+    // For now, use placeholder
+    const submittedBy = 'client-user@placeholder';
 
     // Verify the client exists and the domain belongs to them
     const clientResult = await attrPool.query(
@@ -69,8 +73,8 @@ export async function POST(
       );
     }
 
-    // Use submitted name/email or default to 'client'
-    const attributedBy = submittedBy?.trim() || 'client';
+    // Use user from auth session (placeholder for now)
+    const attributedBy = submittedBy;
 
     // Update the domain status to CLIENT_PROMOTED
     // Note: We keep the database column names as promoted_* for backward compatibility

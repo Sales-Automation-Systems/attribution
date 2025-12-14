@@ -12,7 +12,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -70,7 +69,6 @@ export function AttributeSidePanel({
   uuid,
   onSuccess,
 }: AttributeSidePanelProps) {
-  const [submittedBy, setSubmittedBy] = useState('');
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -103,7 +101,7 @@ export function AttributeSidePanel({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            submittedBy: submittedBy.trim() || null,
+            // submittedBy will come from auth session in production
             notes: notes.trim() || null,
             attachmentCount: attachments.length,
           }),
@@ -126,7 +124,6 @@ export function AttributeSidePanel({
   };
 
   const handleClose = () => {
-    setSubmittedBy('');
     setNotes('');
     setError(null);
     setAttachments([]);
@@ -205,17 +202,6 @@ export function AttributeSidePanel({
                   Manually Attributed
                 </Badge>
               </div>
-            </div>
-
-            {/* Submitted By */}
-            <div className="space-y-2">
-              <Label htmlFor="panel-submitted-by">Your Name/Email</Label>
-              <Input
-                id="panel-submitted-by"
-                placeholder="e.g. john@company.com"
-                value={submittedBy}
-                onChange={(e) => setSubmittedBy(e.target.value)}
-              />
             </div>
 
             {/* Notes */}

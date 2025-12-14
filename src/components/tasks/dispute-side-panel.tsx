@@ -83,7 +83,6 @@ export function DisputeSidePanel({
   const [mode, setMode] = useState<'view' | 'submit'>('view');
 
   // Submit form state
-  const [submittedBy, setSubmittedBy] = useState('');
   const [reason, setReason] = useState('');
   const [evidenceLink, setEvidenceLink] = useState('');
   const [selectedEvents, setSelectedEvents] = useState<Set<string>>(new Set());
@@ -102,7 +101,6 @@ export function DisputeSidePanel({
     if (!isOpen) {
       setTask(null);
       setMode('view');
-      setSubmittedBy('');
       setReason('');
       setEvidenceLink('');
       setSelectedEvents(new Set());
@@ -158,7 +156,7 @@ export function DisputeSidePanel({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            submittedBy: submittedBy.trim() || null,
+            // submittedBy will come from auth session in production
             reason: reason.trim(),
             evidenceLink: evidenceLink.trim() || null,
             eventTypes: Array.from(selectedEvents),
@@ -233,6 +231,9 @@ export function DisputeSidePanel({
                   </div>
                   <p className="text-xs text-muted-foreground mt-2">
                     Submitted {formatDate(task.submitted_at)}
+                    {task.submitted_by && task.submitted_by !== 'client-user@placeholder' && (
+                      <span> by {task.submitted_by}</span>
+                    )}
                   </p>
                 </div>
 
@@ -309,17 +310,6 @@ export function DisputeSidePanel({
             ) : (
               // Submit new dispute
               <div className="space-y-4">
-                {/* Submitted By */}
-                <div className="space-y-2">
-                  <Label htmlFor="panel-submitted-by">Your Name/Email</Label>
-                  <Input
-                    id="panel-submitted-by"
-                    placeholder="e.g. john@company.com"
-                    value={submittedBy}
-                    onChange={(e) => setSubmittedBy(e.target.value)}
-                  />
-                </div>
-
                 {/* Event Type Selection */}
                 <div className="space-y-3">
                   <Label>Which events are you disputing?</Label>

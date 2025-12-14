@@ -98,6 +98,9 @@ function TaskCard({ task, slug, uuid }: { task: TaskWithDetails; slug: string; u
                   </CardTitle>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     Submitted {formatDate(task.submitted_at)} at {formatTime(task.submitted_at)}
+                    {task.submitted_by && task.submitted_by !== 'client-user@placeholder' && (
+                      <span> by {task.submitted_by}</span>
+                    )}
                   </p>
                 </div>
               </div>
