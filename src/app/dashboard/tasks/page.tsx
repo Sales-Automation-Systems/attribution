@@ -2,6 +2,9 @@ import { getAllTasks, getTasksCountByStatus } from '@/db/attribution/task-querie
 import { getAllClientConfigs } from '@/db/attribution/queries';
 import { AgencyTasksView } from '@/components/tasks/agency-tasks-view';
 
+// Force dynamic rendering - this page needs database access
+export const dynamic = 'force-dynamic';
+
 export default async function AgencyTasksPage() {
   // Fetch all tasks across all clients with details
   const [tasks, statusCounts, clients] = await Promise.all([

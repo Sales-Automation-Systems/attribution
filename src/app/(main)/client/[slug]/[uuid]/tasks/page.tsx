@@ -3,6 +3,9 @@ import { getClientConfigBySlugAndUuid } from '@/db/attribution/queries';
 import { getTasksByClient, getTaskComments, getTasksCountByStatus } from '@/db/attribution/task-queries';
 import { ClientTasksView } from '@/components/tasks/client-tasks-view';
 
+// Force dynamic rendering - this page needs database access
+export const dynamic = 'force-dynamic';
+
 export default async function ClientTasksPage({
   params,
 }: {
