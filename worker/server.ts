@@ -444,7 +444,8 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
   
   // BATCH LOOKUP: Query send times in chunks
   console.log('Fetching email send times (chunked)...');
-  const emailSendTimes = new Map<string, Date>();
+  const emailSendTimes = new Map<string, Date>(); // Legacy: first email (for backwards compat)
+  const emailAllSendTimes = new Map<string, Date[]>(); // All timestamps per email
   const domainSendTimes = new Map<string, Date>();
   const CHUNK_SIZE = 100;
   
@@ -455,19 +456,26 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
       console.log(`  Checking emails ${i + 1}-${Math.min(i + CHUNK_SIZE, emailArray.length)}/${emailArray.length}`);
     }
     
-    const results = await prodQuery<{ email: string; min_sent: Date }>(`
-      SELECT LOWER(p.lead_email) as email, MIN(ec.timestamp_email) as min_sent
+    // Get ALL email timestamps (not just MIN) for accurate window calculation
+    const results = await prodQuery<{ email: string; sent_at: Date }>(`
+      SELECT LOWER(p.lead_email) as email, ec.timestamp_email as sent_at
       FROM email_conversation ec
       JOIN prospect p ON ec.prospect_id = p.id
       JOIN client_integration ci ON ec.client_integration_id = ci.id
       WHERE ec.type = 'Sent'
         AND ci.client_id = $1
         AND LOWER(p.lead_email) = ANY($2)
-      GROUP BY LOWER(p.lead_email)
+      ORDER BY ec.timestamp_email
     `, [clientId, chunk]);
     
     for (const row of results) {
-      emailSendTimes.set(row.email, row.min_sent);
+      const existing = emailAllSendTimes.get(row.email) || [];
+      existing.push(new Date(row.sent_at));
+      emailAllSendTimes.set(row.email, existing);
+      // Also keep the first send time in the simple map for backwards compat
+      if (!emailSendTimes.has(row.email)) {
+        emailSendTimes.set(row.email, new Date(row.sent_at));
+      }
     }
   }
   console.log(`  Found ${emailSendTimes.size} emails with send history`);
@@ -507,9 +515,26 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
   }
   console.log(`  Found ${domainSendTimes.size} domains with send history`);
   
-  // Helper function to find the most recent email before an event time
-  const findMostRecentEmailBefore = (domain: string, eventTime: Date): Date | null => {
+  // Helper function to find the most recent email before an event time (for domains)
+  const findMostRecentDomainEmailBefore = (domain: string, eventTime: Date): Date | null => {
     const timestamps = domainAllSendTimes.get(domain);
+    if (!timestamps || timestamps.length === 0) return null;
+    
+    // Find the most recent timestamp that's BEFORE the event
+    let mostRecent: Date | null = null;
+    for (const ts of timestamps) {
+      if (ts <= eventTime) {
+        if (!mostRecent || ts > mostRecent) {
+          mostRecent = ts;
+        }
+      }
+    }
+    return mostRecent;
+  };
+  
+  // Helper function to find the most recent email before an event time (for exact emails)
+  const findMostRecentExactEmailBefore = (email: string, eventTime: Date): Date | null => {
+    const timestamps = emailAllSendTimes.get(email);
     if (!timestamps || timestamps.length === 0) return null;
     
     // Find the most recent timestamp that's BEFORE the event
@@ -551,19 +576,19 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
     if (!eventDomain) continue;
     
     // Look up send time - hard match first, then soft match
+    // Use the most recent email sent BEFORE the event for accurate window calculation
     let sendTime: Date | null = null;
     let matchType: 'HARD_MATCH' | 'SOFT_MATCH' = 'SOFT_MATCH';
     const eventTime = new Date(event.event_time);
     
-    // Try hard match (exact email)
-    if (eventEmail && emailSendTimes.has(eventEmail)) {
-      sendTime = emailSendTimes.get(eventEmail)!;
+    // Try hard match (exact email) - find most recent email to this person before the event
+    if (eventEmail && emailAllSendTimes.has(eventEmail)) {
+      sendTime = findMostRecentExactEmailBefore(eventEmail, eventTime);
       matchType = 'HARD_MATCH';
     } 
-    // Try soft match (domain) if enabled
-    // Use the most recent email sent BEFORE the event for accurate window calculation
+    // Try soft match (domain) if enabled - find most recent email to anyone at domain before the event
     else if (settings.softMatchEnabled && domainAllSendTimes.has(eventDomain)) {
-      sendTime = findMostRecentEmailBefore(eventDomain, eventTime);
+      sendTime = findMostRecentDomainEmailBefore(eventDomain, eventTime);
       matchType = 'SOFT_MATCH';
     }
     
