@@ -39,10 +39,11 @@ export async function GET(
       is_within_window: boolean;
       match_type: string;
       matched_email: string | null;
+      matched_emails: string[] | null;
     }>(`
       SELECT id, domain, client_config_id, first_email_sent_at, first_event_at,
              has_positive_reply, has_sign_up, has_meeting_booked, has_paying_customer,
-             is_within_window, match_type, matched_email
+             is_within_window, match_type, matched_email, matched_emails
       FROM attributed_domain
       WHERE id = $1
     `, [domainId]);
@@ -164,7 +165,8 @@ export async function GET(
       domain: {
         name: domain.domain,
         matchType: domain.match_type,
-        matchedEmail: domain.matched_email,
+        matchedEmail: domain.matched_email, // Legacy: first focused contact
+        matchedEmails: domain.matched_emails || [], // All focused contacts
         isWithinWindow: domain.is_within_window,
       }
     });

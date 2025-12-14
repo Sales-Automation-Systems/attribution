@@ -270,7 +270,7 @@ interface DomainResult {
   lastEvent: Date | null;
   isWithinWindow: boolean;
   matchType: 'HARD_MATCH' | 'SOFT_MATCH' | 'NO_MATCH';
-  matchedEmail: string | null; // The specific email that was hard-matched
+  matchedEmails: string[]; // All emails that were hard-matched (multiple focused contacts)
   hasSignUp: boolean;
   hasMeetingBooked: boolean;
   hasPayingCustomer: boolean;
@@ -580,7 +580,7 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
           lastEvent: eventTime,
           isWithinWindow: false,
           matchType: 'NO_MATCH',
-          matchedEmail: null,
+          matchedEmails: [], // No matches
           hasSignUp: event.event_type === 'sign_up',
           hasMeetingBooked: event.event_type === 'meeting_booked',
           hasPayingCustomer: event.event_type === 'paying_customer',
@@ -614,7 +614,7 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
           lastEvent: eventTime,
           isWithinWindow: false,
           matchType: 'NO_MATCH', // Not a match because email came after event
-          matchedEmail: null,
+          matchedEmails: [], // No matches
           hasSignUp: event.event_type === 'sign_up',
           hasMeetingBooked: event.event_type === 'meeting_booked',
           hasPayingCustomer: event.event_type === 'paying_customer',
@@ -676,9 +676,9 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
       existing.hasPayingCustomer = existing.hasPayingCustomer || event.event_type === 'paying_customer';
       if (matchType === 'HARD_MATCH') {
         existing.matchType = 'HARD_MATCH';
-        // Store the matched email for Focus View (first hard match wins)
-        if (eventEmail && !existing.matchedEmail) {
-          existing.matchedEmail = eventEmail;
+        // Add to matched emails array for Focus View (collect ALL hard-matched contacts)
+        if (eventEmail && !existing.matchedEmails.includes(eventEmail)) {
+          existing.matchedEmails.push(eventEmail);
         }
       }
       if (!existing.firstEvent || eventTime < existing.firstEvent) existing.firstEvent = eventTime;
@@ -691,7 +691,7 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
         lastEvent: eventTime,
         isWithinWindow,
         matchType,
-        matchedEmail: matchType === 'HARD_MATCH' ? eventEmail : null,
+        matchedEmails: matchType === 'HARD_MATCH' && eventEmail ? [eventEmail] : [],
         hasSignUp: event.event_type === 'sign_up',
         hasMeetingBooked: event.event_type === 'meeting_booked',
         hasPayingCustomer: event.event_type === 'paying_customer',
@@ -749,9 +749,9 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
       // Positive reply is always a hard match (we emailed this exact person)
       existing.matchType = 'HARD_MATCH';
       existing.isWithinWindow = true; // Positive replies always count
-      // Store the matched email for Focus View (first hard match wins)
-      if (email && !existing.matchedEmail) {
-        existing.matchedEmail = email;
+      // Add to matched emails array for Focus View (collect ALL hard-matched contacts)
+      if (email && !existing.matchedEmails.includes(email)) {
+        existing.matchedEmails.push(email);
       }
       if (replyEventTime && (!existing.firstEvent || replyEventTime < existing.firstEvent)) {
         existing.firstEvent = replyEventTime;
@@ -767,7 +767,7 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
         lastEvent: replyEventTime,
         isWithinWindow: true, // Positive replies always count
         matchType: 'HARD_MATCH', // We emailed this exact person
-        matchedEmail: email || null, // Store matched email for Focus View
+        matchedEmails: email ? [email] : [], // Store matched email for Focus View
         hasSignUp: false,
         hasMeetingBooked: false,
         hasPayingCustomer: false,
@@ -923,10 +923,10 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
       const upsertResult = await attrQuery<{ id: string }>(`
         INSERT INTO attributed_domain (
           client_config_id, domain, first_email_sent_at, first_event_at, last_event_at,
-          is_within_window, match_type, matched_email, status,
+          is_within_window, match_type, matched_email, matched_emails, status,
           has_sign_up, has_meeting_booked, has_paying_customer, has_positive_reply
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         ON CONFLICT (client_config_id, domain) DO UPDATE SET
           first_email_sent_at = COALESCE(EXCLUDED.first_email_sent_at, attributed_domain.first_email_sent_at),
           first_event_at = LEAST(COALESCE(EXCLUDED.first_event_at, attributed_domain.first_event_at), COALESCE(attributed_domain.first_event_at, EXCLUDED.first_event_at)),
@@ -949,6 +949,16 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
             ELSE 'UNATTRIBUTED'
           END,
           matched_email = COALESCE(attributed_domain.matched_email, EXCLUDED.matched_email),
+          matched_emails = (
+            SELECT ARRAY(
+              SELECT DISTINCT unnest 
+              FROM unnest(
+                COALESCE(attributed_domain.matched_emails, ARRAY[]::TEXT[]) || 
+                COALESCE(EXCLUDED.matched_emails, ARRAY[]::TEXT[])
+              ) AS unnest
+              WHERE unnest IS NOT NULL
+            )
+          ),
           updated_at = NOW()
         RETURNING id
       `, [
@@ -956,10 +966,11 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
         result.domain,
         result.firstEmailSent,
         result.firstEvent,
-        result.lastEvent, // New: last event timestamp
+        result.lastEvent,
         result.isWithinWindow,
         result.matchType,
-        result.matchedEmail,
+        result.matchedEmails.length > 0 ? result.matchedEmails[0] : null, // Legacy field: first email
+        result.matchedEmails.length > 0 ? result.matchedEmails : null, // New array field
         status,
         result.hasSignUp,
         result.hasMeetingBooked,

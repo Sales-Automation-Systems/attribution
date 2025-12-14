@@ -151,7 +151,7 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
   const [loaded, setLoaded] = useState(false);
   const [hasDetailedEvents, setHasDetailedEvents] = useState(false);
   const [matchType, setMatchType] = useState<string | null>(null);
-  const [matchedEmail, setMatchedEmail] = useState<string | null>(null);
+  const [matchedEmails, setMatchedEmails] = useState<string[]>([]);
   const [focusView, setFocusView] = useState(false);
 
   useEffect(() => {
@@ -172,7 +172,13 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
       setEvents(data.timeline || []);
       setHasDetailedEvents(data.hasDetailedEvents || false);
       setMatchType(data.domain?.matchType || null);
-      setMatchedEmail(data.domain?.matchedEmail || null);
+      // Use new array format, fall back to legacy single email
+      const emails = data.domain?.matchedEmails || [];
+      if (emails.length === 0 && data.domain?.matchedEmail) {
+        setMatchedEmails([data.domain.matchedEmail]);
+      } else {
+        setMatchedEmails(emails);
+      }
       setLoaded(true);
     } catch (err) {
       console.error('Timeline fetch error:', err);
@@ -182,24 +188,31 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
     }
   };
 
+  // Helper to check if an email is in the matched emails list
+  const isEmailFocused = (email: string | undefined): boolean => {
+    if (!email || matchedEmails.length === 0) return false;
+    const emailLower = email.toLowerCase();
+    return matchedEmails.some(m => m.toLowerCase() === emailLower);
+  };
+
   // Determine which events should be dimmed (not hidden) in Focus View
   const getDimmedStatus = (event: TimelineEvent): boolean => {
-    if (!focusView || !matchedEmail) return false;
+    if (!focusView || matchedEmails.length === 0) return false;
     if (event.type !== 'EMAIL_SENT') return false;
-    // Dim EMAIL_SENT events that aren't to the matched contact
-    return event.email?.toLowerCase() !== matchedEmail.toLowerCase();
+    // Dim EMAIL_SENT events that aren't to ANY of the matched contacts
+    return !isEmailFocused(event.email);
   };
 
   // Count how many events are dimmed
   const dimmedCount = useMemo(() => {
-    if (!focusView || !matchedEmail) return 0;
+    if (!focusView || matchedEmails.length === 0) return 0;
     return events.filter(event => 
       event.type === 'EMAIL_SENT' && 
-      event.email?.toLowerCase() !== matchedEmail.toLowerCase()
+      !isEmailFocused(event.email)
     ).length;
-  }, [events, focusView, matchedEmail]);
+  }, [events, focusView, matchedEmails]);
   const isDirectMatch = matchType === 'HARD_MATCH';
-  const canUseFocusView = isDirectMatch && matchedEmail;
+  const canUseFocusView = isDirectMatch && matchedEmails.length > 0;
 
   if (!isOpen) return null;
 
@@ -261,7 +274,7 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
 
   return (
     <div className="space-y-4 bg-background">
-      {/* Focus View Header - only show for direct matches with matched email */}
+      {/* Focus View Header - only show for direct matches with matched emails */}
       {canUseFocusView && (
         <div className="bg-gradient-to-r from-emerald-50 to-cyan-50 dark:from-emerald-950/30 dark:to-cyan-950/30 rounded-lg p-3 border border-emerald-200 dark:border-emerald-800">
           <div className="flex items-center justify-between">
@@ -269,10 +282,18 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
               <Focus className="h-4 w-4 text-emerald-600" />
               <div>
                 <p className="text-sm font-medium text-emerald-800 dark:text-emerald-200">
-                  Focused Contact: {matchedEmail}
+                  {matchedEmails.length === 1 
+                    ? `Focused Contact: ${matchedEmails[0]}`
+                    : `Focused Contacts (${matchedEmails.length}):`
+                  }
                 </p>
-                {focusView && dimmedCount > 0 && (
+                {matchedEmails.length > 1 && (
                   <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                    {matchedEmails.join(', ')}
+                  </p>
+                )}
+                {focusView && dimmedCount > 0 && (
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
                     {dimmedCount} other email{dimmedCount !== 1 ? 's' : ''} dimmed
                   </p>
                 )}
@@ -309,8 +330,8 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
               const meta = event.metadata || {};
               const isDimmed = getDimmedStatus(event);
               
-              // Check if this event is from the matched contact
-              const isFocusedContact = matchedEmail && event.email?.toLowerCase() === matchedEmail.toLowerCase();
+              // Check if this event is from any of the matched contacts
+              const isFocusedContact = isEmailFocused(event.email);
               
               // DIMMED VIEW: Condensed single-line for non-focused emails
               if (isDimmed) {

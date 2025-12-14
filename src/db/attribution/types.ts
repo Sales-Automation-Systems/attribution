@@ -85,6 +85,9 @@ export interface AttributedDomain {
   is_within_window: boolean;
   match_type: MatchType;
   status: DomainStatus;
+  // Focused contact(s) - emails that had success events (hard match)
+  matched_email: string | null; // Legacy single email (deprecated)
+  matched_emails: string[] | null; // Array of all hard-matched emails
   // Dispute fields
   dispute_reason: string | null;
   dispute_submitted_at: Date | null;
