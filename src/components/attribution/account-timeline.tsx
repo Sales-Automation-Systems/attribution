@@ -259,23 +259,6 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
     return acc;
   }, {} as Record<string, TimelineEvent[]>);
 
-  // #region agent log
-  if (typeof window !== 'undefined') {
-    setTimeout(() => {
-      const scrollContainer = document.querySelector('.overflow-y-auto');
-      const stickyHeaders = document.querySelectorAll('.sticky');
-      if (scrollContainer) {
-        const scrollStyles = window.getComputedStyle(scrollContainer);
-        fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'account-timeline.tsx:262',message:'Scroll container debug',data:{paddingTop:scrollStyles.paddingTop,paddingBottom:scrollStyles.paddingBottom,backgroundColor:scrollStyles.backgroundColor,stickyCount:stickyHeaders.length},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix-2',hypothesisId:'F,G,H,I'})}).catch(()=>{});
-      }
-      if (stickyHeaders.length > 0) {
-        const stickyStyles = window.getComputedStyle(stickyHeaders[0]);
-        fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'account-timeline.tsx:270',message:'Sticky header debug',data:{top:stickyStyles.top,backgroundColor:stickyStyles.backgroundColor,marginBottom:stickyStyles.marginBottom,zIndex:stickyStyles.zIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix-2',hypothesisId:'F,G'})}).catch(()=>{});
-      }
-    }, 1000);
-  }
-  // #endregion
-
   return (
     <div className="space-y-4 bg-background">
       {/* Focus View Header - only show for direct matches with matched email */}
