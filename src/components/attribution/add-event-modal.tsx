@@ -23,6 +23,8 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Plus, Loader2, DollarSign, Calendar, UserPlus } from 'lucide-react';
 import { DefinitionTooltip } from '@/components/ui/definition-tooltip';
+import { DatePicker } from '@/components/ui/date-picker';
+import { format } from 'date-fns';
 
 interface AddEventModalProps {
   isOpen: boolean;
@@ -51,7 +53,7 @@ export function AddEventModal({
 }: AddEventModalProps) {
   const [domain, setDomain] = useState('');
   const [eventType, setEventType] = useState<EventType | ''>('');
-  const [eventDate, setEventDate] = useState('');
+  const [eventDate, setEventDate] = useState<Date | undefined>(undefined);
   const [contactEmail, setContactEmail] = useState('');
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -84,7 +86,7 @@ export function AddEventModal({
         body: JSON.stringify({
           domain: domain.trim().toLowerCase(),
           eventType,
-          eventDate,
+          eventDate: eventDate ? format(eventDate, 'yyyy-MM-dd') : null,
           contactEmail: contactEmail.trim() || null,
           notes: notes.trim() || null,
         }),
@@ -108,7 +110,7 @@ export function AddEventModal({
   const handleClose = () => {
     setDomain('');
     setEventType('');
-    setEventDate('');
+    setEventDate(undefined);
     setContactEmail('');
     setNotes('');
     setError(null);
@@ -198,12 +200,10 @@ export function AddEventModal({
             <Label htmlFor="eventDate">
               Event Date <span className="text-red-500">*</span>
             </Label>
-            <Input
-              id="eventDate"
-              type="date"
+            <DatePicker
               value={eventDate}
-              onChange={(e) => setEventDate(e.target.value)}
-              max={new Date().toISOString().split('T')[0]} // Can't be in the future
+              onChange={setEventDate}
+              placeholder="Select date (YYYY-MM-DD)"
             />
           </div>
 
