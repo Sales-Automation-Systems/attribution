@@ -18,6 +18,3 @@ ALTER TABLE client_config ADD COLUMN IF NOT EXISTS attributed_paying_customers I
 -- Processing timestamp
 ALTER TABLE client_config ADD COLUMN IF NOT EXISTS last_processed_at TIMESTAMP;
 
-
-
-

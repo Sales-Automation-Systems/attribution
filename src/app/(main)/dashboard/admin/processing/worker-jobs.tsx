@@ -236,6 +236,3 @@ export function WorkerJobsDisplay() {
   );
 }
 
-
-
-

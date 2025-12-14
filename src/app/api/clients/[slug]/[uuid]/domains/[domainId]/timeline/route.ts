@@ -38,10 +38,11 @@ export async function GET(
       has_paying_customer: boolean;
       is_within_window: boolean;
       match_type: string;
+      matched_email: string | null;
     }>(`
       SELECT id, domain, client_config_id, first_email_sent_at, first_event_at,
              has_positive_reply, has_sign_up, has_meeting_booked, has_paying_customer,
-             is_within_window, match_type
+             is_within_window, match_type, matched_email
       FROM attributed_domain
       WHERE id = $1
     `, [domainId]);
@@ -163,6 +164,7 @@ export async function GET(
       domain: {
         name: domain.domain,
         matchType: domain.match_type,
+        matchedEmail: domain.matched_email,
         isWithinWindow: domain.is_within_window,
       }
     });

@@ -33,6 +33,3 @@ export async function GET(
   }
 }
 
-
-
-

@@ -40,6 +40,3 @@ async function verify() {
 
 verify();
 
-
-
-

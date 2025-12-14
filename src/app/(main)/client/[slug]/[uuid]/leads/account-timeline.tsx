@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, Mail, MessageSquare, UserPlus, Calendar, DollarSign, ChevronDown, ChevronUp, Linkedin, User, Briefcase } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Loader2, Mail, MessageSquare, UserPlus, Calendar, DollarSign, ChevronDown, ChevronUp, User, Briefcase, Focus } from 'lucide-react';
 
 interface TimelineEvent {
   id: string;
@@ -104,7 +106,7 @@ function EmailBodyDisplay({ body, label }: { body: string; label: string }) {
   );
 }
 
-function ContactInfo({ name, title, linkedinUrl }: { name?: string | null; title?: string | null; linkedinUrl?: string | null }) {
+function ContactInfo({ name, title }: { name?: string | null; title?: string | null }) {
   if (!name && !title) return null;
   
   return (
@@ -119,17 +121,6 @@ function ContactInfo({ name, title, linkedinUrl }: { name?: string | null; title
             {title}
           </span>
         </>
-      )}
-      {linkedinUrl && (
-        <a 
-          href={linkedinUrl} 
-          target="_blank" 
-          rel="noopener noreferrer"
-          className="text-blue-600 hover:text-blue-800"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Linkedin className="h-3 w-3" />
-        </a>
       )}
     </div>
   );
@@ -159,6 +150,9 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [hasDetailedEvents, setHasDetailedEvents] = useState(false);
+  const [matchType, setMatchType] = useState<string | null>(null);
+  const [matchedEmail, setMatchedEmail] = useState<string | null>(null);
+  const [focusView, setFocusView] = useState(false);
 
   useEffect(() => {
     if (isOpen && !loaded) {
@@ -177,6 +171,8 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
       }
       setEvents(data.timeline || []);
       setHasDetailedEvents(data.hasDetailedEvents || false);
+      setMatchType(data.domain?.matchType || null);
+      setMatchedEmail(data.domain?.matchedEmail || null);
       setLoaded(true);
     } catch (err) {
       console.error('Timeline fetch error:', err);
@@ -185,6 +181,26 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
       setLoading(false);
     }
   };
+
+  // Filter events based on Focus View
+  const filteredEvents = useMemo(() => {
+    if (!focusView || !matchedEmail) {
+      return events;
+    }
+    // In Focus View: keep all non-EMAIL_SENT events, filter EMAIL_SENT to only matched email
+    return events.filter(event => {
+      if (event.type !== 'EMAIL_SENT') {
+        return true; // Keep all success events
+      }
+      // Only show EMAIL_SENT if it's to the matched contact
+      return event.email?.toLowerCase() === matchedEmail.toLowerCase();
+    });
+  }, [events, focusView, matchedEmail]);
+
+  // Count how many events are filtered out
+  const filteredOutCount = events.length - filteredEvents.length;
+  const isHardMatch = matchType === 'HARD_MATCH';
+  const canUseFocusView = isHardMatch && matchedEmail;
 
   if (!isOpen) return null;
 
@@ -235,7 +251,7 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
   };
 
   // Group events by date
-  const eventsByDate = events.reduce((acc, event) => {
+  const eventsByDate = filteredEvents.reduce((acc, event) => {
     const dateKey = new Date(event.date).toDateString();
     if (!acc[dateKey]) {
       acc[dateKey] = [];
@@ -246,6 +262,38 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
 
   return (
     <div className="space-y-4">
+      {/* Focus View Header - only show for hard matches with matched email */}
+      {canUseFocusView && (
+        <div className="bg-gradient-to-r from-emerald-50 to-cyan-50 dark:from-emerald-950/30 dark:to-cyan-950/30 rounded-lg p-3 border border-emerald-200 dark:border-emerald-800">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Focus className="h-4 w-4 text-emerald-600" />
+              <div>
+                <p className="text-sm font-medium text-emerald-800 dark:text-emerald-200">
+                  Hard Match: {matchedEmail}
+                </p>
+                {focusView && filteredOutCount > 0 && (
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                    Hiding {filteredOutCount} email{filteredOutCount !== 1 ? 's' : ''} to other contacts
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="focus-view" className="text-sm text-emerald-700 dark:text-emerald-300 cursor-pointer">
+                Focus View
+              </Label>
+              <Switch
+                id="focus-view"
+                checked={focusView}
+                onCheckedChange={setFocusView}
+                className="data-[state=checked]:bg-emerald-600"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {Object.entries(eventsByDate).map(([dateKey, dateEvents]) => (
         <div key={dateKey} className="relative">
           {/* Date Header */}
@@ -261,6 +309,9 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
               const config = EVENT_CONFIG[event.type];
               const meta = event.metadata || {};
               
+              // Check if this event is from the matched contact
+              const isMatchedContact = matchedEmail && event.email?.toLowerCase() === matchedEmail.toLowerCase();
+              
               // Email sent metadata
               const emailBody = meta.body as string | undefined;
               const fromEmail = meta.fromEmail as string | undefined;
@@ -274,7 +325,6 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
               const replySubject = meta.replySubject as string | undefined;
               const contactName = meta.contactName as string | undefined;
               const jobTitle = meta.jobTitle as string | undefined;
-              const linkedinUrl = meta.linkedinUrl as string | undefined;
               const companyName = meta.companyName as string | undefined;
               
               // Attribution event metadata (deal value, meeting title, etc.)
@@ -297,7 +347,7 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
                   </div>
 
                   {/* Event content */}
-                  <div className={`rounded-lg p-3 ${config.bgColor}`}>
+                  <div className={`rounded-lg p-3 ${config.bgColor} ${isMatchedContact && isHardMatch ? 'ring-2 ring-emerald-400 dark:ring-emerald-600' : ''}`}>
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-2">
                         <Badge variant="outline" className={`${config.color} border-current`}>
@@ -307,6 +357,11 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
                           <span className="text-xs text-muted-foreground">
                             Step {stepNumber}
                           </span>
+                        )}
+                        {isMatchedContact && isHardMatch && (
+                          <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300 text-xs">
+                            Matched
+                          </Badge>
                         )}
                       </div>
                       <span className="text-xs text-muted-foreground">
@@ -321,7 +376,7 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
 
                     {/* Contact info for positive replies */}
                     {event.type === 'POSITIVE_REPLY' && (contactName || jobTitle) && (
-                      <ContactInfo name={contactName} title={jobTitle} linkedinUrl={linkedinUrl} />
+                      <ContactInfo name={contactName} title={jobTitle} />
                     )}
 
                     {/* Email address */}
@@ -384,7 +439,10 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
       {/* Summary */}
       <div className="pt-4 border-t">
         <p className="text-xs text-muted-foreground text-center">
-          {events.length} event{events.length !== 1 ? 's' : ''} total
+          {filteredEvents.length} event{filteredEvents.length !== 1 ? 's' : ''} shown
+          {focusView && filteredOutCount > 0 && (
+            <span className="text-emerald-600 dark:text-emerald-400"> ({events.length} total)</span>
+          )}
           {!hasDetailedEvents && events.length > 0 && (
             <span className="block mt-1 text-amber-600 dark:text-amber-400">
               Showing summary view • Full history available after next sync
