@@ -57,7 +57,6 @@ interface AccountsTableProps {
   slug: string;
   uuid: string;
   attributionWindowDays: number;
-  onDispute?: (domainId: string) => void;
   onAttribute?: (domainId: string) => void;
   onOpenDisputePanel?: (domain: AccountDomain) => void;
 }
@@ -80,7 +79,6 @@ export function AccountsTable({
   slug,
   uuid,
   attributionWindowDays,
-  onDispute,
   onAttribute,
   onOpenDisputePanel,
 }: AccountsTableProps) {

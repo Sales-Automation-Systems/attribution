@@ -3,10 +3,9 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { AccountsTable, type AccountDomain } from './accounts-table';
-import { DisputeModal } from './dispute-modal';
-import { AttributeModal } from './attribute-modal';
 import { AddEventModal } from './add-event-modal';
 import { DisputeSidePanel } from '@/components/tasks/dispute-side-panel';
+import { AttributeSidePanel } from '@/components/tasks/attribute-side-panel';
 import { Button } from '@/components/ui/button';
 import { Plus, Download } from 'lucide-react';
 
@@ -29,25 +28,16 @@ export function ClientDashboardWrapper({
 }: ClientDashboardWrapperProps) {
   const router = useRouter();
   
-  // Modal state
-  const [disputeModal, setDisputeModal] = useState<{
-    isOpen: boolean;
-    domainId: string;
-    domainName: string;
-    domain?: AccountDomain;
-  }>({ isOpen: false, domainId: '', domainName: '' });
-
-  const [attributeModal, setAttributeModal] = useState<{
-    isOpen: boolean;
-    domainId: string;
-    domainName: string;
-    currentStatus: 'outside_window' | 'unattributed';
-  }>({ isOpen: false, domainId: '', domainName: '', currentStatus: 'unattributed' });
-
   const [addEventModal, setAddEventModal] = useState(false);
 
   // Side panel state for disputes
   const [disputePanel, setDisputePanel] = useState<{
+    isOpen: boolean;
+    domain: AccountDomain | null;
+  }>({ isOpen: false, domain: null });
+
+  // Side panel state for attribution
+  const [attributePanel, setAttributePanel] = useState<{
     isOpen: boolean;
     domain: AccountDomain | null;
   }>({ isOpen: false, domain: null });
@@ -58,38 +48,12 @@ export function ClientDashboardWrapper({
     [domains]
   );
 
-  // Handle dispute
-  const handleDispute = useCallback(
-    (domainId: string) => {
-      const domain = findDomain(domainId);
-      if (domain) {
-        setDisputeModal({
-          isOpen: true,
-          domainId,
-          domainName: domain.domain,
-          domain,
-        });
-      }
-    },
-    [findDomain]
-  );
-
   // Handle attribute (manually attribute an outside-window or unattributed domain)
   const handleAttribute = useCallback(
     (domainId: string) => {
       const domain = findDomain(domainId);
       if (domain) {
-        const currentStatus =
-          domain.is_within_window === false &&
-          (domain.match_type === 'HARD_MATCH' || domain.match_type === 'SOFT_MATCH')
-            ? 'outside_window'
-            : 'unattributed';
-        setAttributeModal({
-          isOpen: true,
-          domainId,
-          domainName: domain.domain,
-          currentStatus,
-        });
+        setAttributePanel({ isOpen: true, domain });
       }
     },
     [findDomain]
@@ -174,36 +138,17 @@ export function ClientDashboardWrapper({
         slug={slug}
         uuid={uuid}
         attributionWindowDays={attributionWindowDays}
-        onDispute={handleDispute}
         onAttribute={handleAttribute}
         onOpenDisputePanel={handleOpenDisputePanel}
       />
 
-      {/* Modals */}
-      <DisputeModal
-        isOpen={disputeModal.isOpen}
-        onClose={() => setDisputeModal({ isOpen: false, domainId: '', domainName: '' })}
-        domainId={disputeModal.domainId}
-        domainName={disputeModal.domainName}
+      {/* Attribute Side Panel */}
+      <AttributeSidePanel
+        isOpen={attributePanel.isOpen}
+        onClose={() => setAttributePanel({ isOpen: false, domain: null })}
+        domain={attributePanel.domain}
         slug={slug}
         uuid={uuid}
-        hasPositiveReply={disputeModal.domain?.has_positive_reply}
-        hasSignUp={disputeModal.domain?.has_sign_up}
-        hasMeetingBooked={disputeModal.domain?.has_meeting_booked}
-        hasPayingCustomer={disputeModal.domain?.has_paying_customer}
-        onSuccess={handleSuccess}
-      />
-
-      <AttributeModal
-        isOpen={attributeModal.isOpen}
-        onClose={() =>
-          setAttributeModal({ isOpen: false, domainId: '', domainName: '', currentStatus: 'unattributed' })
-        }
-        domainId={attributeModal.domainId}
-        domainName={attributeModal.domainName}
-        slug={slug}
-        uuid={uuid}
-        currentStatus={attributeModal.currentStatus}
         onSuccess={handleSuccess}
       />
 
