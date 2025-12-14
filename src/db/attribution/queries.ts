@@ -93,6 +93,16 @@ export async function updateClientConfig(
 
 // ============ Attributed Domain Queries ============
 
+export async function getAttributedDomainsCount(
+  clientConfigId: string
+): Promise<number> {
+  const rows = await attrQuery<{ count: string }>(
+    'SELECT COUNT(*) as count FROM attributed_domain WHERE client_config_id = $1',
+    [clientConfigId]
+  );
+  return parseInt(rows[0]?.count || '0', 10);
+}
+
 export async function getAttributedDomains(
   clientConfigId: string,
   options?: {

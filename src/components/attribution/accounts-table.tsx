@@ -56,6 +56,7 @@ export interface AccountDomain {
 
 interface AccountsTableProps {
   domains: AccountDomain[];
+  totalCount: number;
   slug: string;
   uuid: string;
   attributionWindowDays: number;
@@ -77,6 +78,7 @@ function getStatusFilterType(domain: AccountDomain): StatusFilterType {
 
 export function AccountsTable({
   domains,
+  totalCount,
   slug,
   uuid,
   attributionWindowDays,
@@ -332,7 +334,7 @@ export function AccountsTable({
               </div>
               {focusView && (
                 <span className="text-xs text-muted-foreground">
-                  Showing {filteredDomains.length} of {domains.length} accounts
+                  Showing {filteredDomains.length} of {domains.length} matched accounts
                 </span>
               )}
             </div>
@@ -647,9 +649,21 @@ export function AccountsTable({
       )}
 
       {/* Results count */}
-      <p className="text-sm text-muted-foreground text-center">
-        Showing {filteredDomains.length} of {domains.length} accounts
-      </p>
+      <div className="text-sm text-muted-foreground text-center space-y-1">
+        <p>
+          Showing {filteredDomains.length} of {domains.length} matched accounts
+          {totalCount > domains.length && (
+            <span className="text-amber-600 dark:text-amber-400">
+              {' '}(database has {totalCount} total)
+            </span>
+          )}
+        </p>
+        {stats.unattributed === 0 && statusFilters.has('unattributed') && (
+          <p className="text-xs text-amber-600 dark:text-amber-400">
+            Note: Unattributed events (where we never sent an email) will appear after the next data sync.
+          </p>
+        )}
+      </div>
     </div>
   );
 }

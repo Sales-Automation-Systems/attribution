@@ -11,6 +11,7 @@ import { Plus, Download } from 'lucide-react';
 
 interface ClientDashboardWrapperProps {
   domains: AccountDomain[];
+  totalCount: number;
   slug: string;
   uuid: string;
   attributionWindowDays: number;
@@ -19,6 +20,7 @@ interface ClientDashboardWrapperProps {
 
 export function ClientDashboardWrapper({
   domains,
+  totalCount,
   slug,
   uuid,
   attributionWindowDays,
@@ -147,6 +149,7 @@ export function ClientDashboardWrapper({
       {/* Accounts Table */}
       <AccountsTable
         domains={domains}
+        totalCount={totalCount}
         slug={slug}
         uuid={uuid}
         attributionWindowDays={attributionWindowDays}

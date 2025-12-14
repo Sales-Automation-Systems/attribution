@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import {
   getClientConfigBySlugAndUuid,
   getAttributedDomains,
+  getAttributedDomainsCount,
 } from '@/db/attribution/queries';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -29,8 +30,11 @@ export default async function ClientDashboardPage({
     notFound();
   }
 
-  // Fetch all domains for the unified view
-  const domains = await getAttributedDomains(client.id, { limit: 500 });
+  // Fetch all domains for the unified view (no limit for now, paginate later if needed)
+  const [domains, totalCount] = await Promise.all([
+    getAttributedDomains(client.id),
+    getAttributedDomainsCount(client.id),
+  ]);
 
   // Serialize dates for client component
   const serializedDomains: AccountDomain[] = domains.map((d) => ({
@@ -204,6 +208,7 @@ export default async function ClientDashboardPage({
         </p>
         <ClientDashboardWrapper
           domains={serializedDomains}
+          totalCount={totalCount}
           slug={slug}
           uuid={uuid}
           attributionWindowDays={client.attribution_window_days || 31}
