@@ -100,10 +100,10 @@ export function TimelineDialog({ domain, isOpen, onClose, slug, uuid }: Timeline
         );
       case 'client_attributed':
         return (
-          <DefinitionTooltip term="clientAttributed" showUnderline={false}>
+          <DefinitionTooltip term="manuallyAttributed" showUnderline={false}>
             <Badge variant="outline" className="bg-blue-500/10 text-blue-700 dark:text-blue-400">
               <ArrowUpCircle className="h-3 w-3 mr-1" />
-              Client-Attributed
+              Manually Attributed
             </Badge>
           </DefinitionTooltip>
         );

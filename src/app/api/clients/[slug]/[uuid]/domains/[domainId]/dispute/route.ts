@@ -79,11 +79,22 @@ export async function POST(
       [fullReason, domainId]
     );
 
+    // Create a task for the dispute
+    const taskResult = await attrPool.query(
+      `INSERT INTO task (client_config_id, attributed_domain_id, type, status, title, description)
+       VALUES ($1, $2, 'DISPUTE', 'OPEN', $3, $4)
+       RETURNING id`,
+      [clientConfigId, domainId, `Dispute: ${domain.domain}`, fullReason]
+    );
+
+    const taskId = taskResult.rows[0]?.id;
+
     return NextResponse.json({
       success: true,
       message: 'Dispute submitted successfully',
       domainId,
       domain: domain.domain,
+      taskId,
     });
   } catch (error) {
     console.error('Error submitting dispute:', error);

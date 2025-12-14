@@ -54,6 +54,43 @@ export async function POST(request: NextRequest) {
         -- Add comment for documentation
         COMMENT ON COLUMN attributed_domain.matched_emails IS 'Array of email addresses that were hard-matched (exact email we contacted had success events)';
       `,
+      '014_task_system.sql': `
+        -- Core task/dispute table
+        CREATE TABLE IF NOT EXISTS task (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          client_config_id UUID NOT NULL REFERENCES client_config(id) ON DELETE CASCADE,
+          attributed_domain_id UUID REFERENCES attributed_domain(id) ON DELETE SET NULL,
+          type VARCHAR(50) NOT NULL,
+          status VARCHAR(50) NOT NULL DEFAULT 'OPEN',
+          title VARCHAR(255),
+          description TEXT,
+          submitted_by VARCHAR(255),
+          submitted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          resolved_by VARCHAR(255),
+          resolved_at TIMESTAMP WITH TIME ZONE,
+          resolution_notes TEXT,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+
+        -- Comments/correspondence on tasks
+        CREATE TABLE IF NOT EXISTS task_comment (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          task_id UUID NOT NULL REFERENCES task(id) ON DELETE CASCADE,
+          author_type VARCHAR(20) NOT NULL,
+          author_name VARCHAR(255),
+          content TEXT NOT NULL,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+
+        -- Indexes for efficient queries
+        CREATE INDEX IF NOT EXISTS idx_task_client_config_id ON task(client_config_id);
+        CREATE INDEX IF NOT EXISTS idx_task_status ON task(status);
+        CREATE INDEX IF NOT EXISTS idx_task_type ON task(type);
+        CREATE INDEX IF NOT EXISTS idx_task_submitted_at ON task(submitted_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_task_attributed_domain_id ON task(attributed_domain_id);
+        CREATE INDEX IF NOT EXISTS idx_task_comment_task_id ON task_comment(task_id);
+      `,
     };
 
     const sql = migrations[migrationFile];

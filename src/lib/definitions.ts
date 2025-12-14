@@ -95,8 +95,8 @@ export const UI_DEFINITIONS = {
     definition: 'Add this event to your billable attribution. It will be included in your revenue share calculation.',
     source: null,
   },
-  clientAttributed: {
-    term: 'Client-Attributed',
+  manuallyAttributed: {
+    term: 'Manually Attributed',
     definition: 'You manually added this to attribution. Billable at your revenue share rate.',
     source: null,
   },

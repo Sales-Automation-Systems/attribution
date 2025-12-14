@@ -211,7 +211,7 @@ export function AccountsTable({
     const outsideWindow = filteredDomains.filter((d) => getStatusFilterType(d) === 'outside_window').length;
     const unattributed = filteredDomains.filter((d) => getStatusFilterType(d) === 'unattributed').length;
     const disputed = filteredDomains.filter((d) => d.status === 'DISPUTED').length;
-    const clientAttributed = filteredDomains.filter((d) => d.status === 'CLIENT_PROMOTED').length;
+    const manuallyAttributed = filteredDomains.filter((d) => d.status === 'CLIENT_PROMOTED').length;
     const withReplies = filteredDomains.filter((d) => d.has_positive_reply).length;
     const withSignups = filteredDomains.filter((d) => d.has_sign_up).length;
     const withMeetings = filteredDomains.filter((d) => d.has_meeting_booked).length;
@@ -223,7 +223,7 @@ export function AccountsTable({
       outsideWindow,
       unattributed,
       disputed,
-      clientAttributed,
+      manuallyAttributed,
       withReplies,
       withSignups,
       withMeetings,
@@ -301,10 +301,10 @@ export function AccountsTable({
         );
       case 'client_attributed':
         return (
-          <DefinitionTooltip term="clientAttributed" showUnderline={false}>
+          <DefinitionTooltip term="manuallyAttributed" showUnderline={false}>
             <Badge variant="outline" className="bg-blue-500/10 text-blue-700 dark:text-blue-400">
               <ArrowUpCircle className="h-3 w-3 mr-1" />
-              Client-Attributed
+              Manually Attributed
             </Badge>
           </DefinitionTooltip>
         );

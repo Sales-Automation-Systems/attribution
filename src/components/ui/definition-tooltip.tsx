@@ -120,13 +120,13 @@ export function SimpleTooltip({
 /**
  * StatusTooltip - Pre-configured tooltips for status badges
  */
-type StatusType = 'attributed' | 'outsideWindow' | 'unattributed' | 'clientAttributed' | 'disputed';
+type StatusType = 'attributed' | 'outsideWindow' | 'unattributed' | 'manuallyAttributed' | 'disputed';
 
 const STATUS_COLORS: Record<StatusType, string> = {
   attributed: 'text-green-600 dark:text-green-400',
   outsideWindow: 'text-yellow-600 dark:text-yellow-400',
   unattributed: 'text-gray-500 dark:text-gray-400',
-  clientAttributed: 'text-blue-600 dark:text-blue-400',
+  manuallyAttributed: 'text-blue-600 dark:text-blue-400',
   disputed: 'text-orange-600 dark:text-orange-400',
 };
 

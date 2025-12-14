@@ -147,7 +147,7 @@ export function AttributeModal({
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">New Status</span>
-              <span className="font-medium text-blue-600">Client-Attributed</span>
+              <span className="font-medium text-blue-600">Manually Attributed</span>
             </div>
           </div>
 

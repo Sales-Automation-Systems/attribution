@@ -62,7 +62,7 @@ export type DomainStatus =
   | 'ATTRIBUTED'      // Within 31-day window, billable
   | 'OUTSIDE_WINDOW'  // Matched but outside window, not billable unless manually attributed
   | 'UNATTRIBUTED'    // No email match, not billable unless manually attributed
-  | 'CLIENT_PROMOTED' // Client manually added, billable
+  | 'CLIENT_PROMOTED' // Manually attributed by client, billable (UI shows as "Manually Attributed")
   | 'DISPUTED'        // Client disputed, pending review
   | 'REJECTED'        // Dispute rejected, still billable
   | 'CONFIRMED';      // Manually confirmed attribution
@@ -93,7 +93,7 @@ export interface AttributedDomain {
   dispute_submitted_at: Date | null;
   dispute_resolved_at: Date | null;
   dispute_resolution_notes: string | null;
-  // Client attribution fields (for CLIENT_PROMOTED status - manually attributed by client)
+  // Manual attribution fields (for CLIENT_PROMOTED status - UI shows as "Manually Attributed")
   // Note: DB columns remain as promoted_* for backward compatibility
   promoted_at: Date | null;
   promoted_by: string | null;
@@ -224,5 +224,44 @@ export interface WorkerHeartbeat {
   status: 'running' | 'idle' | 'processing';
   current_job_id: string | null;
   metadata: Record<string, unknown> | null;
+}
+
+// ============ Task/Dispute System ============
+
+export type TaskType = 'DISPUTE' | 'RECONCILIATION' | 'MANUAL_ATTRIBUTION';
+export type TaskStatus = 'OPEN' | 'PENDING_INFO' | 'APPROVED' | 'REJECTED';
+export type TaskAuthorType = 'CLIENT' | 'AGENCY';
+
+export interface Task {
+  id: string;
+  client_config_id: string;
+  attributed_domain_id: string | null;
+  type: TaskType;
+  status: TaskStatus;
+  title: string | null;
+  description: string | null;
+  submitted_by: string | null;
+  submitted_at: Date;
+  resolved_by: string | null;
+  resolved_at: Date | null;
+  resolution_notes: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface TaskComment {
+  id: string;
+  task_id: string;
+  author_type: TaskAuthorType;
+  author_name: string | null;
+  content: string;
+  created_at: Date;
+}
+
+// Extended task with related data for UI
+export interface TaskWithDetails extends Task {
+  client_name?: string;
+  domain?: string;
+  comment_count?: number;
 }
 
