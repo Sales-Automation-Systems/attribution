@@ -267,7 +267,7 @@ interface DomainResult {
   firstEmailSent: Date | null;
   firstEvent: Date | null;
   isWithinWindow: boolean;
-  matchType: 'HARD_MATCH' | 'SOFT_MATCH';
+  matchType: 'HARD_MATCH' | 'SOFT_MATCH' | 'NO_MATCH';
   matchedEmail: string | null; // The specific email that was hard-matched
   hasSignUp: boolean;
   hasMeetingBooked: boolean;
@@ -560,6 +560,29 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
       if (event.event_type === 'sign_up') stats.notMatchedSignUps++;
       else if (event.event_type === 'meeting_booked') stats.notMatchedMeetings++;
       else if (event.event_type === 'paying_customer') stats.notMatchedPaying++;
+      
+      // STILL store the domain for visibility (clients can promote unattributed events)
+      const eventTime = new Date(event.event_time);
+      const existing = domainResults.get(eventDomain);
+      if (existing) {
+        existing.hasSignUp = existing.hasSignUp || event.event_type === 'sign_up';
+        existing.hasMeetingBooked = existing.hasMeetingBooked || event.event_type === 'meeting_booked';
+        existing.hasPayingCustomer = existing.hasPayingCustomer || event.event_type === 'paying_customer';
+        if (!existing.firstEvent || eventTime < existing.firstEvent) existing.firstEvent = eventTime;
+      } else {
+        domainResults.set(eventDomain, {
+          domain: eventDomain,
+          firstEmailSent: null, // We never emailed them
+          firstEvent: eventTime,
+          isWithinWindow: false,
+          matchType: 'NO_MATCH',
+          matchedEmail: null,
+          hasSignUp: event.event_type === 'sign_up',
+          hasMeetingBooked: event.event_type === 'meeting_booked',
+          hasPayingCustomer: event.event_type === 'paying_customer',
+          hasPositiveReply: false,
+        });
+      }
       continue;
     }
     
@@ -570,6 +593,28 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
       if (event.event_type === 'sign_up') stats.notMatchedSignUps++;
       else if (event.event_type === 'meeting_booked') stats.notMatchedMeetings++;
       else if (event.event_type === 'paying_customer') stats.notMatchedPaying++;
+      
+      // STILL store the domain for visibility (clients can promote unattributed events)
+      const existing = domainResults.get(eventDomain);
+      if (existing) {
+        existing.hasSignUp = existing.hasSignUp || event.event_type === 'sign_up';
+        existing.hasMeetingBooked = existing.hasMeetingBooked || event.event_type === 'meeting_booked';
+        existing.hasPayingCustomer = existing.hasPayingCustomer || event.event_type === 'paying_customer';
+        if (!existing.firstEvent || eventTime < existing.firstEvent) existing.firstEvent = eventTime;
+      } else {
+        domainResults.set(eventDomain, {
+          domain: eventDomain,
+          firstEmailSent: sendTime, // We emailed them, but AFTER the event
+          firstEvent: eventTime,
+          isWithinWindow: false,
+          matchType: 'NO_MATCH', // Not a match because email came after event
+          matchedEmail: null,
+          hasSignUp: event.event_type === 'sign_up',
+          hasMeetingBooked: event.event_type === 'meeting_booked',
+          hasPayingCustomer: event.event_type === 'paying_customer',
+          hasPositiveReply: false,
+        });
+      }
       continue;
     }
     
@@ -855,14 +900,21 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
   
   for (const result of domainResults.values()) {
     try {
+      // Determine status based on match type and window
+      const status = result.matchType === 'NO_MATCH' 
+        ? 'UNATTRIBUTED' 
+        : result.isWithinWindow 
+          ? 'ATTRIBUTED' 
+          : 'OUTSIDE_WINDOW';
+      
       // Upsert the attributed_domain and get its ID
       const upsertResult = await attrQuery<{ id: string }>(`
         INSERT INTO attributed_domain (
           client_config_id, domain, first_email_sent_at, first_event_at,
-          is_within_window, match_type, matched_email,
+          is_within_window, match_type, matched_email, status,
           has_sign_up, has_meeting_booked, has_paying_customer, has_positive_reply
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         ON CONFLICT (client_config_id, domain) DO UPDATE SET
           first_email_sent_at = COALESCE(EXCLUDED.first_email_sent_at, attributed_domain.first_email_sent_at),
           first_event_at = LEAST(COALESCE(EXCLUDED.first_event_at, attributed_domain.first_event_at), COALESCE(attributed_domain.first_event_at, EXCLUDED.first_event_at)),
@@ -871,7 +923,18 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
           has_meeting_booked = attributed_domain.has_meeting_booked OR EXCLUDED.has_meeting_booked,
           has_paying_customer = attributed_domain.has_paying_customer OR EXCLUDED.has_paying_customer,
           has_positive_reply = attributed_domain.has_positive_reply OR EXCLUDED.has_positive_reply,
-          match_type = CASE WHEN EXCLUDED.match_type = 'HARD_MATCH' THEN 'HARD_MATCH' ELSE attributed_domain.match_type END,
+          match_type = CASE 
+            WHEN EXCLUDED.match_type = 'HARD_MATCH' THEN 'HARD_MATCH' 
+            WHEN attributed_domain.match_type = 'NO_MATCH' AND EXCLUDED.match_type != 'NO_MATCH' THEN EXCLUDED.match_type
+            ELSE attributed_domain.match_type 
+          END,
+          status = CASE
+            WHEN attributed_domain.status IN ('CLIENT_PROMOTED', 'DISPUTED') THEN attributed_domain.status
+            WHEN EXCLUDED.match_type = 'HARD_MATCH' AND EXCLUDED.is_within_window THEN 'ATTRIBUTED'
+            WHEN attributed_domain.is_within_window OR EXCLUDED.is_within_window THEN 'ATTRIBUTED'
+            WHEN attributed_domain.match_type != 'NO_MATCH' OR EXCLUDED.match_type != 'NO_MATCH' THEN 'OUTSIDE_WINDOW'
+            ELSE 'UNATTRIBUTED'
+          END,
           matched_email = COALESCE(attributed_domain.matched_email, EXCLUDED.matched_email),
           updated_at = NOW()
         RETURNING id
@@ -883,6 +946,7 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
         result.isWithinWindow,
         result.matchType,
         result.matchedEmail,
+        status,
         result.hasSignUp,
         result.hasMeetingBooked,
         result.hasPayingCustomer,
