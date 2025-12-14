@@ -20,7 +20,7 @@ export async function POST(
 
     // Parse request body
     const body = await request.json();
-    const { notes } = body;
+    const { notes, submittedBy } = body;
 
     // Verify the client exists and the domain belongs to them
     const clientResult = await attrPool.query(
@@ -69,8 +69,8 @@ export async function POST(
       );
     }
 
-    // Determine who is attributing (in a real app, this would come from auth)
-    const attributedBy = 'client'; // Could be user email from session
+    // Use submitted name/email or default to 'client'
+    const attributedBy = submittedBy?.trim() || 'client';
 
     // Update the domain status to CLIENT_PROMOTED
     // Note: We keep the database column names as promoted_* for backward compatibility

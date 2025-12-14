@@ -10,7 +10,7 @@ export async function POST(
 
     // Parse request body
     const body = await request.json();
-    const { reason, evidenceLink, eventTypes } = body;
+    const { reason, evidenceLink, eventTypes, submittedBy } = body;
 
     // Validate required fields
     if (!reason || typeof reason !== 'string' || reason.trim().length === 0) {
@@ -81,10 +81,10 @@ export async function POST(
 
     // Create a task for the dispute
     const taskResult = await attrPool.query(
-      `INSERT INTO task (client_config_id, attributed_domain_id, type, status, title, description)
-       VALUES ($1, $2, 'DISPUTE', 'OPEN', $3, $4)
+      `INSERT INTO task (client_config_id, attributed_domain_id, type, status, title, description, submitted_by)
+       VALUES ($1, $2, 'DISPUTE', 'OPEN', $3, $4, $5)
        RETURNING id`,
-      [clientConfigId, domainId, `Dispute: ${domain.domain}`, fullReason]
+      [clientConfigId, domainId, `Dispute: ${domain.domain}`, fullReason, submittedBy?.trim() || null]
     );
 
     const taskId = taskResult.rows[0]?.id;
