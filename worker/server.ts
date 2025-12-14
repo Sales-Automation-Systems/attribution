@@ -25,7 +25,7 @@ const attrPool = new Pool({
 interface JobState {
   id: string;
   type: 'sync' | 'process-client' | 'process-all';
-  status: 'running' | 'completed' | 'failed';
+  status: 'running' | 'completed' | 'failed' | 'cancelled';
   startedAt: Date;
   completedAt?: Date;
   progress?: {
@@ -38,6 +38,7 @@ interface JobState {
 }
 
 const activeJobs = new Map<string, JobState>();
+const cancelledJobs = new Set<string>(); // Track jobs that should be cancelled
 let jobCounter = 0;
 
 // Persist job to database
@@ -1100,6 +1101,18 @@ async function processAllClientsAsync(job: JobState): Promise<void> {
     };
     
     for (let i = 0; i < clients.length; i++) {
+      // Check for cancellation before each client
+      if (cancelledJobs.has(job.id)) {
+        console.log(`\n=== Job ${job.id} cancelled by user ===`);
+        job.status = 'cancelled';
+        job.completedAt = new Date();
+        job.error = `Cancelled by user after processing ${i} of ${clients.length} clients`;
+        job.result = { clientCount: i, results, cancelled: true };
+        await updateJob(job);
+        cancelledJobs.delete(job.id);
+        return;
+      }
+      
       const client = clients[i];
       job.progress = { current: i, total: clients.length, currentClient: client.client_name };
       await updateJob(job); // Persist progress
@@ -1291,6 +1304,38 @@ app.post('/process-all', async (req, res) => {
   res.json({ success: true, jobId: job.id, message: 'Processing started' });
   
   processAllClientsAsync(job);
+});
+
+// Cancel a running job
+app.post('/cancel-job/:jobId', async (req, res) => {
+  const { jobId } = req.params;
+  
+  // Check if job exists and is running
+  const job = activeJobs.get(jobId);
+  
+  if (!job) {
+    return res.status(404).json({ 
+      success: false, 
+      error: 'Job not found or already completed' 
+    });
+  }
+  
+  if (job.status !== 'running') {
+    return res.status(400).json({ 
+      success: false, 
+      error: `Job is not running (status: ${job.status})` 
+    });
+  }
+  
+  // Mark job for cancellation (will be picked up in the processing loop)
+  cancelledJobs.add(jobId);
+  console.log(`Job ${jobId} marked for cancellation`);
+  
+  res.json({ 
+    success: true, 
+    message: 'Cancellation requested. Job will stop after current client completes.',
+    jobId 
+  });
 });
 
 app.post('/create-indexes', async (req, res) => {

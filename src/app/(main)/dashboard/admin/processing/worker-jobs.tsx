@@ -3,13 +3,14 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Clock, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, RefreshCw, StopCircle, Ban } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 
 interface WorkerJob {
   id: string;
   type: string;
-  status: 'running' | 'completed' | 'failed';
+  status: 'running' | 'completed' | 'failed' | 'cancelled';
   startedAt: string;
   completedAt?: string;
   progress?: {
@@ -26,6 +27,7 @@ export function WorkerJobsDisplay() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [cancellingJobs, setCancellingJobs] = useState<Set<string>>(new Set());
 
   const fetchJobs = async () => {
     try {
@@ -49,9 +51,41 @@ export function WorkerJobsDisplay() {
     return () => clearInterval(interval);
   }, []);
 
+  const cancelJob = async (jobId: string) => {
+    setCancellingJobs((prev) => new Set(prev).add(jobId));
+    try {
+      const res = await fetch(`/api/worker/cancel-job/${jobId}`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to cancel job');
+      }
+      
+      toast.success('Cancellation requested', {
+        description: 'Job will stop after current client completes.',
+      });
+      
+      // Refresh jobs list
+      await fetchJobs();
+    } catch (err) {
+      toast.error('Failed to cancel job', {
+        description: (err as Error).message,
+      });
+    } finally {
+      setCancellingJobs((prev) => {
+        const next = new Set(prev);
+        next.delete(jobId);
+        return next;
+      });
+    }
+  };
+
   const running = jobs.filter((j) => j.status === 'running');
   const completed = jobs.filter((j) => j.status === 'completed');
   const failed = jobs.filter((j) => j.status === 'failed');
+  const cancelled = jobs.filter((j) => j.status === 'cancelled');
 
   if (loading) {
     return (
@@ -124,6 +158,19 @@ export function WorkerJobsDisplay() {
             <div className="text-2xl font-bold text-red-600">{failed.length}</div>
           </CardContent>
         </Card>
+        {cancelled.length > 0 && (
+          <Card className="bg-orange-500/10">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Ban className="h-4 w-4 text-orange-500" />
+                Cancelled
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-orange-600">{cancelled.length}</div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Running Jobs */}
@@ -148,9 +195,30 @@ export function WorkerJobsDisplay() {
                         </p>
                       )}
                     </div>
-                    <Badge variant="outline" className="bg-blue-500/10">
-                      {job.progress?.current || 0}/{job.progress?.total || 0} clients
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="bg-blue-500/10">
+                        {job.progress?.current || 0}/{job.progress?.total || 0} clients
+                      </Badge>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => cancelJob(job.id)}
+                        disabled={cancellingJobs.has(job.id)}
+                        className="h-7"
+                      >
+                        {cancellingJobs.has(job.id) ? (
+                          <>
+                            <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                            Stopping...
+                          </>
+                        ) : (
+                          <>
+                            <StopCircle className="h-3 w-3 mr-1" />
+                            Stop
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </div>
                   <div className="w-full bg-blue-200 dark:bg-blue-900 rounded-full h-2">
                     <div
@@ -210,8 +278,11 @@ export function WorkerJobsDisplay() {
                           ? 'default'
                           : job.status === 'failed'
                             ? 'destructive'
-                            : 'secondary'
+                            : job.status === 'cancelled'
+                              ? 'outline'
+                              : 'secondary'
                       }
+                      className={job.status === 'cancelled' ? 'text-orange-600 border-orange-300' : ''}
                     >
                       {job.status}
                     </Badge>
