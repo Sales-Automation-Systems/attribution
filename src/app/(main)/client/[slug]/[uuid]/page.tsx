@@ -123,10 +123,13 @@ export default async function ClientDashboardPage({
                 {Number(client.total_sign_ups || 0).toLocaleString('en-US')}
               </div>
               <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                <DefinitionTooltip term="ours" showUnderline={false}>
-                  <span>{Number(client.attributed_sign_ups || 0).toLocaleString('en-US')} ours</span>
-                </DefinitionTooltip>{' '}
-                ({client.total_sign_ups ? Math.round(((client.attributed_sign_ups || 0) / client.total_sign_ups) * 100) : 0}%)
+                {client.total_sign_ups && client.total_emails_sent ? (
+                  <span>
+                    {Number(Math.round(Number(client.total_emails_sent) / Number(client.total_sign_ups))).toLocaleString('en-US')}:1 email-to-signup ratio
+                  </span>
+                ) : (
+                  <span>—</span>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -142,10 +145,13 @@ export default async function ClientDashboardPage({
                 {Number(client.total_meetings_booked || 0).toLocaleString('en-US')}
               </div>
               <div className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                <DefinitionTooltip term="ours" showUnderline={false}>
-                  <span>{Number(client.attributed_meetings_booked || 0).toLocaleString('en-US')} ours</span>
-                </DefinitionTooltip>{' '}
-                ({client.total_meetings_booked ? Math.round(((client.attributed_meetings_booked || 0) / client.total_meetings_booked) * 100) : 0}%)
+                {client.total_meetings_booked && client.total_emails_sent ? (
+                  <span>
+                    {Number(Math.round(Number(client.total_emails_sent) / Number(client.total_meetings_booked))).toLocaleString('en-US')}:1 email-to-meeting ratio
+                  </span>
+                ) : (
+                  <span>—</span>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -161,10 +167,13 @@ export default async function ClientDashboardPage({
                 {Number(client.total_paying_customers || 0).toLocaleString('en-US')}
               </div>
               <div className="text-xs text-green-600 dark:text-green-400 mt-1">
-                <DefinitionTooltip term="ours" showUnderline={false}>
-                  <span>{Number(client.attributed_paying_customers || 0).toLocaleString('en-US')} ours</span>
-                </DefinitionTooltip>{' '}
-                ({client.total_paying_customers ? Math.round(((client.attributed_paying_customers || 0) / client.total_paying_customers) * 100) : 0}%)
+                {client.total_paying_customers && client.total_emails_sent ? (
+                  <span>
+                    {Number(Math.round(Number(client.total_emails_sent) / Number(client.total_paying_customers))).toLocaleString('en-US')}:1 email-to-customer ratio
+                  </span>
+                ) : (
+                  <span>—</span>
+                )}
               </div>
             </CardContent>
           </Card>
