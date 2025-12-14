@@ -69,7 +69,7 @@ function EventCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Attributed - Billable */}
+        {/* Attributed */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -149,16 +149,15 @@ export function AttributionBreakdown({ signUps, meetings, paying }: AttributionB
           <div className="text-center">
             <DefinitionTooltip term="attributed" showUnderline={false}>
               <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                {totalAttributed}
+                {totalAttributed.toLocaleString()}
               </div>
             </DefinitionTooltip>
             <div className="text-xs text-muted-foreground">Attributed</div>
-            <div className="text-xs text-green-600 dark:text-green-400">Billable</div>
           </div>
           <div className="text-center">
             <DefinitionTooltip term="outsideWindow" showUnderline={false}>
               <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
-                {totalOutsideWindow}
+                {totalOutsideWindow.toLocaleString()}
               </div>
             </DefinitionTooltip>
             <div className="text-xs text-muted-foreground">Outside Window</div>
@@ -166,7 +165,7 @@ export function AttributionBreakdown({ signUps, meetings, paying }: AttributionB
           <div className="text-center">
             <DefinitionTooltip term="unattributed" showUnderline={false}>
               <div className="text-2xl font-bold text-gray-500 dark:text-gray-400">
-                {totalUnattributed}
+                {totalUnattributed.toLocaleString()}
               </div>
             </DefinitionTooltip>
             <div className="text-xs text-muted-foreground">Unattributed</div>

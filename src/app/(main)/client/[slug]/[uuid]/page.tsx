@@ -105,7 +105,7 @@ export default async function ClientDashboardPage({
               </div>
               <div className="text-xs text-purple-600 dark:text-purple-400 mt-1">
                 <DefinitionTooltip term="ours" showUnderline={false}>
-                  <span>{client.attributed_positive_replies || 0} ours</span>
+                  <span>{(client.attributed_positive_replies || 0).toLocaleString()} ours</span>
                 </DefinitionTooltip>{' '}
                 (100%)
               </div>
@@ -124,7 +124,7 @@ export default async function ClientDashboardPage({
               </div>
               <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
                 <DefinitionTooltip term="ours" showUnderline={false}>
-                  <span>{client.attributed_sign_ups || 0} ours</span>
+                  <span>{(client.attributed_sign_ups || 0).toLocaleString()} ours</span>
                 </DefinitionTooltip>{' '}
                 ({client.total_sign_ups ? Math.round(((client.attributed_sign_ups || 0) / client.total_sign_ups) * 100) : 0}%)
               </div>
@@ -143,7 +143,7 @@ export default async function ClientDashboardPage({
               </div>
               <div className="text-xs text-amber-600 dark:text-amber-400 mt-1">
                 <DefinitionTooltip term="ours" showUnderline={false}>
-                  <span>{client.attributed_meetings_booked || 0} ours</span>
+                  <span>{(client.attributed_meetings_booked || 0).toLocaleString()} ours</span>
                 </DefinitionTooltip>{' '}
                 ({client.total_meetings_booked ? Math.round(((client.attributed_meetings_booked || 0) / client.total_meetings_booked) * 100) : 0}%)
               </div>
@@ -162,7 +162,7 @@ export default async function ClientDashboardPage({
               </div>
               <div className="text-xs text-green-600 dark:text-green-400 mt-1">
                 <DefinitionTooltip term="ours" showUnderline={false}>
-                  <span>{client.attributed_paying_customers || 0} ours</span>
+                  <span>{(client.attributed_paying_customers || 0).toLocaleString()} ours</span>
                 </DefinitionTooltip>{' '}
                 ({client.total_paying_customers ? Math.round(((client.attributed_paying_customers || 0) / client.total_paying_customers) * 100) : 0}%)
               </div>
