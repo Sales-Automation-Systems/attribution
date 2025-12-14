@@ -40,15 +40,100 @@ interface JobState {
 const activeJobs = new Map<string, JobState>();
 let jobCounter = 0;
 
-function createJob(type: JobState['type']): JobState {
+// Persist job to database
+async function persistJob(job: JobState): Promise<void> {
+  try {
+    await attrQuery(`
+      INSERT INTO worker_job (id, type, status, started_at, completed_at, progress_current, progress_total, current_client, result, error)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      ON CONFLICT (id) DO UPDATE SET
+        status = EXCLUDED.status,
+        completed_at = EXCLUDED.completed_at,
+        progress_current = EXCLUDED.progress_current,
+        progress_total = EXCLUDED.progress_total,
+        current_client = EXCLUDED.current_client,
+        result = EXCLUDED.result,
+        error = EXCLUDED.error
+    `, [
+      job.id,
+      job.type,
+      job.status,
+      job.startedAt,
+      job.completedAt || null,
+      job.progress?.current || null,
+      job.progress?.total || null,
+      job.progress?.currentClient || null,
+      job.result ? JSON.stringify(job.result) : null,
+      job.error || null,
+    ]);
+  } catch (err) {
+    console.error('Failed to persist job:', err);
+  }
+}
+
+// Load historical jobs from database
+async function loadJobsFromDatabase(): Promise<JobState[]> {
+  try {
+    const rows = await attrQuery<{
+      id: string;
+      type: string;
+      status: string;
+      started_at: Date;
+      completed_at: Date | null;
+      progress_current: number | null;
+      progress_total: number | null;
+      current_client: string | null;
+      result: unknown;
+      error: string | null;
+    }>(`
+      SELECT id, type, status, started_at, completed_at, 
+             progress_current, progress_total, current_client, result, error
+      FROM worker_job
+      ORDER BY started_at DESC
+      LIMIT 50
+    `);
+    
+    return rows.map(row => ({
+      id: row.id,
+      type: row.type as JobState['type'],
+      status: row.status as JobState['status'],
+      startedAt: new Date(row.started_at),
+      completedAt: row.completed_at ? new Date(row.completed_at) : undefined,
+      progress: row.progress_total ? {
+        current: row.progress_current || 0,
+        total: row.progress_total,
+        currentClient: row.current_client || undefined,
+      } : undefined,
+      result: row.result,
+      error: row.error || undefined,
+    }));
+  } catch (err) {
+    console.error('Failed to load jobs from database:', err);
+    return [];
+  }
+}
+
+function createJob(type: JobState['type'], clientName?: string): JobState {
   const job: JobState = {
     id: `job_${Date.now()}_${++jobCounter}`,
     type,
     status: 'running',
     startedAt: new Date(),
+    progress: type === 'process-client' && clientName ? {
+      current: 0,
+      total: 1,
+      currentClient: clientName,
+    } : undefined,
   };
   activeJobs.set(job.id, job);
+  persistJob(job); // Persist to database
   return job;
+}
+
+// Update job and persist
+async function updateJob(job: JobState): Promise<void> {
+  activeJobs.set(job.id, job);
+  await persistJob(job);
 }
 
 // ============ Domain Utils ============
@@ -953,6 +1038,7 @@ async function processAllClientsAsync(job: JobState): Promise<void> {
     for (let i = 0; i < clients.length; i++) {
       const client = clients[i];
       job.progress = { current: i, total: clients.length, currentClient: client.client_name };
+      await updateJob(job); // Persist progress
       
       // Skip excluded clients
       if (SKIP_CLIENTS.has(client.client_name)) {
@@ -971,11 +1057,13 @@ async function processAllClientsAsync(job: JobState): Promise<void> {
       }
       
       job.progress = { current: i + 1, total: clients.length };
+      await updateJob(job); // Persist progress after each client
     }
     
     job.status = 'completed';
     job.completedAt = new Date();
     job.result = { clientCount: clients.length, results };
+    await updateJob(job); // Persist final state
     
     // Aggregate totals
     const totals = {
@@ -999,6 +1087,7 @@ async function processAllClientsAsync(job: JobState): Promise<void> {
     job.status = 'failed';
     job.completedAt = new Date();
     job.error = (error as Error).message;
+    await updateJob(job); // Persist failed state
     console.error('Process all failed:', error);
   }
 }
@@ -1017,19 +1106,54 @@ app.get('/health', async (req, res) => {
   }
 });
 
-app.get('/job/:jobId', (req, res) => {
-  const job = activeJobs.get(req.params.jobId);
+app.get('/job/:jobId', async (req, res) => {
+  // Check in-memory first
+  let job = activeJobs.get(req.params.jobId);
+  
+  // If not found in memory, check database
+  if (!job) {
+    const dbJobs = await loadJobsFromDatabase();
+    job = dbJobs.find(j => j.id === req.params.jobId);
+  }
+  
   if (!job) {
     return res.status(404).json({ error: 'Job not found' });
   }
   res.json(job);
 });
 
-app.get('/jobs', (req, res) => {
-  const jobs = Array.from(activeJobs.values())
-    .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime())
-    .slice(0, 20);
-  res.json(jobs);
+app.get('/jobs', async (req, res) => {
+  try {
+    // Load from database (includes historical jobs)
+    const dbJobs = await loadJobsFromDatabase();
+    
+    // Merge with in-memory active jobs (in case of very recent jobs not yet persisted)
+    const allJobs = new Map<string, JobState>();
+    
+    // Add database jobs first
+    for (const job of dbJobs) {
+      allJobs.set(job.id, job);
+    }
+    
+    // Override with in-memory jobs (more up-to-date for running jobs)
+    for (const job of activeJobs.values()) {
+      allJobs.set(job.id, job);
+    }
+    
+    // Sort by start time descending
+    const jobs = Array.from(allJobs.values())
+      .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime())
+      .slice(0, 50);
+    
+    res.json(jobs);
+  } catch (error) {
+    console.error('Failed to load jobs:', error);
+    // Fall back to in-memory only
+    const jobs = Array.from(activeJobs.values())
+      .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime())
+      .slice(0, 20);
+    res.json(jobs);
+  }
 });
 
 app.post('/sync-clients', async (req, res) => {
@@ -1049,20 +1173,38 @@ app.post('/process-client', async (req, res) => {
     return res.status(400).json({ error: 'clientId is required' });
   }
   
-  const job = createJob('process-client');
-  console.log(`Started job ${job.id} for client: ${clientId}`);
+  // Get client name for display
+  let clientName = clientId;
+  try {
+    const configs = await attrQuery<{ client_name: string }>(`
+      SELECT client_name FROM client_config WHERE client_id = $1
+    `, [clientId]);
+    if (configs.length > 0) {
+      clientName = configs[0].client_name;
+    }
+  } catch (e) {
+    // Ignore, use clientId as name
+  }
+  
+  const job = createJob('process-client', clientName);
+  console.log(`Started job ${job.id} for client: ${clientName} (${clientId})`);
   res.json({ success: true, jobId: job.id, message: 'Processing started' });
   
   processClient(clientId)
-    .then(stats => {
+    .then(async stats => {
       job.status = 'completed';
       job.completedAt = new Date();
       job.result = stats;
+      if (job.progress) {
+        job.progress.current = 1;
+      }
+      await updateJob(job);
     })
-    .catch(error => {
+    .catch(async error => {
       job.status = 'failed';
       job.completedAt = new Date();
       job.error = (error as Error).message;
+      await updateJob(job);
     });
 });
 
