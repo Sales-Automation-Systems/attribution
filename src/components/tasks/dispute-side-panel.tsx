@@ -19,7 +19,6 @@ import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Flag,
-  AlertTriangle,
   Loader2,
   Clock,
   CheckCircle2,
@@ -394,15 +393,6 @@ export function DisputeSidePanel({
                     Link to CRM record, screenshot, or other supporting documentation
                   </p>
                 </div>
-
-                {/* Warning */}
-                <Alert>
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertDescription className="text-sm">
-                    Disputes must be submitted within 30 days of invoice. Our team will
-                    review your dispute and respond within 5 business days.
-                  </AlertDescription>
-                </Alert>
 
                 {/* Error */}
                 {error && (

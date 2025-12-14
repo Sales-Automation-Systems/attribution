@@ -135,8 +135,7 @@ export function AddEventModal({
             Add Event Manually
           </DialogTitle>
           <DialogDescription>
-            Manually log an event that will be added to your attribution. This event
-            will be marked as &quot;Manually Attributed&quot; and will be billable.
+            Manually log an event that will be added to your attribution.
           </DialogDescription>
         </DialogHeader>
 
