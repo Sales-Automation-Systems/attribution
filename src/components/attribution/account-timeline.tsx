@@ -97,7 +97,7 @@ function EmailBodyDisplay({ body, label }: { body: string; label: string }) {
         )}
       </div>
       <div 
-        className="mt-1 text-sm bg-background/50 rounded p-2 whitespace-pre-wrap font-mono text-xs max-h-[400px] overflow-y-auto"
+        className="mt-1 text-sm bg-muted rounded p-2 whitespace-pre-wrap font-mono text-xs max-h-[400px] overflow-y-auto"
         style={{ wordBreak: 'break-word' }}
       >
         {isExpanded || !needsTruncation ? body : preview}
@@ -259,8 +259,18 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
     return acc;
   }, {} as Record<string, TimelineEvent[]>);
 
+  // #region agent log
+  if (typeof window !== 'undefined') {
+    setTimeout(() => {
+      const stickyHeaders = document.querySelectorAll('.sticky.top-0.bg-background');
+      const timelineContainer = document.querySelector('.space-y-4');
+      fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'account-timeline.tsx:262',message:'Timeline elements',data:{stickyHeaderCount:stickyHeaders.length,timelineExists:!!timelineContainer},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C,D,E'})}).catch(()=>{});
+    }, 800);
+  }
+  // #endregion
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 bg-background">
       {/* Focus View Header - only show for direct matches with matched email */}
       {canUseFocusView && (
         <div className="bg-gradient-to-r from-emerald-50 to-cyan-50 dark:from-emerald-950/30 dark:to-cyan-950/30 rounded-lg p-3 border border-emerald-200 dark:border-emerald-800">
