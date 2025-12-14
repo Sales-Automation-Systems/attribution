@@ -5,6 +5,7 @@ import {
   Activity,
   AlertCircle,
   Server,
+  Flag,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -48,6 +49,22 @@ export const sidebarItems: NavGroup[] = [
         url: '/dashboard/clients',
         icon: Users,
       },
+      {
+        title: 'Tasks',
+        url: '/dashboard/tasks',
+        icon: Flag,
+      },
+    ],
+  },
+  {
+    id: 3,
+    label: 'Testing',
+    items: [
+      {
+        title: 'Directive Tasks',
+        url: '/client/directive/1ed19113-f2cd-47db-a97d-a5762622f60c/tasks',
+        icon: Flag,
+      },
     ],
   },
   {
@@ -77,3 +94,4 @@ export const sidebarItems: NavGroup[] = [
     ],
   },
 ];
+
