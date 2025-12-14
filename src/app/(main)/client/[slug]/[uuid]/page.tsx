@@ -101,9 +101,9 @@ export default async function ClientDashboardPage({
                 {Number(client.total_positive_replies || 0).toLocaleString('en-US')}
               </div>
               <div className="text-xs text-purple-600 dark:text-purple-400 mt-1">
-                {client.total_positive_replies && client.total_emails_sent ? (
+                {client.attributed_positive_replies && client.total_emails_sent ? (
                   <span>
-                    {Number(Math.round(Number(client.total_emails_sent) / Number(client.total_positive_replies))).toLocaleString('en-US')}:1 email-to-reply ratio
+                    {Number(Math.round(Number(client.total_emails_sent) / Number(client.attributed_positive_replies))).toLocaleString('en-US')}:1 email-to-attributed-reply ratio
                   </span>
                 ) : (
                   <span>—</span>
@@ -123,9 +123,9 @@ export default async function ClientDashboardPage({
                 {Number(client.total_sign_ups || 0).toLocaleString('en-US')}
               </div>
               <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                {client.total_sign_ups && client.total_emails_sent ? (
+                {client.attributed_sign_ups && client.total_emails_sent ? (
                   <span>
-                    {Number(Math.round(Number(client.total_emails_sent) / Number(client.total_sign_ups))).toLocaleString('en-US')}:1 email-to-signup ratio
+                    {Number(Math.round(Number(client.total_emails_sent) / Number(client.attributed_sign_ups))).toLocaleString('en-US')}:1 email-to-attributed-signup ratio
                   </span>
                 ) : (
                   <span>—</span>
@@ -145,9 +145,9 @@ export default async function ClientDashboardPage({
                 {Number(client.total_meetings_booked || 0).toLocaleString('en-US')}
               </div>
               <div className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                {client.total_meetings_booked && client.total_emails_sent ? (
+                {client.attributed_meetings_booked && client.total_emails_sent ? (
                   <span>
-                    {Number(Math.round(Number(client.total_emails_sent) / Number(client.total_meetings_booked))).toLocaleString('en-US')}:1 email-to-meeting ratio
+                    {Number(Math.round(Number(client.total_emails_sent) / Number(client.attributed_meetings_booked))).toLocaleString('en-US')}:1 email-to-attributed-meeting ratio
                   </span>
                 ) : (
                   <span>—</span>
@@ -167,9 +167,9 @@ export default async function ClientDashboardPage({
                 {Number(client.total_paying_customers || 0).toLocaleString('en-US')}
               </div>
               <div className="text-xs text-green-600 dark:text-green-400 mt-1">
-                {client.total_paying_customers && client.total_emails_sent ? (
+                {client.attributed_paying_customers && client.total_emails_sent ? (
                   <span>
-                    {Number(Math.round(Number(client.total_emails_sent) / Number(client.total_paying_customers))).toLocaleString('en-US')}:1 email-to-customer ratio
+                    {Number(Math.round(Number(client.total_emails_sent) / Number(client.attributed_paying_customers))).toLocaleString('en-US')}:1 email-to-attributed-customer ratio
                   </span>
                 ) : (
                   <span>—</span>
