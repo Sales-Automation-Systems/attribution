@@ -116,12 +116,7 @@ export function TimelineDialog({ domain, isOpen, onClose, slug, uuid }: Timeline
       const dialog = document.querySelector('[data-slot="dialog-content"]');
       if (dialog) {
         const styles = window.getComputedStyle(dialog);
-        fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'timeline-dialog.tsx:113',message:'Dialog computed styles',data:{width:styles.width,maxWidth:styles.maxWidth,classList:dialog.className},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B'})}).catch(()=>{});
-      }
-      const scrollContainer = document.querySelector('[data-slot="dialog-content"] > div.overflow-y-auto');
-      if (scrollContainer) {
-        const scrollStyles = window.getComputedStyle(scrollContainer);
-        fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'timeline-dialog.tsx:118',message:'Scroll container styles',data:{background:scrollStyles.background,backgroundColor:scrollStyles.backgroundColor},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C,D,E'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'timeline-dialog.tsx:113',message:'Dialog computed styles',data:{width:styles.width,maxWidth:styles.maxWidth,gap:styles.gap,rowGap:styles.rowGap},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix-1',hypothesisId:'A,B,C'})}).catch(()=>{});
       }
     }, 500);
   }
@@ -129,7 +124,7 @@ export function TimelineDialog({ domain, isOpen, onClose, slug, uuid }: Timeline
 
   return (
     <Dialog open={isOpen} onOpenChange={() => onClose()}>
-      <DialogContent className="w-[calc(100vw-2rem)] md:w-[calc(100vw-6rem)] lg:w-[calc(100vw-8rem)] max-w-none max-h-[85vh] overflow-hidden flex flex-col p-0">
+      <DialogContent className="w-[calc(100vw-2rem)] md:w-[calc(100vw-6rem)] lg:w-[calc(100vw-8rem)] max-w-none sm:max-w-none md:max-w-none lg:max-w-none max-h-[85vh] overflow-hidden flex flex-col p-0 gap-0">
         {/* Header */}
         <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
           <div className="flex items-start justify-between gap-4">
