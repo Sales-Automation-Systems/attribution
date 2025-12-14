@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, Fragment } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -21,8 +21,6 @@ import {
   UserPlus,
   Calendar,
   DollarSign,
-  ChevronDown,
-  ChevronRight,
   CheckCircle2,
   Clock,
   CircleSlash,
@@ -37,8 +35,8 @@ import { DefinitionTooltip, SimpleTooltip } from '@/components/ui/definition-too
 import { cn } from '@/lib/utils';
 import type { DomainStatus, MatchType } from '@/db/attribution/types';
 
-// Account Timeline component
-import { AccountTimeline } from './account-timeline';
+// Timeline Dialog component
+import { TimelineDialog } from './timeline-dialog';
 
 export interface AccountDomain {
   id: string;
@@ -90,7 +88,7 @@ export function AccountsTable({
   const [eventTypeFilters, setEventTypeFilters] = useState<Set<EventTypeFilter>>(new Set());
   const [statusFilters, setStatusFilters] = useState<Set<StatusFilterType>>(new Set());
   const [focusView, setFocusView] = useState(false);
-  const [expandedDomains, setExpandedDomains] = useState<Set<string>>(new Set());
+  const [selectedDomain, setSelectedDomain] = useState<AccountDomain | null>(null);
 
   // Toggle event type filter
   const toggleEventFilter = (type: EventTypeFilter) => {
@@ -171,15 +169,6 @@ export function AccountsTable({
       withPaying,
     };
   }, [filteredDomains]);
-
-  const toggleDomain = (id: string) => {
-    setExpandedDomains((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
 
   const formatDate = (date: Date | null) => {
     if (!date) return '—';
@@ -494,7 +483,6 @@ export function AccountsTable({
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead className="w-[30px]"></TableHead>
                   <TableHead className="w-[200px]">
                     <DefinitionTooltip term="accounts">Account</DefinitionTooltip>
                   </TableHead>
@@ -511,135 +499,87 @@ export function AccountsTable({
               <TableBody>
                 {filteredDomains.map((domain) => {
                   const days = getDaysSinceEmail(domain.first_email_sent_at, domain.first_event_at);
-                  const isExpanded = expandedDomains.has(domain.id);
 
                   return (
-                    <Fragment key={domain.id}>
-                      <TableRow
-                        className="cursor-pointer hover:bg-muted/50 transition-colors"
-                        onClick={() => toggleDomain(domain.id)}
-                      >
-                        <TableCell className="w-[30px]">
-                          {isExpanded ? (
-                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                          ) : (
-                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    <TableRow
+                      key={domain.id}
+                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => setSelectedDomain(domain)}
+                    >
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          {domain.domain}
+                          <a
+                            href={`https://${domain.domain}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-muted-foreground hover:text-primary"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-center gap-1">
+                          {domain.has_positive_reply && (
+                            <SimpleTooltip content="Positive Reply">
+                              <Badge variant="outline" className="bg-purple-500/10 text-xs px-1.5">
+                                <MessageSquare className="h-3 w-3" />
+                              </Badge>
+                            </SimpleTooltip>
                           )}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-2">
-                            {domain.domain}
-                            <a
-                              href={`https://${domain.domain}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className="text-muted-foreground hover:text-primary"
-                            >
-                              <ExternalLink className="h-3 w-3" />
-                            </a>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center justify-center gap-1">
-                            {domain.has_positive_reply && (
-                              <SimpleTooltip content="Positive Reply">
-                                <Badge variant="outline" className="bg-purple-500/10 text-xs px-1.5">
-                                  <MessageSquare className="h-3 w-3" />
-                                </Badge>
-                              </SimpleTooltip>
-                            )}
-                            {domain.has_sign_up && (
-                              <SimpleTooltip content="Website Sign-Up">
-                                <Badge variant="outline" className="bg-blue-500/10 text-xs px-1.5">
-                                  <UserPlus className="h-3 w-3" />
-                                </Badge>
-                              </SimpleTooltip>
-                            )}
-                            {domain.has_meeting_booked && (
-                              <SimpleTooltip content="Meeting Booked">
-                                <Badge variant="outline" className="bg-yellow-500/10 text-xs px-1.5">
-                                  <Calendar className="h-3 w-3" />
-                                </Badge>
-                              </SimpleTooltip>
-                            )}
-                            {domain.has_paying_customer && (
-                              <SimpleTooltip content="Paying Customer">
-                                <Badge className="bg-green-500 text-xs px-1.5">
-                                  <DollarSign className="h-3 w-3" />
-                                </Badge>
-                              </SimpleTooltip>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-center text-sm text-muted-foreground">
-                          {formatDate(domain.first_email_sent_at)}
-                        </TableCell>
-                        <TableCell className="text-center text-sm">
-                          {formatDate(domain.first_event_at)}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {days !== null ? (
-                            <span
-                              className={
-                                days <= attributionWindowDays
-                                  ? 'text-green-600 font-medium'
-                                  : 'text-amber-600'
-                              }
-                            >
-                              {days}d
-                            </span>
-                          ) : (
-                            '—'
+                          {domain.has_sign_up && (
+                            <SimpleTooltip content="Website Sign-Up">
+                              <Badge variant="outline" className="bg-blue-500/10 text-xs px-1.5">
+                                <UserPlus className="h-3 w-3" />
+                              </Badge>
+                            </SimpleTooltip>
                           )}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {renderStatusBadge(domain)}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {renderActionButton(domain)}
-                        </TableCell>
-                      </TableRow>
-                      {/* Expanded Detail Row */}
-                      {isExpanded && (
-                        <TableRow key={`${domain.id}-detail`} className="bg-muted/20 hover:bg-muted/20">
-                          <TableCell colSpan={8} className="p-0">
-                            <div className="p-6 border-t">
-                              {/* Header */}
-                              <div className="flex items-center justify-between mb-4 pb-4 border-b">
-                                <div>
-                                  <h3 className="font-semibold text-lg">{domain.domain}</h3>
-                                  <p className="text-sm text-muted-foreground">Full account history</p>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  {renderStatusBadge(domain)}
-                                  {domain.match_type && domain.match_type !== 'NO_MATCH' && (
-                                    <DefinitionTooltip
-                                      term={domain.match_type === 'HARD_MATCH' ? 'hardMatch' : 'softMatch'}
-                                      showUnderline={false}
-                                    >
-                                      <Badge variant="secondary">
-                                        {domain.match_type === 'HARD_MATCH' ? 'Hard Match' : 'Soft Match'}
-                                      </Badge>
-                                    </DefinitionTooltip>
-                                  )}
-                                </div>
-                              </div>
-
-                              {/* Account Timeline */}
-                              <div className="max-h-[400px] overflow-y-auto">
-                                <AccountTimeline
-                                  domainId={domain.id}
-                                  slug={slug}
-                                  uuid={uuid}
-                                  isOpen={isExpanded}
-                                />
-                              </div>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </Fragment>
+                          {domain.has_meeting_booked && (
+                            <SimpleTooltip content="Meeting Booked">
+                              <Badge variant="outline" className="bg-yellow-500/10 text-xs px-1.5">
+                                <Calendar className="h-3 w-3" />
+                              </Badge>
+                            </SimpleTooltip>
+                          )}
+                          {domain.has_paying_customer && (
+                            <SimpleTooltip content="Paying Customer">
+                              <Badge className="bg-green-500 text-xs px-1.5">
+                                <DollarSign className="h-3 w-3" />
+                              </Badge>
+                            </SimpleTooltip>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center text-sm text-muted-foreground">
+                        {formatDate(domain.first_email_sent_at)}
+                      </TableCell>
+                      <TableCell className="text-center text-sm">
+                        {formatDate(domain.first_event_at)}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {days !== null ? (
+                          <span
+                            className={
+                              days <= attributionWindowDays
+                                ? 'text-green-600 font-medium'
+                                : 'text-amber-600'
+                            }
+                          >
+                            {days}d
+                          </span>
+                        ) : (
+                          '—'
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {renderStatusBadge(domain)}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {renderActionButton(domain)}
+                      </TableCell>
+                    </TableRow>
                   );
                 })}
               </TableBody>
@@ -664,6 +604,15 @@ export function AccountsTable({
           </p>
         )}
       </div>
+
+      {/* Timeline Dialog */}
+      <TimelineDialog
+        domain={selectedDomain}
+        isOpen={!!selectedDomain}
+        onClose={() => setSelectedDomain(null)}
+        slug={slug}
+        uuid={uuid}
+      />
     </div>
   );
 }
