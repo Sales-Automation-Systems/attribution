@@ -59,6 +59,7 @@ interface AccountsTableProps {
   attributionWindowDays: number;
   onDispute?: (domainId: string) => void;
   onAttribute?: (domainId: string) => void;
+  onOpenDisputePanel?: (domain: AccountDomain) => void;
 }
 
 type EventTypeFilter = 'reply' | 'signup' | 'meeting' | 'paying';
@@ -81,6 +82,7 @@ export function AccountsTable({
   attributionWindowDays,
   onDispute,
   onAttribute,
+  onOpenDisputePanel,
 }: AccountsTableProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -292,12 +294,19 @@ export function AccountsTable({
         );
       case 'disputed':
         return (
-          <DefinitionTooltip term="disputed" showUnderline={false}>
-            <Badge variant="outline" className="bg-orange-500/10 text-orange-700 dark:text-orange-400">
+          <SimpleTooltip content="Click to view dispute details">
+            <Badge 
+              variant="outline" 
+              className="bg-orange-500/10 text-orange-700 dark:text-orange-400 cursor-pointer hover:bg-orange-500/20 transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenDisputePanel?.(domain);
+              }}
+            >
               <Flag className="h-3 w-3 mr-1" />
               Disputed
             </Badge>
-          </DefinitionTooltip>
+          </SimpleTooltip>
         );
       case 'client_attributed':
         return (
@@ -324,11 +333,30 @@ export function AccountsTable({
             className="h-7 text-xs text-orange-600 hover:text-orange-700 hover:bg-orange-50"
             onClick={(e) => {
               e.stopPropagation();
-              onDispute?.(domain.id);
+              onOpenDisputePanel?.(domain);
             }}
           >
             <Flag className="h-3 w-3 mr-1" />
             Dispute
+          </Button>
+        </SimpleTooltip>
+      );
+    }
+
+    if (statusType === 'disputed') {
+      return (
+        <SimpleTooltip content="View dispute details and correspondence">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenDisputePanel?.(domain);
+            }}
+          >
+            <Eye className="h-3 w-3 mr-1" />
+            View
           </Button>
         </SimpleTooltip>
       );

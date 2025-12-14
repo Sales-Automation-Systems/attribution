@@ -6,6 +6,7 @@ import { AccountsTable, type AccountDomain } from './accounts-table';
 import { DisputeModal } from './dispute-modal';
 import { AttributeModal } from './attribute-modal';
 import { AddEventModal } from './add-event-modal';
+import { DisputeSidePanel } from '@/components/tasks/dispute-side-panel';
 import { Button } from '@/components/ui/button';
 import { Plus, Download } from 'lucide-react';
 
@@ -44,6 +45,12 @@ export function ClientDashboardWrapper({
   }>({ isOpen: false, domainId: '', domainName: '', currentStatus: 'unattributed' });
 
   const [addEventModal, setAddEventModal] = useState(false);
+
+  // Side panel state for disputes
+  const [disputePanel, setDisputePanel] = useState<{
+    isOpen: boolean;
+    domain: AccountDomain | null;
+  }>({ isOpen: false, domain: null });
 
   // Find domain by ID
   const findDomain = useCallback(
@@ -86,6 +93,14 @@ export function ClientDashboardWrapper({
       }
     },
     [findDomain]
+  );
+
+  // Handle opening the dispute side panel
+  const handleOpenDisputePanel = useCallback(
+    (domain: AccountDomain) => {
+      setDisputePanel({ isOpen: true, domain });
+    },
+    []
   );
 
   // Handle success (refresh data)
@@ -161,6 +176,7 @@ export function ClientDashboardWrapper({
         attributionWindowDays={attributionWindowDays}
         onDispute={handleDispute}
         onAttribute={handleAttribute}
+        onOpenDisputePanel={handleOpenDisputePanel}
       />
 
       {/* Modals */}
@@ -197,6 +213,16 @@ export function ClientDashboardWrapper({
         slug={slug}
         uuid={uuid}
         revShareRate={revShareRate}
+        onSuccess={handleSuccess}
+      />
+
+      {/* Dispute Side Panel */}
+      <DisputeSidePanel
+        isOpen={disputePanel.isOpen}
+        onClose={() => setDisputePanel({ isOpen: false, domain: null })}
+        domain={disputePanel.domain}
+        slug={slug}
+        uuid={uuid}
         onSuccess={handleSuccess}
       />
     </div>
