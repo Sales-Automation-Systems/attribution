@@ -77,12 +77,12 @@ export const UI_DEFINITIONS = {
   },
   hardMatch: {
     term: 'Direct Match',
-    definition: 'The exact person we emailed took this action. We contacted john@acme.com and john@acme.com signed up.',
+    definition: 'The exact person we emailed took this action (signed up, booked a meeting, or became a paying customer).',
     source: null,
   },
   softMatch: {
     term: 'Company Match',
-    definition: 'Someone else at the same company took this action. We contacted john@acme.com but sarah@acme.com signed up.',
+    definition: 'Someone else at the same company took this action. We emailed john@acme.com but sarah@acme.com converted.',
     source: null,
   },
   focusView: {

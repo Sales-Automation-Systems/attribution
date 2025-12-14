@@ -269,7 +269,7 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
               <Focus className="h-4 w-4 text-emerald-600" />
               <div>
                 <p className="text-sm font-medium text-emerald-800 dark:text-emerald-200">
-                  Direct Match: {matchedEmail}
+                  Focused Contact: {matchedEmail}
                 </p>
                 {focusView && dimmedCount > 0 && (
                   <p className="text-xs text-emerald-600 dark:text-emerald-400">

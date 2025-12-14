@@ -142,7 +142,7 @@ export function TimelineDialog({ domain, isOpen, onClose, slug, uuid }: Timeline
                   showUnderline={false}
                 >
                   <Badge variant="secondary">
-                    {domain.match_type === 'HARD_MATCH' ? 'Direct Match' : 'Company Match'}
+                    {domain.match_type === 'HARD_MATCH' ? 'Focused' : 'Company Match'}
                   </Badge>
                 </DefinitionTooltip>
               )}
