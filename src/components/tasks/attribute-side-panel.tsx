@@ -203,15 +203,6 @@ export function AttributeSidePanel({
               </div>
             </div>
 
-            {/* What this means */}
-            <Alert className="bg-blue-50 border-blue-200 dark:bg-blue-950/50 dark:border-blue-800">
-              <ArrowUpCircle className="h-4 w-4 text-blue-600" />
-              <AlertDescription className="text-sm text-blue-800 dark:text-blue-200">
-                This will add this account to your billable attribution. It will be
-                included in your revenue share calculation.
-              </AlertDescription>
-            </Alert>
-
             {/* Notes */}
             <div className="space-y-2">
               <Label htmlFor="panel-notes">Notes (optional)</Label>
