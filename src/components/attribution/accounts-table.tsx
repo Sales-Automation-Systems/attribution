@@ -294,19 +294,18 @@ export function AccountsTable({
         );
       case 'disputed':
         return (
-          <SimpleTooltip content="Click to view dispute details">
-            <Badge 
-              variant="outline" 
-              className="bg-orange-500/10 text-orange-700 dark:text-orange-400 cursor-pointer hover:bg-orange-500/20 transition-colors"
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenDisputePanel?.(domain);
-              }}
-            >
-              <Flag className="h-3 w-3 mr-1" />
-              Disputed
-            </Badge>
-          </SimpleTooltip>
+          <Badge 
+            variant="outline" 
+            className="bg-orange-500/10 text-orange-700 dark:text-orange-400 cursor-pointer hover:bg-orange-500/20 transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenDisputePanel?.(domain);
+            }}
+            title="Click to view dispute details"
+          >
+            <Flag className="h-3 w-3 mr-1" />
+            Disputed
+          </Badge>
         );
       case 'client_attributed':
         return (
@@ -326,58 +325,55 @@ export function AccountsTable({
 
     if (statusType === 'attributed') {
       return (
-        <SimpleTooltip content="Challenge this attribution if you believe it's incorrect">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 text-xs text-orange-600 hover:text-orange-700 hover:bg-orange-50"
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenDisputePanel?.(domain);
-            }}
-          >
-            <Flag className="h-3 w-3 mr-1" />
-            Dispute
-          </Button>
-        </SimpleTooltip>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 text-xs text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenDisputePanel?.(domain);
+          }}
+          title="Challenge this attribution"
+        >
+          <Flag className="h-3 w-3 mr-1" />
+          Dispute
+        </Button>
       );
     }
 
     if (statusType === 'disputed') {
       return (
-        <SimpleTooltip content="View dispute details and correspondence">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 text-xs text-orange-600 hover:text-orange-700 hover:bg-orange-50"
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenDisputePanel?.(domain);
-            }}
-          >
-            <Eye className="h-3 w-3 mr-1" />
-            View
-          </Button>
-        </SimpleTooltip>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 text-xs text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenDisputePanel?.(domain);
+          }}
+          title="View dispute details"
+        >
+          <Eye className="h-3 w-3 mr-1" />
+          View
+        </Button>
       );
     }
 
     if (statusType === 'outside_window' || statusType === 'unattributed') {
       return (
-        <SimpleTooltip content="Add this to your billable attribution">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-            onClick={(e) => {
-              e.stopPropagation();
-              onAttribute?.(domain.id);
-            }}
-          >
-            <ArrowUpCircle className="h-3 w-3 mr-1" />
-            Attribute
-          </Button>
-        </SimpleTooltip>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+          onClick={(e) => {
+            e.stopPropagation();
+            onAttribute?.(domain.id);
+          }}
+          title="Add to your billable attribution"
+        >
+          <ArrowUpCircle className="h-3 w-3 mr-1" />
+          Attribute
+        </Button>
       );
     }
 
