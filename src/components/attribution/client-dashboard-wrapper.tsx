@@ -187,7 +187,6 @@ export function ClientDashboardWrapper({
         domainName={attributeModal.domainName}
         slug={slug}
         uuid={uuid}
-        revShareRate={revShareRate}
         currentStatus={attributeModal.currentStatus}
         onSuccess={handleSuccess}
       />

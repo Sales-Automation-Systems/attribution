@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArrowUpCircle, Loader2, DollarSign } from 'lucide-react';
+import { ArrowUpCircle, Loader2, Paperclip, X, FileText, Image, File } from 'lucide-react';
 import { DefinitionTooltip } from '@/components/ui/definition-tooltip';
 
 interface AttributeModalProps {
@@ -23,9 +23,26 @@ interface AttributeModalProps {
   domainName: string;
   slug: string;
   uuid: string;
-  revShareRate: number;
   currentStatus: 'outside_window' | 'unattributed';
   onSuccess?: () => void;
+}
+
+interface AttachedFile {
+  name: string;
+  size: number;
+  type: string;
+}
+
+function getFileIcon(type: string) {
+  if (type.startsWith('image/')) return <Image className="h-4 w-4" />;
+  if (type.includes('pdf') || type.includes('document') || type.includes('text')) return <FileText className="h-4 w-4" />;
+  return <File className="h-4 w-4" />;
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export function AttributeModal({
@@ -35,21 +52,16 @@ export function AttributeModal({
   domainName,
   slug,
   uuid,
-  revShareRate,
   currentStatus,
   onSuccess,
 }: AttributeModalProps) {
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [confirmed, setConfirmed] = useState(false);
+  const [attachments, setAttachments] = useState<AttachedFile[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = async () => {
-    if (!confirmed) {
-      setError('Please confirm that you understand this will be billable.');
-      return;
-    }
-
     setIsSubmitting(true);
     setError(null);
 
@@ -63,6 +75,8 @@ export function AttributeModal({
           },
           body: JSON.stringify({
             notes: notes.trim() || null,
+            // Attachments would be uploaded separately in a full implementation
+            attachmentCount: attachments.length,
           }),
         }
       );
@@ -85,8 +99,28 @@ export function AttributeModal({
   const handleClose = () => {
     setNotes('');
     setError(null);
-    setConfirmed(false);
+    setAttachments([]);
     onClose();
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      const newAttachments: AttachedFile[] = Array.from(files).map(file => ({
+        name: file.name,
+        size: file.size,
+        type: file.type,
+      }));
+      setAttachments(prev => [...prev, ...newAttachments]);
+    }
+    // Reset input so same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
   };
 
   const statusLabel = currentStatus === 'outside_window' ? 'Outside Window' : 'Unattributed';
@@ -117,16 +151,6 @@ export function AttributeModal({
             </div>
           </div>
 
-          {/* Billing Warning */}
-          <Alert className="bg-amber-50 border-amber-200 dark:bg-amber-950/50 dark:border-amber-800">
-            <DollarSign className="h-4 w-4 text-amber-600" />
-            <AlertDescription className="text-sm text-amber-800 dark:text-amber-200">
-              <strong>This will be billable.</strong> Attributing this account will add it
-              to your billable events at your current revenue share rate of{' '}
-              <strong>{(revShareRate * 100).toFixed(0)}%</strong>.
-            </AlertDescription>
-          </Alert>
-
           {/* Notes */}
           <div className="space-y-2">
             <Label htmlFor="notes">Notes (optional)</Label>
@@ -139,19 +163,59 @@ export function AttributeModal({
             />
           </div>
 
-          {/* Confirmation Checkbox */}
-          <div className="flex items-start space-x-3 p-3 rounded-lg border">
+          {/* Attachments */}
+          <div className="space-y-2">
+            <Label>Attachments (optional)</Label>
             <input
-              type="checkbox"
-              id="confirm-attribute"
-              checked={confirmed}
-              onChange={(e) => setConfirmed(e.target.checked)}
-              className="mt-1"
+              ref={fileInputRef}
+              type="file"
+              multiple
+              onChange={handleFileSelect}
+              className="hidden"
+              accept="image/*,.pdf,.doc,.docx,.txt,.csv,.xlsx,.xls"
             />
-            <label htmlFor="confirm-attribute" className="text-sm">
-              I understand that attributing this account will make it billable at my
-              current revenue share rate, and this action cannot be easily undone.
-            </label>
+            
+            {/* Attachment List */}
+            {attachments.length > 0 && (
+              <div className="space-y-2 mb-2">
+                {attachments.map((file, index) => (
+                  <div 
+                    key={index} 
+                    className="flex items-center justify-between p-2 rounded-lg bg-muted/50 text-sm"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      {getFileIcon(file.type)}
+                      <span className="truncate">{file.name}</span>
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        ({formatFileSize(file.size)})
+                      </span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 shrink-0"
+                      onClick={() => removeAttachment(index)}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {/* Upload Button */}
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Paperclip className="h-4 w-4 mr-2" />
+              Attach Files
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              Attach screenshots, documents, or CSVs to support this attribution.
+            </p>
           </div>
 
           {/* Error */}
@@ -168,7 +232,7 @@ export function AttributeModal({
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={isSubmitting || !confirmed}
+            disabled={isSubmitting}
             className="bg-blue-600 hover:bg-blue-700"
           >
             {isSubmitting ? (
@@ -188,4 +252,3 @@ export function AttributeModal({
     </Dialog>
   );
 }
-
