@@ -231,15 +231,6 @@ export function AddEventModal({
             />
           </div>
 
-          {/* Billing Warning */}
-          <Alert className="bg-amber-50 border-amber-200 dark:bg-amber-950/50 dark:border-amber-800">
-            <DollarSign className="h-4 w-4 text-amber-600" />
-            <AlertDescription className="text-sm text-amber-800 dark:text-amber-200">
-              <strong>This will be billable.</strong> Manually added events are subject
-              to your {(revShareRate * 100).toFixed(0)}% revenue share rate.
-            </AlertDescription>
-          </Alert>
-
           {/* Error */}
           {error && (
             <Alert variant="destructive">
