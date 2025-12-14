@@ -310,7 +310,7 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
               const isDimmed = getDimmedStatus(event);
               
               // Check if this event is from the matched contact
-              const isMatchedContact = matchedEmail && event.email?.toLowerCase() === matchedEmail.toLowerCase();
+              const isFocusedContact = matchedEmail && event.email?.toLowerCase() === matchedEmail.toLowerCase();
               
               // DIMMED VIEW: Condensed single-line for non-focused emails
               if (isDimmed) {
@@ -374,7 +374,7 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
                   </div>
 
                   {/* Event content */}
-                  <div className={`rounded-lg p-3 ${config.bgColor} ${isMatchedContact && isDirectMatch ? 'ring-2 ring-emerald-400 dark:ring-emerald-600' : ''}`}>
+                  <div className={`rounded-lg p-3 ${config.bgColor} ${isFocusedContact && isDirectMatch ? 'ring-2 ring-emerald-400 dark:ring-emerald-600' : ''}`}>
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-2">
                         <Badge variant="outline" className={`${config.color} border-current`}>
@@ -385,9 +385,9 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
                             Step {stepNumber}
                           </span>
                         )}
-                        {isMatchedContact && isDirectMatch && (
+                        {isFocusedContact && isDirectMatch && (
                           <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300 text-xs">
-                            Matched Contact
+                            Focused Contact
                           </Badge>
                         )}
                       </div>
