@@ -67,12 +67,12 @@ export const CONTRACT_DEFINITIONS = {
 export const UI_DEFINITIONS = {
   outsideWindow: {
     term: 'Outside Window',
-    definition: 'This lead was emailed, but the Success Metric occurred more than 31 days after the email. Not billable unless you promote it.',
+    definition: 'This lead was emailed, but the Success Metric occurred more than 31 days after the email. Not billable unless you manually attribute it.',
     source: null,
   },
   unattributed: {
     term: 'Unattributed',
-    definition: 'No matching email record was found for this lead. Not billable unless you promote it.',
+    definition: 'No matching email record was found for this lead. Not billable unless you manually attribute it.',
     source: null,
   },
   hardMatch: {
@@ -91,12 +91,12 @@ export const UI_DEFINITIONS = {
     source: null,
   },
   promote: {
-    term: 'Promote',
+    term: 'Attribute',
     definition: 'Add this event to your billable attribution. It will be included in your revenue share calculation.',
     source: null,
   },
   clientPromoted: {
-    term: 'Client-Promoted',
+    term: 'Client-Attributed',
     definition: 'You manually added this to attribution. Billable at your revenue share rate.',
     source: null,
   },

@@ -97,7 +97,7 @@ export function PromoteModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ArrowUpCircle className="h-5 w-5 text-blue-500" />
-            <DefinitionTooltip term="promote">Promote to Attribution</DefinitionTooltip>
+            <DefinitionTooltip term="promote">Attribute This Account</DefinitionTooltip>
           </DialogTitle>
           <DialogDescription>
             Add <strong>{domainName}</strong> to your billable attribution.
@@ -113,7 +113,7 @@ export function PromoteModal({
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">New Status</span>
-              <span className="font-medium text-blue-600">Client-Promoted</span>
+              <span className="font-medium text-blue-600">Client-Attributed</span>
             </div>
           </div>
 
@@ -121,8 +121,8 @@ export function PromoteModal({
           <Alert className="bg-amber-50 border-amber-200 dark:bg-amber-950/50 dark:border-amber-800">
             <DollarSign className="h-4 w-4 text-amber-600" />
             <AlertDescription className="text-sm text-amber-800 dark:text-amber-200">
-              <strong>This will be billable.</strong> Promoting this account will add it
-              to your attributed events at your current revenue share rate of{' '}
+              <strong>This will be billable.</strong> Attributing this account will add it
+              to your billable events at your current revenue share rate of{' '}
               <strong>{(revShareRate * 100).toFixed(0)}%</strong>.
             </AlertDescription>
           </Alert>
@@ -132,7 +132,7 @@ export function PromoteModal({
             <Label htmlFor="notes">Notes (optional)</Label>
             <Textarea
               id="notes"
-              placeholder="Add any notes about why you're promoting this account..."
+              placeholder="Add any notes about why you're attributing this account..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               className="min-h-[80px]"
@@ -149,7 +149,7 @@ export function PromoteModal({
               className="mt-1"
             />
             <label htmlFor="confirm-promote" className="text-sm">
-              I understand that promoting this account will make it billable at my
+              I understand that attributing this account will make it billable at my
               current revenue share rate, and this action cannot be easily undone.
             </label>
           </div>
@@ -174,12 +174,12 @@ export function PromoteModal({
             {isSubmitting ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Promoting...
+                Attributing...
               </>
             ) : (
               <>
                 <ArrowUpCircle className="h-4 w-4 mr-2" />
-                Promote to Attribution
+                Confirm Attribution
               </>
             )}
           </Button>

@@ -103,7 +103,7 @@ export function TimelineDialog({ domain, isOpen, onClose, slug, uuid }: Timeline
           <DefinitionTooltip term="clientPromoted" showUnderline={false}>
             <Badge variant="outline" className="bg-blue-500/10 text-blue-700 dark:text-blue-400">
               <ArrowUpCircle className="h-3 w-3 mr-1" />
-              Promoted
+              Client-Attributed
             </Badge>
           </DefinitionTooltip>
         );
