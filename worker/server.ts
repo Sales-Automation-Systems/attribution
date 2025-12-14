@@ -1310,32 +1310,73 @@ app.post('/process-all', async (req, res) => {
 app.post('/cancel-job/:jobId', async (req, res) => {
   const { jobId } = req.params;
   
-  // Check if job exists and is running
+  // Check if job exists in memory and is running
   const job = activeJobs.get(jobId);
   
-  if (!job) {
-    return res.status(404).json({ 
-      success: false, 
-      error: 'Job not found or already completed' 
+  if (job) {
+    if (job.status !== 'running') {
+      return res.status(400).json({ 
+        success: false, 
+        error: `Job is not running (status: ${job.status})` 
+      });
+    }
+    
+    // Mark job for cancellation (will be picked up in the processing loop)
+    cancelledJobs.add(jobId);
+    console.log(`Job ${jobId} marked for cancellation`);
+    
+    return res.json({ 
+      success: true, 
+      message: 'Cancellation requested. Job will stop after current client completes.',
+      jobId 
     });
   }
   
-  if (job.status !== 'running') {
+  // Job not in memory - check if it's an orphaned job in the database
+  // (This can happen if the worker restarted while a job was running)
+  try {
+    const dbJob = await attrQuery<{ id: string; status: string }>(`
+      SELECT id, status FROM worker_job WHERE id = $1
+    `, [jobId]);
+    
+    if (dbJob.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Job not found' 
+      });
+    }
+    
+    if (dbJob[0].status === 'running') {
+      // Orphaned job - mark it as cancelled in the database
+      await attrQuery(`
+        UPDATE worker_job 
+        SET status = 'cancelled', 
+            completed_at = NOW(), 
+            error = 'Cancelled - job was orphaned after worker restart'
+        WHERE id = $1
+      `, [jobId]);
+      
+      console.log(`Orphaned job ${jobId} marked as cancelled in database`);
+      
+      return res.json({ 
+        success: true, 
+        message: 'Orphaned job cancelled. The job was no longer running (worker may have restarted).',
+        jobId,
+        wasOrphaned: true
+      });
+    }
+    
     return res.status(400).json({ 
       success: false, 
-      error: `Job is not running (status: ${job.status})` 
+      error: `Job already ${dbJob[0].status}` 
+    });
+  } catch (error) {
+    console.error('Error cancelling job:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Failed to cancel job' 
     });
   }
-  
-  // Mark job for cancellation (will be picked up in the processing loop)
-  cancelledJobs.add(jobId);
-  console.log(`Job ${jobId} marked for cancellation`);
-  
-  res.json({ 
-    success: true, 
-    message: 'Cancellation requested. Job will stop after current client completes.',
-    jobId 
-  });
 });
 
 app.post('/create-indexes', async (req, res) => {
