@@ -144,7 +144,7 @@ export function ClientSettingsTable() {
               <TableHead className="text-center w-[120px]">Meetings</TableHead>
               <TableHead className="text-center w-[120px]">Paying</TableHead>
               <TableHead className="text-center w-[80px]">Window</TableHead>
-              <TableHead className="text-center w-[100px]">Soft Match</TableHead>
+              <TableHead className="text-center w-[100px]">Company Match</TableHead>
               <TableHead className="text-center w-[100px]">Excl. Personal</TableHead>
               <TableHead className="w-[100px]">Last Run</TableHead>
             </TableRow>
@@ -273,7 +273,7 @@ export function ClientSettingsTable() {
                   )}
                 </TableCell>
 
-                {/* Soft Match Enabled */}
+                {/* Company Match Enabled */}
                 <TableCell className="text-center">
                   <Switch
                     checked={client.soft_match_enabled}

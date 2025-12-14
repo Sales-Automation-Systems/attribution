@@ -76,18 +76,18 @@ export const UI_DEFINITIONS = {
     source: null,
   },
   hardMatch: {
-    term: 'Hard Match',
-    definition: 'The exact email address we contacted matches the event record. High confidence.',
+    term: 'Direct Match',
+    definition: 'The exact person we emailed took this action. We contacted john@acme.com and john@acme.com signed up.',
     source: null,
   },
   softMatch: {
-    term: 'Soft Match',
-    definition: 'The email domain matches, but not the exact email address. Lower confidence.',
+    term: 'Company Match',
+    definition: 'Someone else at the same company took this action. We contacted john@acme.com but sarah@acme.com signed up.',
     source: null,
   },
   focusView: {
     term: 'Focus View',
-    definition: 'Filter to show only Hard Match accounts for high-confidence attribution.',
+    definition: 'Only show accounts where the exact person we emailed took action (Direct Matches). Hides Company Matches for a cleaner view.',
     source: null,
   },
   manualAttribution: {

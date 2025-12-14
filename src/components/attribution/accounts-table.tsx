@@ -118,7 +118,7 @@ export function AccountsTable({
         return false;
       }
 
-      // Focus View: Only show hard matches
+      // Focus View: Only show direct matches (exact email)
       if (focusView && domain.match_type !== 'HARD_MATCH') {
         return false;
       }

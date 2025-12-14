@@ -198,8 +198,8 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
       event.email?.toLowerCase() !== matchedEmail.toLowerCase()
     ).length;
   }, [events, focusView, matchedEmail]);
-  const isHardMatch = matchType === 'HARD_MATCH';
-  const canUseFocusView = isHardMatch && matchedEmail;
+  const isDirectMatch = matchType === 'HARD_MATCH';
+  const canUseFocusView = isDirectMatch && matchedEmail;
 
   if (!isOpen) return null;
 
@@ -261,7 +261,7 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
 
   return (
     <div className="space-y-4">
-      {/* Focus View Header - only show for hard matches with matched email */}
+      {/* Focus View Header - only show for direct matches with matched email */}
       {canUseFocusView && (
         <div className="bg-gradient-to-r from-emerald-50 to-cyan-50 dark:from-emerald-950/30 dark:to-cyan-950/30 rounded-lg p-3 border border-emerald-200 dark:border-emerald-800">
           <div className="flex items-center justify-between">
@@ -269,7 +269,7 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
               <Focus className="h-4 w-4 text-emerald-600" />
               <div>
                 <p className="text-sm font-medium text-emerald-800 dark:text-emerald-200">
-                  Hard Match: {matchedEmail}
+                  Direct Match: {matchedEmail}
                 </p>
                 {focusView && dimmedCount > 0 && (
                   <p className="text-xs text-emerald-600 dark:text-emerald-400">
@@ -374,7 +374,7 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
                   </div>
 
                   {/* Event content */}
-                  <div className={`rounded-lg p-3 ${config.bgColor} ${isMatchedContact && isHardMatch ? 'ring-2 ring-emerald-400 dark:ring-emerald-600' : ''}`}>
+                  <div className={`rounded-lg p-3 ${config.bgColor} ${isMatchedContact && isDirectMatch ? 'ring-2 ring-emerald-400 dark:ring-emerald-600' : ''}`}>
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-2">
                         <Badge variant="outline" className={`${config.color} border-current`}>
@@ -385,9 +385,9 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
                             Step {stepNumber}
                           </span>
                         )}
-                        {isMatchedContact && isHardMatch && (
+                        {isMatchedContact && isDirectMatch && (
                           <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300 text-xs">
-                            Matched
+                            Matched Contact
                           </Badge>
                         )}
                       </div>

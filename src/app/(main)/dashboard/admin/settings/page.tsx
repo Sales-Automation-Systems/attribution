@@ -27,8 +27,8 @@ export default function SettingsPage() {
             <div className="space-y-2">
               <h4 className="font-semibold text-sm">Per Event</h4>
               <p className="text-sm text-muted-foreground">
-                Each event is counted individually. If Joe@apple.com signs up (hard match) and 
-                Sally@apple.com signs up (soft match), that&apos;s 2 sign-ups.
+                Each event is counted individually. If joe@apple.com signs up (direct match) and 
+                sally@apple.com signs up (company match), that&apos;s 2 sign-ups.
               </p>
             </div>
             <div className="space-y-2">

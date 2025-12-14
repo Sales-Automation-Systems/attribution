@@ -76,7 +76,7 @@ export async function processAttributionEvent(
   let matchType: 'HARD_MATCH' | 'SOFT_MATCH' | 'NO_MATCH' = 'NO_MATCH';
   let matchedProspectEmail: string | null = null;
 
-  // Step 1: Try hard match (exact email) - find ANY email sent before event
+  // Step 1: Try direct match (exact email) - find ANY email sent before event
   if (eventEmail) {
     match = await findHardMatchEmail(clientId, eventEmail, event.event_time);
     if (match) {
@@ -85,16 +85,16 @@ export async function processAttributionEvent(
     }
   }
 
-  // Step 2: If no hard match, try soft match (domain) - only for non-personal domains
+  // Step 2: If no direct match, try company match (domain) - only for non-personal domains
   if (!match && eventDomain && !isPersonal) {
     match = await findSoftMatchEmail(clientId, eventDomain, event.event_time);
     if (match) {
       matchType = 'SOFT_MATCH';
-      // For soft match, we need to get the email we actually sent to
+      // For company match, we need to get the email we actually sent to
       const firstEmail = await getFirstEmailSentToDomain(clientId, eventDomain);
       if (firstEmail) {
         // We'll store the domain, the actual matched email comes from the prospect
-        matchedProspectEmail = eventDomain; // Store domain for soft matches
+        matchedProspectEmail = eventDomain; // Store domain for company matches
       }
     }
   }
@@ -222,12 +222,12 @@ function buildMatchReason(
 ): string {
   if (matchType === 'NO_MATCH') {
     if (isPersonalDomain) {
-      return `No match: ${eventDomain} is a personal email domain (soft matching disabled)`;
+      return `No match: ${eventDomain} is a personal email domain (company matching disabled)`;
     }
     return `No match: No emails found sent to ${eventEmail ?? eventDomain} before the event`;
   }
 
-  const matchTypeLabel = matchType === 'HARD_MATCH' ? 'Hard match (exact email)' : 'Soft match (same domain)';
+  const matchTypeLabel = matchType === 'HARD_MATCH' ? 'Direct match (exact email)' : 'Company match (same domain)';
   
   if (attributionStatus === 'ATTRIBUTED') {
     return `${matchTypeLabel}: Email sent to ${matchedEmail} on ${emailSentAt?.toISOString().split('T')[0]}, ${daysSinceEmail} days before event. ATTRIBUTED (within 31-day window)`;

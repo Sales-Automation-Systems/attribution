@@ -207,7 +207,7 @@ export default async function ReconciliationPeriodPage({
                       <Badge
                         variant={domain.match_type === 'HARD_MATCH' ? 'default' : 'secondary'}
                       >
-                        {domain.match_type === 'HARD_MATCH' ? 'Hard' : 'Soft'}
+                        {domain.match_type === 'HARD_MATCH' ? 'Direct' : 'Company'}
                       </Badge>
                     </div>
                     <div className="col-span-2">

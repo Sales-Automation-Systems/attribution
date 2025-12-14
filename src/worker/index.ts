@@ -58,8 +58,8 @@ async function registerJobHandlers() {
       });
       
       console.log(`Completed: ${stats.processedEvents} events processed`);
-      console.log(`  Hard matches: ${stats.matchedHard}`);
-      console.log(`  Soft matches: ${stats.matchedSoft}`);
+      console.log(`  Direct matches: ${stats.matchedHard}`);
+      console.log(`  Company matches: ${stats.matchedSoft}`);
       console.log(`  No match: ${stats.noMatch}`);
       console.log(`  Errors: ${stats.errors}`);
       

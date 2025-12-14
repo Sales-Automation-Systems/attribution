@@ -67,14 +67,14 @@ export default async function ClientsPage() {
                 <div className="space-y-1">
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
                     <CheckCircle className="h-3 w-3 text-green-500" />
-                    Hard Match
+                    Direct Match
                   </div>
                   <p className="text-lg font-semibold text-green-600">{stats.total_hard_matches}</p>
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
                     <Clock className="h-3 w-3 text-yellow-500" />
-                    Soft Match
+                    Company Match
                   </div>
                   <p className="text-lg font-semibold text-yellow-600">{stats.total_soft_matches}</p>
                 </div>

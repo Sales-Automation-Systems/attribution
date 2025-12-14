@@ -164,10 +164,10 @@ export function getMatchReason(
     matchedEmail &&
     eventEmail.toLowerCase() === matchedEmail.toLowerCase()
   ) {
-    return `Hard match: Exact email match (${matchedEmail}), email sent ${days} days before event`;
+    return `Direct match: Exact email match (${matchedEmail}), email sent ${days} days before event`;
   }
 
-  return `Soft match: Domain match, email sent to ${matchedEmail}, ${days} days before event`;
+  return `Company match: Domain match, email sent to ${matchedEmail}, ${days} days before event`;
 }
 
 /**
