@@ -56,6 +56,14 @@ function getStatusType(domain: TimelineDomain): 'attributed' | 'outside_window' 
 }
 
 export function TimelineDialog({ domain, isOpen, onClose, slug, uuid }: TimelineDialogProps) {
+  // #region agent log
+  const handleOpenChange = (open: boolean) => {
+    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'timeline-dialog.tsx:onOpenChange',message:'Dialog onOpenChange fired',data:{newOpenState:open,currentIsOpen:isOpen,domainName:domain?.domain},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
+    if (!open) {
+      onClose();
+    }
+  };
+  // #endregion
   if (!domain) return null;
 
   const statusType = getStatusType(domain);
@@ -111,7 +119,7 @@ export function TimelineDialog({ domain, isOpen, onClose, slug, uuid }: Timeline
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={() => onClose()}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent className="w-[calc(100vw-3rem)] sm:w-[calc(100vw-6rem)] md:w-[calc(100vw-12rem)] lg:w-[calc(100vw-20rem)] max-w-none sm:max-w-none md:max-w-none lg:max-w-none max-h-[85vh] overflow-hidden flex flex-col p-0 gap-0">
         {/* Header */}
         <DialogHeader className="pl-6 pr-12 pt-6 pb-4 border-b shrink-0 bg-background">

@@ -137,8 +137,14 @@ export function AccountsTable({
   // Open account from URL on mount
   useEffect(() => {
     const accountParam = searchParams.get('account');
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:useEffect-urlSync',message:'URL sync effect triggered',data:{accountParam,selectedDomainExists:!!selectedDomain,selectedDomainName:selectedDomain?.domain},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
+    // #endregion
     if (accountParam && !selectedDomain) {
       const domain = domains.find(d => d.domain === accountParam);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:useEffect-urlSync-reopening',message:'About to reopen dialog from URL',data:{accountParam,foundDomain:!!domain},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
+      // #endregion
       if (domain) {
         setSelectedDomain(domain);
       }
@@ -147,6 +153,9 @@ export function AccountsTable({
 
   // Update URL when selecting/deselecting account
   const handleSelectDomain = useCallback((domain: AccountDomain | null) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:handleSelectDomain',message:'handleSelectDomain called',data:{domainName:domain?.domain||null,action:domain?'open':'close'},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2-H4'})}).catch(()=>{});
+    // #endregion
     setSelectedDomain(domain);
     updateURL({ account: domain?.domain || null });
   }, [updateURL]);
@@ -571,7 +580,12 @@ export function AccountsTable({
                     <TableRow
                       key={domain.id}
                       className="cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={() => handleSelectDomain(domain)}
+                      onClick={() => {
+                        // #region agent log
+                        fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:rowClick',message:'Table row clicked',data:{domainName:domain.domain},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
+                        // #endregion
+                        handleSelectDomain(domain);
+                      }}
                     >
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
