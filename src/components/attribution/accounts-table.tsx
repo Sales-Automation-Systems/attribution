@@ -110,8 +110,8 @@ export function AccountsTable({
   // Track if initial URL sync has been done
   const initialSyncDoneRef = useRef(false);
   
-  // Debounce guard: prevent reopening within 300ms of closing
-  const lastCloseTimeRef = useRef<number>(0);
+  // LOCK: Completely prevent dialog opens for 1 second after closing
+  const dialogLockedUntilRef = useRef<number>(0);
 
   // Update URL when filters change
   const updateURL = useCallback((params: Record<string, string | null>) => {
@@ -147,15 +147,20 @@ export function AccountsTable({
       return;
     }
     
+    // Respect the lock
+    const now = Date.now();
+    if (now < dialogLockedUntilRef.current) {
+      console.log('[DEBUG] useEffect: Dialog locked, skipping');
+      return;
+    }
+    
     const accountParam = searchParams.get('account');
-    // #region agent log
-    console.log('[DEBUG] Initial URL sync check', {accountParam, domainsCount: domains.length});
-    // #endregion
+    console.log('[DEBUG] useEffect: Initial URL sync', {accountParam, domainsCount: domains.length});
     
     if (accountParam && domains.length > 0) {
       const domain = domains.find(d => d.domain === accountParam);
       if (domain) {
-        console.log('[DEBUG] Opening dialog from initial URL:', domain.domain);
+        console.log('[DEBUG] useEffect: Opening from URL:', domain.domain);
         setSelectedDomain(domain);
       }
       initialSyncDoneRef.current = true;
@@ -163,7 +168,6 @@ export function AccountsTable({
       // No account in URL, mark sync as done
       initialSyncDoneRef.current = true;
     }
-    // If accountParam exists but domains not loaded yet, wait for domains
   }, [searchParams, domains]);
 
   // Update URL when selecting/deselecting account
@@ -171,34 +175,33 @@ export function AccountsTable({
     const now = Date.now();
     
     // #region agent log
-    console.log('[DEBUG] handleSelectDomain called', {
-      domainName: domain?.domain || null, 
-      action: domain ? 'open' : 'close', 
-      timeSinceLastClose: now - lastCloseTimeRef.current,
-      timestamp: now
+    console.log('[DEBUG] handleSelectDomain', {
+      action: domain ? 'OPEN' : 'CLOSE',
+      domain: domain?.domain || null,
+      lockedUntil: dialogLockedUntilRef.current,
+      isLocked: now < dialogLockedUntilRef.current,
+      now
     });
     // #endregion
     
-    // DEBOUNCE GUARD: If trying to open within 500ms of closing, ignore
-    if (domain && (now - lastCloseTimeRef.current) < 500) {
-      console.log('[DEBUG] BLOCKED: Attempted reopen within 500ms of close');
+    // LOCK GUARD: If dialog is locked (within 1 second of closing), block ALL opens
+    if (domain && now < dialogLockedUntilRef.current) {
+      console.log('[DEBUG] ⛔ BLOCKED: Dialog is locked until', dialogLockedUntilRef.current);
       return;
     }
     
-    // Track close time
+    // When closing, lock the dialog for 1 second
     if (!domain) {
-      lastCloseTimeRef.current = now;
-      console.log('[DEBUG] Close time recorded:', now);
+      dialogLockedUntilRef.current = now + 1000;
+      console.log('[DEBUG] 🔒 Dialog LOCKED until', dialogLockedUntilRef.current);
     }
     
     setSelectedDomain(domain);
     
-    // TEST: Only update URL when OPENING, not when closing
-    // This tests if router.replace is causing the reopen bug
+    // Only update URL when opening (not closing - to avoid race conditions)
     if (domain) {
       updateURL({ account: domain.domain });
     }
-    // When closing, we intentionally DON'T update the URL to test the hypothesis
   }, [updateURL]);
 
   // Toggle event type filter
@@ -622,10 +625,13 @@ export function AccountsTable({
                       key={domain.id}
                       className="cursor-pointer hover:bg-muted/50 transition-colors"
                       onClick={(e) => {
-                        // #region agent log
-                        console.log('[DEBUG] Row clicked', {domainName: domain.domain, target: (e.target as HTMLElement).tagName, timestamp: Date.now()});
-                        fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:rowClick',message:'Table row clicked',data:{domainName:domain.domain},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
-                        // #endregion
+                        const now = Date.now();
+                        console.log('[DEBUG] 👆 Row clicked', {
+                          domain: domain.domain, 
+                          target: (e.target as HTMLElement).tagName,
+                          isLocked: now < dialogLockedUntilRef.current,
+                          now
+                        });
                         handleSelectDomain(domain);
                       }}
                     >
