@@ -392,10 +392,9 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
               const isManualEvent = meta.manual === true;
               const addedBy = meta.addedBy as string | undefined;
               
-              // Status change metadata
-              const previousStatus = meta.previousStatus as string | undefined;
-              const newStatus = meta.newStatus as string | undefined;
-              const statusChangeReason = meta.reason as string | undefined;
+              // Status change metadata (supports both old and new format)
+              const statusFrom = (meta.from || meta.previousStatus) as string | undefined;
+              const statusTo = (meta.to || meta.newStatus) as string | undefined;
               
               return (
                 <div
@@ -494,24 +493,13 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
                       </div>
                     )}
 
-                    {/* Status change details */}
-                    {event.type === 'STATUS_CHANGE' && previousStatus && newStatus && (
-                      <div className="mt-2">
-                        <div className="flex items-center gap-2 text-sm">
-                          <Badge variant="outline" className="text-xs bg-slate-100 dark:bg-slate-800 text-slate-500 line-through">
-                            {previousStatus}
-                          </Badge>
-                          <span className="text-muted-foreground">→</span>
-                          <Badge variant="outline" className="text-xs bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400">
-                            {newStatus}
-                          </Badge>
-                        </div>
-                        {statusChangeReason && (
-                          <p className="text-xs text-muted-foreground mt-2 italic">
-                            {statusChangeReason}
-                          </p>
-                        )}
-                      </div>
+                    {/* Status change - minimal display */}
+                    {event.type === 'STATUS_CHANGE' && statusFrom && statusTo && (
+                      <p className="text-xs text-muted-foreground">
+                        <span className="line-through opacity-60">{statusFrom}</span>
+                        <span className="mx-1">→</span>
+                        <span className="font-medium">{statusTo}</span>
+                      </p>
                     )}
 
                     {/* Email body for sent emails */}

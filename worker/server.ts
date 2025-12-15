@@ -1188,16 +1188,15 @@ async function processClient(clientId: string, jobId?: string): Promise<Processi
       
       const attributedDomainId = upsertResult[0]?.id;
       
-      // Check if status changed from DISPUTED (for status change logging)
-      if (attributedDomainId && previousStatus === 'DISPUTED' && !hadPayingCustomer) {
-        // Fetch the new status after upsert
+      // Log ALL status changes for audit trail
+      if (attributedDomainId && previousStatus) {
         const updatedDomain = await attrQuery<{ status: string }>(`
           SELECT status FROM attributed_domain WHERE id = $1
         `, [attributedDomainId]);
         const newStatus = updatedDomain[0]?.status;
         
-        // If status changed from DISPUTED, log it in the timeline
-        if (newStatus && newStatus !== 'DISPUTED') {
+        // If status changed, log it
+        if (newStatus && newStatus !== previousStatus) {
           await attrQuery(`
             INSERT INTO domain_event (
               attributed_domain_id, event_source, event_time, email, source_id, source_table, metadata
@@ -1206,14 +1205,11 @@ async function processClient(clientId: string, jobId?: string): Promise<Processi
           `, [
             attributedDomainId,
             JSON.stringify({
-              previousStatus: 'DISPUTED',
-              newStatus,
-              reason: 'New attribution evidence found during reprocessing',
-              processedAt: new Date().toISOString(),
+              from: previousStatus,
+              to: newStatus,
             }),
           ]);
           eventsSaved++;
-          log('INFO', `Status changed for ${result.domain}: DISPUTED → ${newStatus}`);
         }
       }
       
