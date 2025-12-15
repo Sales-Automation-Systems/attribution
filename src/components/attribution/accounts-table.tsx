@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -106,6 +106,9 @@ export function AccountsTable({
   });
   const [focusView, setFocusView] = useState(() => searchParams.get('focus') === 'true');
   const [selectedDomain, setSelectedDomain] = useState<AccountDomain | null>(null);
+  
+  // Ref to track if we're intentionally closing (to prevent race condition with URL sync)
+  const isClosingRef = useRef(false);
 
   // Update URL when filters change
   const updateURL = useCallback((params: Record<string, string | null>) => {
@@ -134,28 +137,51 @@ export function AccountsTable({
     updateURL(params);
   }, [searchQuery, eventTypeFilters, statusFilters, focusView, updateURL]);
 
-  // Open account from URL on mount
+  // Open account from URL on mount or external navigation (e.g. back/forward)
+  // NOTE: selectedDomain is intentionally NOT in deps - this effect syncs URL→state, not state→URL
   useEffect(() => {
     const accountParam = searchParams.get('account');
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:useEffect-urlSync',message:'URL sync effect triggered',data:{accountParam,selectedDomainExists:!!selectedDomain,selectedDomainName:selectedDomain?.domain},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
+    console.log('[DEBUG H2] URL sync effect triggered', {accountParam, isClosing:isClosingRef.current});
+    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:useEffect-urlSync',message:'URL sync effect triggered',data:{accountParam,isClosing:isClosingRef.current},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
     // #endregion
-    if (accountParam && !selectedDomain) {
+    
+    // FIX: Skip if we're intentionally closing (prevents race condition with our own URL updates)
+    if (isClosingRef.current) {
+      console.log('[DEBUG H2] Skipping - intentionally closing');
+      return;
+    }
+    
+    if (accountParam) {
       const domain = domains.find(d => d.domain === accountParam);
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:useEffect-urlSync-reopening',message:'About to reopen dialog from URL',data:{accountParam,foundDomain:!!domain},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
+      console.log('[DEBUG H2] Opening dialog from URL', {accountParam, foundDomain:!!domain});
+      fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:useEffect-urlSync-opening',message:'Opening dialog from URL',data:{accountParam,foundDomain:!!domain},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
       // #endregion
       if (domain) {
         setSelectedDomain(domain);
       }
+    } else {
+      // URL has no account param, ensure dialog is closed
+      setSelectedDomain(null);
     }
-  }, [searchParams, domains, selectedDomain]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, domains]);
 
   // Update URL when selecting/deselecting account
   const handleSelectDomain = useCallback((domain: AccountDomain | null) => {
     // #region agent log
+    console.log('[DEBUG H2-H4] handleSelectDomain called', {domainName:domain?.domain||null, action:domain?'open':'close'});
     fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:handleSelectDomain',message:'handleSelectDomain called',data:{domainName:domain?.domain||null,action:domain?'open':'close'},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2-H4'})}).catch(()=>{});
     // #endregion
+    
+    // FIX: Set closing flag when closing to prevent race condition with URL sync useEffect
+    if (!domain) {
+      isClosingRef.current = true;
+      // Reset the flag after URL has time to sync (next tick)
+      setTimeout(() => { isClosingRef.current = false; }, 0);
+    }
+    
     setSelectedDomain(domain);
     updateURL({ account: domain?.domain || null });
   }, [updateURL]);
