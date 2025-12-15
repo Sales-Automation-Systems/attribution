@@ -105,10 +105,19 @@ export function AccountsTable({
     return new Set();
   });
   const [focusView, setFocusView] = useState(() => searchParams.get('focus') === 'true');
-  const [selectedDomain, setSelectedDomain] = useState<AccountDomain | null>(null);
   
-  // Ref to track if we're intentionally closing (to prevent race condition with URL sync)
-  const isClosingRef = useRef(false);
+  // Initialize selectedDomain from URL on first render only
+  const [selectedDomain, setSelectedDomain] = useState<AccountDomain | null>(() => {
+    const accountParam = searchParams.get('account');
+    if (accountParam) {
+      // Note: domains might not be available during SSR, will be set by useEffect
+      return null;
+    }
+    return null;
+  });
+  
+  // Track if initial URL sync has been done
+  const initialSyncDoneRef = useRef(false);
 
   // Update URL when filters change
   const updateURL = useCallback((params: Record<string, string | null>) => {
@@ -137,58 +146,43 @@ export function AccountsTable({
     updateURL(params);
   }, [searchQuery, eventTypeFilters, statusFilters, focusView, updateURL]);
 
-  // Open account from URL on mount or external navigation (e.g. back/forward)
-  // NOTE: selectedDomain is intentionally NOT in deps - this effect syncs URL→state, not state→URL
+  // Open account from URL on INITIAL MOUNT only (for deep linking / page refresh)
+  // This effect should NOT run on every searchParams change to avoid race conditions
   useEffect(() => {
-    const accountParam = searchParams.get('account');
-    const fullUrl = searchParams.toString();
-    // #region agent log
-    console.log('[DEBUG H2] URL sync effect triggered', {accountParam, fullUrl, isClosing:isClosingRef.current, timestamp: Date.now()});
-    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:useEffect-urlSync',message:'URL sync effect triggered',data:{accountParam,fullUrl,isClosing:isClosingRef.current},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
-    // #endregion
-    
-    // FIX: Skip if we're intentionally closing (prevents race condition with our own URL updates)
-    if (isClosingRef.current) {
-      console.log('[DEBUG H2] Skipping - intentionally closing (isClosingRef=true)');
+    // Only run once on initial mount
+    if (initialSyncDoneRef.current) {
+      // #region agent log
+      console.log('[DEBUG H2] Skipping URL sync - already done initial sync');
+      // #endregion
       return;
     }
     
-    if (accountParam) {
+    const accountParam = searchParams.get('account');
+    // #region agent log
+    console.log('[DEBUG H2] Initial URL sync', {accountParam, domainsCount: domains.length, timestamp: Date.now()});
+    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:useEffect-initialSync',message:'Initial URL sync',data:{accountParam,domainsCount:domains.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
+    // #endregion
+    
+    if (accountParam && domains.length > 0) {
       const domain = domains.find(d => d.domain === accountParam);
-      // #region agent log
-      console.log('[DEBUG H2] Opening dialog from URL', {accountParam, foundDomain:!!domain, timestamp: Date.now()});
-      fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:useEffect-urlSync-opening',message:'Opening dialog from URL',data:{accountParam,foundDomain:!!domain},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
-      // #endregion
       if (domain) {
-        console.log('[DEBUG H2] setSelectedDomain called with domain:', domain.domain);
+        console.log('[DEBUG H2] Opening dialog from initial URL:', domain.domain);
         setSelectedDomain(domain);
       }
-    } else {
-      // URL has no account param, ensure dialog is closed
-      console.log('[DEBUG H2] URL has no account param, setting selectedDomain to null');
-      setSelectedDomain(null);
+      initialSyncDoneRef.current = true;
+    } else if (!accountParam) {
+      // No account in URL, mark sync as done
+      initialSyncDoneRef.current = true;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // If accountParam exists but domains not loaded yet, wait for domains
   }, [searchParams, domains]);
 
   // Update URL when selecting/deselecting account
   const handleSelectDomain = useCallback((domain: AccountDomain | null) => {
     // #region agent log
-    console.log('[DEBUG H2-H4] handleSelectDomain called', {domainName:domain?.domain||null, action:domain?'open':'close', timestamp: Date.now()});
-    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:handleSelectDomain',message:'handleSelectDomain called',data:{domainName:domain?.domain||null,action:domain?'open':'close'},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2-H4'})}).catch(()=>{});
+    console.log('[DEBUG] handleSelectDomain called', {domainName:domain?.domain||null, action:domain?'open':'close', timestamp: Date.now()});
+    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:handleSelectDomain',message:'handleSelectDomain called',data:{domainName:domain?.domain||null,action:domain?'open':'close'},timestamp:Date.now(),sessionId:'debug-session'})}).catch(()=>{});
     // #endregion
-    
-    // FIX: Set closing flag when closing to prevent race condition with URL sync useEffect
-    // Using longer timeout to ensure it persists through async URL update
-    if (!domain) {
-      isClosingRef.current = true;
-      console.log('[DEBUG H6] isClosingRef set to TRUE');
-      // Reset the flag after URL has definitely synced (100ms should be plenty)
-      setTimeout(() => { 
-        isClosingRef.current = false; 
-        console.log('[DEBUG H6] isClosingRef reset to FALSE (after 100ms)');
-      }, 100);
-    }
     
     setSelectedDomain(domain);
     updateURL({ account: domain?.domain || null });
