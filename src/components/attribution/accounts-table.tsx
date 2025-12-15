@@ -105,19 +105,13 @@ export function AccountsTable({
     return new Set();
   });
   const [focusView, setFocusView] = useState(() => searchParams.get('focus') === 'true');
-  
-  // Initialize selectedDomain from URL on first render only
-  const [selectedDomain, setSelectedDomain] = useState<AccountDomain | null>(() => {
-    const accountParam = searchParams.get('account');
-    if (accountParam) {
-      // Note: domains might not be available during SSR, will be set by useEffect
-      return null;
-    }
-    return null;
-  });
+  const [selectedDomain, setSelectedDomain] = useState<AccountDomain | null>(null);
   
   // Track if initial URL sync has been done
   const initialSyncDoneRef = useRef(false);
+  
+  // Debounce guard: prevent reopening within 300ms of closing
+  const lastCloseTimeRef = useRef<number>(0);
 
   // Update URL when filters change
   const updateURL = useCallback((params: Record<string, string | null>) => {
@@ -147,26 +141,21 @@ export function AccountsTable({
   }, [searchQuery, eventTypeFilters, statusFilters, focusView, updateURL]);
 
   // Open account from URL on INITIAL MOUNT only (for deep linking / page refresh)
-  // This effect should NOT run on every searchParams change to avoid race conditions
   useEffect(() => {
     // Only run once on initial mount
     if (initialSyncDoneRef.current) {
-      // #region agent log
-      console.log('[DEBUG H2] Skipping URL sync - already done initial sync');
-      // #endregion
       return;
     }
     
     const accountParam = searchParams.get('account');
     // #region agent log
-    console.log('[DEBUG H2] Initial URL sync', {accountParam, domainsCount: domains.length, timestamp: Date.now()});
-    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:useEffect-initialSync',message:'Initial URL sync',data:{accountParam,domainsCount:domains.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
+    console.log('[DEBUG] Initial URL sync check', {accountParam, domainsCount: domains.length});
     // #endregion
     
     if (accountParam && domains.length > 0) {
       const domain = domains.find(d => d.domain === accountParam);
       if (domain) {
-        console.log('[DEBUG H2] Opening dialog from initial URL:', domain.domain);
+        console.log('[DEBUG] Opening dialog from initial URL:', domain.domain);
         setSelectedDomain(domain);
       }
       initialSyncDoneRef.current = true;
@@ -179,10 +168,28 @@ export function AccountsTable({
 
   // Update URL when selecting/deselecting account
   const handleSelectDomain = useCallback((domain: AccountDomain | null) => {
+    const now = Date.now();
+    
     // #region agent log
-    console.log('[DEBUG] handleSelectDomain called', {domainName:domain?.domain||null, action:domain?'open':'close', timestamp: Date.now()});
-    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:handleSelectDomain',message:'handleSelectDomain called',data:{domainName:domain?.domain||null,action:domain?'open':'close'},timestamp:Date.now(),sessionId:'debug-session'})}).catch(()=>{});
+    console.log('[DEBUG] handleSelectDomain called', {
+      domainName: domain?.domain || null, 
+      action: domain ? 'open' : 'close', 
+      timeSinceLastClose: now - lastCloseTimeRef.current,
+      timestamp: now
+    });
+    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:handleSelectDomain',message:'handleSelectDomain called',data:{domainName:domain?.domain||null,action:domain?'open':'close',timeSinceLastClose:now-lastCloseTimeRef.current},timestamp:now,sessionId:'debug-session'})}).catch(()=>{});
     // #endregion
+    
+    // DEBOUNCE GUARD: If trying to open within 300ms of closing, ignore
+    if (domain && (now - lastCloseTimeRef.current) < 300) {
+      console.log('[DEBUG] BLOCKED: Attempted reopen within 300ms of close');
+      return;
+    }
+    
+    // Track close time
+    if (!domain) {
+      lastCloseTimeRef.current = now;
+    }
     
     setSelectedDomain(domain);
     updateURL({ account: domain?.domain || null });
