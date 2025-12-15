@@ -357,14 +357,16 @@ async function processClient(clientId: string, jobId?: string): Promise<Processi
   log('INFO', `Processing: ${clientConfig.client_name}`, { settings });
   
   // ============ PHASE 0: Clear existing domain events for this client ============
-  log('INFO', 'Phase 0: Clearing existing domain events...');
+  // Preserve manually added events (source_table = 'manual_entry')
+  log('INFO', 'Phase 0: Clearing existing domain events (preserving manual entries)...');
   await attrQuery(`
     DELETE FROM domain_event 
     WHERE attributed_domain_id IN (
       SELECT id FROM attributed_domain WHERE client_config_id = $1
     )
+    AND source_table != 'manual_entry'
   `, [clientConfig.id]);
-  log('INFO', 'Phase 0: Cleared existing events');
+  log('INFO', 'Phase 0: Cleared existing events (manual entries preserved)');
   
   const stats: ProcessingStats = {
     totalSignUps: 0,
@@ -1105,11 +1107,20 @@ async function processClient(clientId: string, jobId?: string): Promise<Processi
   for (const result of domainResults.values()) {
     try {
       // Determine status based on match type and window
-      const status = result.matchType === 'NO_MATCH' 
+      const newCalculatedStatus = result.matchType === 'NO_MATCH' 
         ? 'UNATTRIBUTED' 
         : result.isWithinWindow 
           ? 'ATTRIBUTED' 
           : 'OUTSIDE_WINDOW';
+      
+      // Fetch current status before upsert (for status change tracking)
+      const existingDomain = await attrQuery<{ id: string; status: string; has_paying_customer: boolean }>(`
+        SELECT id, status, has_paying_customer FROM attributed_domain 
+        WHERE client_config_id = $1 AND domain = $2
+      `, [clientConfig.id, result.domain]);
+      const previousStatus = existingDomain[0]?.status;
+      const previousId = existingDomain[0]?.id;
+      const hadPayingCustomer = existingDomain[0]?.has_paying_customer;
       
       // Upsert the attributed_domain and get its ID
       const upsertResult = await attrQuery<{ id: string }>(`
@@ -1134,7 +1145,12 @@ async function processClient(clientId: string, jobId?: string): Promise<Processi
             ELSE attributed_domain.match_type 
           END,
           status = CASE
-            WHEN attributed_domain.status IN ('CLIENT_PROMOTED', 'DISPUTED') THEN attributed_domain.status
+            -- Always preserve MANUAL status (manually attributed by client)
+            WHEN attributed_domain.status = 'MANUAL' THEN 'MANUAL'
+            WHEN attributed_domain.status = 'CLIENT_PROMOTED' THEN 'CLIENT_PROMOTED'
+            -- Protect DISPUTED only if has paying customer (revenue at stake)
+            WHEN attributed_domain.status = 'DISPUTED' AND attributed_domain.has_paying_customer THEN 'DISPUTED'
+            -- Re-evaluate DISPUTED without paying customer based on new evidence
             WHEN EXCLUDED.match_type = 'HARD_MATCH' AND EXCLUDED.is_within_window THEN 'ATTRIBUTED'
             WHEN attributed_domain.is_within_window OR EXCLUDED.is_within_window THEN 'ATTRIBUTED'
             WHEN attributed_domain.match_type != 'NO_MATCH' OR EXCLUDED.match_type != 'NO_MATCH' THEN 'OUTSIDE_WINDOW'
@@ -1163,7 +1179,7 @@ async function processClient(clientId: string, jobId?: string): Promise<Processi
         result.matchType,
         result.matchedEmails.length > 0 ? result.matchedEmails[0] : null, // Legacy field: first email
         result.matchedEmails.length > 0 ? result.matchedEmails : null, // New array field
-        status,
+        newCalculatedStatus,
         result.hasSignUp,
         result.hasMeetingBooked,
         result.hasPayingCustomer,
@@ -1171,6 +1187,35 @@ async function processClient(clientId: string, jobId?: string): Promise<Processi
       ]);
       
       const attributedDomainId = upsertResult[0]?.id;
+      
+      // Check if status changed from DISPUTED (for status change logging)
+      if (attributedDomainId && previousStatus === 'DISPUTED' && !hadPayingCustomer) {
+        // Fetch the new status after upsert
+        const updatedDomain = await attrQuery<{ status: string }>(`
+          SELECT status FROM attributed_domain WHERE id = $1
+        `, [attributedDomainId]);
+        const newStatus = updatedDomain[0]?.status;
+        
+        // If status changed from DISPUTED, log it in the timeline
+        if (newStatus && newStatus !== 'DISPUTED') {
+          await attrQuery(`
+            INSERT INTO domain_event (
+              attributed_domain_id, event_source, event_time, email, source_id, source_table, metadata
+            )
+            VALUES ($1, 'STATUS_CHANGE', NOW(), NULL, NULL, 'system', $2)
+          `, [
+            attributedDomainId,
+            JSON.stringify({
+              previousStatus: 'DISPUTED',
+              newStatus,
+              reason: 'New attribution evidence found during reprocessing',
+              processedAt: new Date().toISOString(),
+            }),
+          ]);
+          eventsSaved++;
+          log('INFO', `Status changed for ${result.domain}: DISPUTED → ${newStatus}`);
+        }
+      }
       
       // Store all events for this domain
       if (attributedDomainId) {

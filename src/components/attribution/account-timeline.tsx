@@ -5,11 +5,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Loader2, Mail, MessageSquare, UserPlus, Calendar, DollarSign, ChevronDown, ChevronUp, User, Briefcase, Focus } from 'lucide-react';
+import { Loader2, Mail, MessageSquare, UserPlus, Calendar, DollarSign, ChevronDown, ChevronUp, User, Briefcase, Focus, History } from 'lucide-react';
 
 interface TimelineEvent {
   id: string;
-  type: 'EMAIL_SENT' | 'POSITIVE_REPLY' | 'SIGN_UP' | 'MEETING_BOOKED' | 'PAYING_CUSTOMER';
+  type: 'EMAIL_SENT' | 'POSITIVE_REPLY' | 'SIGN_UP' | 'MEETING_BOOKED' | 'PAYING_CUSTOMER' | 'STATUS_CHANGE';
   date: string;
   email?: string;
   subject?: string;
@@ -59,6 +59,12 @@ const EVENT_CONFIG: Record<string, {
     label: 'Paying Customer',
     color: 'text-green-600',
     bgColor: 'bg-green-100 dark:bg-green-900/30',
+  },
+  STATUS_CHANGE: { 
+    icon: <History className="h-4 w-4" />, 
+    label: 'Status Changed',
+    color: 'text-orange-600',
+    bgColor: 'bg-orange-100 dark:bg-orange-900/30',
   },
 };
 
@@ -386,6 +392,11 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
               const isManualEvent = meta.manual === true;
               const addedBy = meta.addedBy as string | undefined;
               
+              // Status change metadata
+              const previousStatus = meta.previousStatus as string | undefined;
+              const newStatus = meta.newStatus as string | undefined;
+              const statusChangeReason = meta.reason as string | undefined;
+              
               return (
                 <div
                   key={event.id}
@@ -479,6 +490,26 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
                         </Badge>
                         {addedBy && addedBy !== 'client-user@placeholder' && (
                           <span className="text-xs text-muted-foreground">by {addedBy}</span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Status change details */}
+                    {event.type === 'STATUS_CHANGE' && previousStatus && newStatus && (
+                      <div className="mt-2">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Badge variant="outline" className="text-xs bg-slate-100 dark:bg-slate-800 text-slate-500 line-through">
+                            {previousStatus}
+                          </Badge>
+                          <span className="text-muted-foreground">→</span>
+                          <Badge variant="outline" className="text-xs bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400">
+                            {newStatus}
+                          </Badge>
+                        </div>
+                        {statusChangeReason && (
+                          <p className="text-xs text-muted-foreground mt-2 italic">
+                            {statusChangeReason}
+                          </p>
                         )}
                       </div>
                     )}
