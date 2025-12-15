@@ -121,13 +121,13 @@ export function TimelineDialog({ domain, isOpen, onClose, slug, uuid }: Timeline
   // This tests if the issue is with Radix Dialog's internal state/animations
   return (
     <>
-      {/* Backdrop */}
+      {/* Backdrop - TEST: Also disabled */}
       <div 
         className="fixed inset-0 z-50 bg-black/50"
         onClick={(e) => {
           e.stopPropagation();
-          console.log('[DEBUG] Backdrop clicked - closing');
-          onClose();
+          console.log('[DEBUG] Backdrop clicked - BUT NOT CLOSING');
+          // DISABLED: onClose();
         }}
       />
       
@@ -136,19 +136,20 @@ export function TimelineDialog({ domain, isOpen, onClose, slug, uuid }: Timeline
         className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-background rounded-lg border shadow-lg w-[calc(100vw-3rem)] sm:w-[calc(100vw-6rem)] md:w-[calc(100vw-12rem)] lg:w-[calc(100vw-20rem)] max-h-[85vh] overflow-hidden flex flex-col p-0 gap-0"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Custom Close Button */}
+        {/* Custom Close Button - TEST: Does nothing except log */}
         <Button
           variant="ghost"
           size="icon"
-          className="absolute top-4 right-4 h-8 w-8 rounded-sm opacity-70 hover:opacity-100 z-10"
+          className="absolute top-4 right-4 h-8 w-8 rounded-sm opacity-70 hover:opacity-100 z-10 bg-red-500 hover:bg-red-600"
           onClick={(e) => {
             e.stopPropagation();
             e.preventDefault();
-            console.log('[DEBUG] ❌❌❌ CLOSE BUTTON CLICKED ❌❌❌');
-            onClose();
+            console.log('[DEBUG] ❌❌❌ CLOSE BUTTON CLICKED - BUT DOING NOTHING ❌❌❌');
+            alert('Close button clicked! Check console. Dialog should NOT close since we are not calling onClose().');
+            // DISABLED: onClose();
           }}
         >
-          <X className="h-4 w-4" />
+          <X className="h-4 w-4 text-white" />
           <span className="sr-only">Close</span>
         </Button>
         
