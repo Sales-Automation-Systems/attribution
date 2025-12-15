@@ -651,7 +651,14 @@ async function processClient(clientId: string, jobId?: string): Promise<Processi
   };
   
   // ============ PHASE 5: Process attribution events ============
-  console.log('Processing attribution events...');
+  log('INFO', `Phase 5: Processing ${events.length} attribution events...`);
+  
+  // Check for cancellation
+  if (jobId && cancelledJobs.has(jobId)) {
+    log('WARN', 'Job cancelled during Phase 5');
+    throw new Error('Job cancelled by user');
+  }
+  
   const domainResults = new Map<string, DomainResult>();
   
   // Track ALL events per domain for timeline storage
@@ -855,7 +862,14 @@ async function processClient(clientId: string, jobId?: string): Promise<Processi
   }
   
   // ============ PHASE 6: Process positive replies ============
-  console.log('Processing positive replies...');
+  log('INFO', `Phase 6: Processing ${positiveReplies.length} positive replies...`);
+  
+  // Check for cancellation
+  if (jobId && cancelledJobs.has(jobId)) {
+    log('WARN', 'Job cancelled during Phase 6');
+    throw new Error('Job cancelled by user');
+  }
+  
   // Positive replies are ALWAYS attributed - they replied to OUR email
   // No 31-day window needed - if they replied, it counts
   // All positive replies are hard matches (we emailed this exact person, they replied)
@@ -1002,18 +1016,36 @@ async function processClient(clientId: string, jobId?: string): Promise<Processi
         }
       }
     }
-    console.log(`  Found reply content for ${replyContentMap.size} prospects`);
+    log('DEBUG', `Found reply content for ${replyContentMap.size} prospects`);
   }
   
   // ============ PHASE 6.5: Fetch ALL emails sent for each attributed domain ============
-  console.log('Fetching emails for attributed domains...');
+  log('INFO', 'Phase 6.5: Fetching email history for attributed domains...');
+  
+  // Check for cancellation
+  if (jobId && cancelledJobs.has(jobId)) {
+    log('WARN', 'Job cancelled during Phase 6.5');
+    throw new Error('Job cancelled by user');
+  }
+  
   const attributedDomainsList = Array.from(domainResults.keys());
+  log('INFO', `Phase 6.5: Need to fetch emails for ${attributedDomainsList.length.toLocaleString()} domains`);
   const EMAIL_BATCH_SIZE = 50;
   
   for (let i = 0; i < attributedDomainsList.length; i += EMAIL_BATCH_SIZE) {
+    // Check for cancellation every 10 batches
+    if (jobId && i % (EMAIL_BATCH_SIZE * 10) === 0 && cancelledJobs.has(jobId)) {
+      log('WARN', 'Job cancelled during Phase 6.5 (email history fetch)');
+      throw new Error('Job cancelled by user');
+    }
+    
     const domainBatch = attributedDomainsList.slice(i, i + EMAIL_BATCH_SIZE);
     if (i % 200 === 0 && attributedDomainsList.length > 200) {
-      console.log(`  Fetching emails for domains ${i + 1}-${Math.min(i + EMAIL_BATCH_SIZE, attributedDomainsList.length)}/${attributedDomainsList.length}`);
+      log('DEBUG', `Phase 6.5: Email history progress`, {
+        processed: i,
+        total: attributedDomainsList.length,
+        percent: Math.round((i / attributedDomainsList.length) * 100)
+      });
     }
     
     // Fetch all emails sent to these domains (with available details)
@@ -1058,10 +1090,16 @@ async function processClient(clientId: string, jobId?: string): Promise<Processi
       domainEvents.set(domain, domainEventList);
     }
   }
-  console.log(`  Collected events for ${domainEvents.size} domains`);
+  log('INFO', `Phase 6.5 complete: Collected events for ${domainEvents.size.toLocaleString()} domains`);
   
   // ============ PHASE 7: Save to database ============
-  console.log(`Saving ${domainResults.size} attributed domains and their events...`);
+  log('INFO', `Phase 7: Saving ${domainResults.size.toLocaleString()} attributed domains and their events...`);
+  
+  // Check for cancellation
+  if (jobId && cancelledJobs.has(jobId)) {
+    log('WARN', 'Job cancelled during Phase 7');
+    throw new Error('Job cancelled by user');
+  }
   let eventsSaved = 0;
   
   for (const result of domainResults.values()) {
@@ -1169,10 +1207,10 @@ async function processClient(clientId: string, jobId?: string): Promise<Processi
       stats.errors++;
     }
   }
-  console.log(`  Saved ${eventsSaved} events across ${domainResults.size} domains`);
+  log('INFO', `Phase 7 complete: Saved ${eventsSaved.toLocaleString()} events across ${domainResults.size.toLocaleString()} domains`);
   
   // ============ PHASE 8: Update client stats ============
-  console.log('Updating client stats...');
+  log('INFO', 'Phase 8: Updating client stats...');
   await attrQuery(`
     UPDATE client_config SET
       total_emails_sent = $2,
@@ -1238,15 +1276,16 @@ async function processClient(clientId: string, jobId?: string): Promise<Processi
     stats.domainsWithMultipleEvents,
   ]);
   
-  console.log(`Completed ${clientConfig.client_name}:`);
-  console.log(`  Emails Sent: ${stats.totalEmailsSent}`);
-  console.log(`  Positive Replies: ${stats.totalPositiveReplies} (${stats.attributedPositiveReplies} attributed - ${stats.hardMatchPositiveReplies} hard, ${stats.softMatchPositiveReplies} soft)`);
-  console.log(`  Sign-ups: ${stats.totalSignUps} (${stats.attributedSignUps} attributed, ${stats.outsideWindowSignUps} outside window, ${stats.notMatchedSignUps} not matched)`);
-  console.log(`  Meetings: ${stats.totalMeetings} (${stats.attributedMeetings} attributed, ${stats.outsideWindowMeetings} outside window, ${stats.notMatchedMeetings} not matched)`);
-  console.log(`  Paying: ${stats.totalPaying} (${stats.attributedPaying} attributed, ${stats.outsideWindowPaying} outside window, ${stats.notMatchedPaying} not matched)`);
-  console.log(`  Total Domains: ${stats.totalDomains}`);
-  console.log(`  Timeline Events Saved: ${eventsSaved}`);
-  console.log(`  Errors: ${stats.errors}`);
+  log('INFO', `✓ Completed ${clientConfig.client_name}`, {
+    emailsSent: stats.totalEmailsSent,
+    positiveReplies: `${stats.totalPositiveReplies} (${stats.attributedPositiveReplies} attributed)`,
+    signUps: `${stats.totalSignUps} (${stats.attributedSignUps} attributed, ${stats.outsideWindowSignUps} outside, ${stats.notMatchedSignUps} unmatched)`,
+    meetings: `${stats.totalMeetings} (${stats.attributedMeetings} attributed, ${stats.outsideWindowMeetings} outside, ${stats.notMatchedMeetings} unmatched)`,
+    paying: `${stats.totalPaying} (${stats.attributedPaying} attributed, ${stats.outsideWindowPaying} outside, ${stats.notMatchedPaying} unmatched)`,
+    totalDomains: stats.totalDomains,
+    eventsSaved,
+    errors: stats.errors
+  });
   
   return stats;
 }
