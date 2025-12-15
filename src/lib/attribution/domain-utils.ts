@@ -38,12 +38,14 @@ export function formatAttributionMonth(date: Date): string {
   return date.toISOString().slice(0, 7); // YYYY-MM
 }
 
-export function mapEventTypeToSource(eventType: string): string {
-  const mapping: Record<string, string> = {
+import type { EventSource } from '@/db/attribution/types';
+
+export function mapEventTypeToSource(eventType: string): EventSource | null {
+  const mapping: Record<string, EventSource> = {
     'sign_up': 'SIGN_UP',
     'meeting_booked': 'MEETING_BOOKED',
     'paying_customer': 'PAYING_CUSTOMER',
   };
-  return mapping[eventType] || eventType.toUpperCase();
+  return mapping[eventType] || null;
 }
 

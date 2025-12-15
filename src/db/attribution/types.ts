@@ -109,7 +109,8 @@ export type EventSource =
   | 'POSITIVE_REPLY'
   | 'SIGN_UP'
   | 'MEETING_BOOKED'
-  | 'PAYING_CUSTOMER';
+  | 'PAYING_CUSTOMER'
+  | 'STATUS_CHANGE';
 
 export interface DomainEvent {
   id: string;
