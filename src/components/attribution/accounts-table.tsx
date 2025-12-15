@@ -177,22 +177,28 @@ export function AccountsTable({
       timeSinceLastClose: now - lastCloseTimeRef.current,
       timestamp: now
     });
-    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:handleSelectDomain',message:'handleSelectDomain called',data:{domainName:domain?.domain||null,action:domain?'open':'close',timeSinceLastClose:now-lastCloseTimeRef.current},timestamp:now,sessionId:'debug-session'})}).catch(()=>{});
     // #endregion
     
-    // DEBOUNCE GUARD: If trying to open within 300ms of closing, ignore
-    if (domain && (now - lastCloseTimeRef.current) < 300) {
-      console.log('[DEBUG] BLOCKED: Attempted reopen within 300ms of close');
+    // DEBOUNCE GUARD: If trying to open within 500ms of closing, ignore
+    if (domain && (now - lastCloseTimeRef.current) < 500) {
+      console.log('[DEBUG] BLOCKED: Attempted reopen within 500ms of close');
       return;
     }
     
     // Track close time
     if (!domain) {
       lastCloseTimeRef.current = now;
+      console.log('[DEBUG] Close time recorded:', now);
     }
     
     setSelectedDomain(domain);
-    updateURL({ account: domain?.domain || null });
+    
+    // TEST: Only update URL when OPENING, not when closing
+    // This tests if router.replace is causing the reopen bug
+    if (domain) {
+      updateURL({ account: domain.domain });
+    }
+    // When closing, we intentionally DON'T update the URL to test the hypothesis
   }, [updateURL]);
 
   // Toggle event type filter
