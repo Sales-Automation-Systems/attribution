@@ -171,7 +171,11 @@ export async function POST(
     });
   } catch (error) {
     console.error('Error adding manual event:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json({ 
+      error: 'Internal server error',
+      details: errorMessage 
+    }, { status: 500 });
   }
 }
 
