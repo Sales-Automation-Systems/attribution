@@ -159,6 +159,7 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
   const [matchType, setMatchType] = useState<string | null>(null);
   const [matchedEmails, setMatchedEmails] = useState<string[]>([]);
   const [focusView, setFocusView] = useState(false);
+  const [domainStatus, setDomainStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen && !loaded) {
@@ -178,6 +179,7 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
       setEvents(data.timeline || []);
       setHasDetailedEvents(data.hasDetailedEvents || false);
       setMatchType(data.domain?.matchType || null);
+      setDomainStatus(data.domain?.status || null);
       // Use new array format, fall back to legacy single email
       const emails = data.domain?.matchedEmails || [];
       if (emails.length === 0 && data.domain?.matchedEmail) {
@@ -526,7 +528,7 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
           {focusView && dimmedCount > 0 && (
             <span className="text-emerald-600 dark:text-emerald-400"> • {dimmedCount} dimmed</span>
           )}
-          {!hasDetailedEvents && events.length > 0 && (
+          {!hasDetailedEvents && events.length > 0 && domainStatus !== 'MANUAL' && domainStatus !== 'CLIENT_PROMOTED' && (
             <span className="block mt-1 text-amber-600 dark:text-amber-400">
               Showing summary view • Full history available after next sync
             </span>
