@@ -1,15 +1,13 @@
 'use client';
 
-// Temporarily bypassing Radix Dialog to test if it's causing the reopen bug
-// import {
-//   Dialog,
-//   DialogContent,
-//   DialogHeader,
-//   DialogTitle,
-//   DialogDescription,
-// } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
   ExternalLink,
   MessageSquare,
@@ -21,7 +19,6 @@ import {
   CircleSlash,
   Flag,
   ArrowUpCircle,
-  X,
 } from 'lucide-react';
 import { AccountTimeline } from './account-timeline';
 import { DefinitionTooltip, SimpleTooltip } from '@/components/ui/definition-tooltip';
@@ -59,11 +56,7 @@ function getStatusType(domain: TimelineDomain): 'attributed' | 'outside_window' 
 }
 
 export function TimelineDialog({ domain, isOpen, onClose, slug, uuid }: TimelineDialogProps) {
-  // Don't render anything if dialog is not open or no domain
-  if (!isOpen || !domain) return null;
-  
-  // DEBUG: Log every render
-  console.log('[DEBUG] 📋 TimelineDialog RENDER #' + Date.now(), {domain: domain.domain, isOpen});
+  if (!domain) return null;
 
   const statusType = getStatusType(domain);
 
@@ -117,46 +110,14 @@ export function TimelineDialog({ domain, isOpen, onClose, slug, uuid }: Timeline
     }
   };
 
-  // TEST: Bypass Radix Dialog entirely - use simple conditional rendering
-  // This tests if the issue is with Radix Dialog's internal state/animations
   return (
-    <>
-      {/* Backdrop */}
-      <div 
-        className="fixed inset-0 z-50 bg-black/50"
-        onClick={(e) => {
-          e.stopPropagation();
-          console.log('[DEBUG] Backdrop clicked - closing');
-          onClose();
-        }}
-      />
-      
-      {/* Dialog Content */}
-      <div 
-        className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-background rounded-lg border shadow-lg w-[calc(100vw-3rem)] sm:w-[calc(100vw-6rem)] md:w-[calc(100vw-12rem)] lg:w-[calc(100vw-20rem)] max-h-[85vh] overflow-hidden flex flex-col p-0 gap-0"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Custom Close Button - RE-ENABLED with logging */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute top-4 right-4 h-8 w-8 rounded-sm opacity-70 hover:opacity-100 z-10"
-          onClick={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-            console.log('[DEBUG] ❌ Close button clicked - calling onClose()');
-            onClose();
-          }}
-        >
-          <X className="h-4 w-4" />
-          <span className="sr-only">Close</span>
-        </Button>
-        
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="w-[calc(100vw-3rem)] sm:w-[calc(100vw-6rem)] md:w-[calc(100vw-12rem)] lg:w-[calc(100vw-20rem)] max-w-none sm:max-w-none md:max-w-none lg:max-w-none max-h-[85vh] overflow-hidden flex flex-col p-0 gap-0">
         {/* Header */}
-        <div className="pl-6 pr-12 pt-6 pb-4 border-b shrink-0 bg-background">
+        <DialogHeader className="pl-6 pr-12 pt-6 pb-4 border-b shrink-0 bg-background">
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1">
-              <h2 className="text-xl font-semibold flex items-center gap-2">
+              <DialogTitle className="text-xl flex items-center gap-2">
                 {domain.domain}
                 <a
                   href={`https://${domain.domain}`}
@@ -166,10 +127,10 @@ export function TimelineDialog({ domain, isOpen, onClose, slug, uuid }: Timeline
                 >
                   <ExternalLink className="h-4 w-4" />
                 </a>
-              </h2>
-              <p className="text-sm text-muted-foreground flex items-center gap-2">
+              </DialogTitle>
+              <DialogDescription className="flex items-center gap-2">
                 Full event history and attribution details
-              </p>
+              </DialogDescription>
             </div>
             
             {/* Status and Match Type Badges */}
@@ -227,7 +188,7 @@ export function TimelineDialog({ domain, isOpen, onClose, slug, uuid }: Timeline
               <span className="text-xs text-muted-foreground italic">No events recorded</span>
             )}
           </div>
-        </div>
+        </DialogHeader>
 
         {/* Scrollable Timeline Body */}
         <div className="flex-1 overflow-y-auto bg-background isolate">
@@ -240,8 +201,7 @@ export function TimelineDialog({ domain, isOpen, onClose, slug, uuid }: Timeline
             />
           </div>
         </div>
-      </div>
-    </>
+      </DialogContent>
+    </Dialog>
   );
 }
-

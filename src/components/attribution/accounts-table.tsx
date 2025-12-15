@@ -141,68 +141,39 @@ export function AccountsTable({
   }, [searchQuery, eventTypeFilters, statusFilters, focusView, updateURL]);
 
   // Open account from URL on INITIAL MOUNT only (for deep linking / page refresh)
+  // FIX: Only run once to prevent URL changes from reopening the dialog after close
   useEffect(() => {
-    // Only run once on initial mount
-    if (initialSyncDoneRef.current) {
-      return;
-    }
-    
-    // Respect the lock
-    const now = Date.now();
-    if (now < dialogLockedUntilRef.current) {
-      console.log('[DEBUG] useEffect: Dialog locked, skipping');
-      return;
-    }
+    if (initialSyncDoneRef.current) return;
     
     const accountParam = searchParams.get('account');
-    console.log('[DEBUG] useEffect: Initial URL sync', {accountParam, domainsCount: domains.length});
-    
     if (accountParam && domains.length > 0) {
       const domain = domains.find(d => d.domain === accountParam);
       if (domain) {
-        console.log('[DEBUG] useEffect: Opening from URL:', domain.domain);
         setSelectedDomain(domain);
       }
       initialSyncDoneRef.current = true;
     } else if (!accountParam) {
-      // No account in URL, mark sync as done
       initialSyncDoneRef.current = true;
     }
   }, [searchParams, domains]);
 
   // Update URL when selecting/deselecting account
+  // FIX: 1-second lock after closing prevents race conditions from reopening
   const handleSelectDomain = useCallback((domain: AccountDomain | null) => {
     const now = Date.now();
-    const action = domain ? 'OPEN' : 'CLOSE';
-    const isLocked = now < dialogLockedUntilRef.current;
     
-    // DEBUG: Very visible logging
-    console.log(`[DEBUG] ========== handleSelectDomain: ${action} ==========`);
-    console.log('[DEBUG] Domain:', domain?.domain || 'null');
-    console.log('[DEBUG] Is locked:', isLocked);
-    console.log('[DEBUG] Locked until:', dialogLockedUntilRef.current);
-    console.log('[DEBUG] Current time:', now);
-    
-    // LOCK GUARD: If dialog is locked (within 1 second of closing), block ALL opens
-    if (domain && isLocked) {
-      console.log('[DEBUG] ⛔⛔⛔ BLOCKED - DIALOG IS LOCKED ⛔⛔⛔');
-      alert('BLOCKED: Dialog tried to open while locked!');
+    // LOCK GUARD: If dialog is locked (within 1 second of closing), block opens
+    if (domain && now < dialogLockedUntilRef.current) {
       return;
     }
     
-    // When closing, lock the dialog for 1 second
+    // When closing, lock the dialog for 1 second to prevent race condition reopens
     if (!domain) {
       dialogLockedUntilRef.current = now + 1000;
-      console.log('[DEBUG] 🔒🔒🔒 Dialog LOCKED for 1 second 🔒🔒🔒');
     }
     
-    console.log('[DEBUG] Setting selectedDomain to:', domain?.domain || 'null');
     setSelectedDomain(domain);
-    
-    // Only update URL when opening (not closing - to avoid race conditions)
-    if (domain) {
-      updateURL({ account: domain.domain });
-    }
+    updateURL({ account: domain?.domain || null });
   }, [updateURL]);
 
   // Toggle event type filter
@@ -625,16 +596,7 @@ export function AccountsTable({
                     <TableRow
                       key={domain.id}
                       className="cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={(e) => {
-                        const now = Date.now();
-                        console.log('[DEBUG] 👆 Row clicked', {
-                          domain: domain.domain, 
-                          target: (e.target as HTMLElement).tagName,
-                          isLocked: now < dialogLockedUntilRef.current,
-                          now
-                        });
-                        handleSelectDomain(domain);
-                      }}
+                      onClick={() => handleSelectDomain(domain)}
                     >
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
