@@ -19,8 +19,28 @@ export async function POST(request: NextRequest) {
     }
 
     // For Vercel, we'll inline the SQL since fs access is limited
-    // This is specifically for 012_last_event_at.sql
     const migrations: Record<string, string> = {
+      '011_client_actions.sql': `
+        -- Add promotion tracking fields to attributed_domain
+        ALTER TABLE attributed_domain 
+        ADD COLUMN IF NOT EXISTS promoted_at TIMESTAMP WITH TIME ZONE,
+        ADD COLUMN IF NOT EXISTS promoted_by VARCHAR(255),
+        ADD COLUMN IF NOT EXISTS promotion_notes TEXT;
+
+        -- Add index for finding promoted domains
+        CREATE INDEX IF NOT EXISTS idx_attributed_domain_promoted_at 
+        ON attributed_domain(promoted_at) 
+        WHERE promoted_at IS NOT NULL;
+
+        -- Add composite index for client + status queries
+        CREATE INDEX IF NOT EXISTS idx_attributed_domain_client_status 
+        ON attributed_domain(client_config_id, status);
+
+        -- Add comments for documentation
+        COMMENT ON COLUMN attributed_domain.promoted_at IS 'Timestamp when client promoted this domain to attributed status';
+        COMMENT ON COLUMN attributed_domain.promoted_by IS 'Email or user ID of who promoted this domain';
+        COMMENT ON COLUMN attributed_domain.promotion_notes IS 'Optional notes provided when promoting';
+      `,
       '012_last_event_at.sql': `
         -- Add last_event_at column
         ALTER TABLE attributed_domain 
