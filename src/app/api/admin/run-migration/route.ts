@@ -111,6 +111,25 @@ export async function POST(request: NextRequest) {
         CREATE INDEX IF NOT EXISTS idx_task_attributed_domain_id ON task(attributed_domain_id);
         CREATE INDEX IF NOT EXISTS idx_task_comment_task_id ON task_comment(task_id);
       `,
+      '015_job_logging.sql': `
+        -- Real-time job logging table
+        CREATE TABLE IF NOT EXISTS job_log (
+          id SERIAL PRIMARY KEY,
+          job_id VARCHAR(100) NOT NULL,
+          timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          level VARCHAR(10) NOT NULL,
+          message TEXT NOT NULL,
+          data JSONB,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+
+        -- Index for fetching logs by job
+        CREATE INDEX IF NOT EXISTS idx_job_log_job_id ON job_log(job_id);
+        CREATE INDEX IF NOT EXISTS idx_job_log_job_id_timestamp ON job_log(job_id, timestamp DESC);
+
+        -- Add phase column to worker_job for more detailed progress tracking
+        ALTER TABLE worker_job ADD COLUMN IF NOT EXISTS phase VARCHAR(100);
+      `,
     };
 
     const sql = migrations[migrationFile];

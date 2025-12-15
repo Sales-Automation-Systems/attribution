@@ -32,6 +32,7 @@ interface JobState {
     current: number;
     total: number;
     currentClient?: string;
+    phase?: string; // Current processing phase
   };
   result?: unknown;
   error?: string;
@@ -40,6 +41,40 @@ interface JobState {
 const activeJobs = new Map<string, JobState>();
 const cancelledJobs = new Set<string>(); // Track jobs that should be cancelled
 let jobCounter = 0;
+
+// ============ Real-time Job Logging ============
+// Logs are stored in memory (last 500 per job) and persisted to DB
+const jobLogs = new Map<string, Array<{ timestamp: Date; level: string; message: string; data?: unknown }>>();
+const MAX_LOGS_PER_JOB = 500;
+
+async function jobLog(jobId: string, level: 'INFO' | 'WARN' | 'ERROR' | 'DEBUG', message: string, data?: unknown): Promise<void> {
+  const timestamp = new Date();
+  const logEntry = { timestamp, level, message, data };
+  
+  // Console log with job ID prefix
+  const prefix = `[${jobId}] [${level}]`;
+  if (data) {
+    console.log(prefix, message, JSON.stringify(data));
+  } else {
+    console.log(prefix, message);
+  }
+  
+  // Store in memory
+  const logs = jobLogs.get(jobId) || [];
+  logs.push(logEntry);
+  if (logs.length > MAX_LOGS_PER_JOB) {
+    logs.shift(); // Remove oldest
+  }
+  jobLogs.set(jobId, logs);
+  
+  // Persist to database (async, don't await)
+  attrQuery(`
+    INSERT INTO job_log (job_id, timestamp, level, message, data)
+    VALUES ($1, $2, $3, $4, $5)
+  `, [jobId, timestamp, level, message, data ? JSON.stringify(data) : null]).catch(err => {
+    console.error('Failed to persist job log:', err);
+  });
+}
 
 // Persist job to database
 async function persistJob(job: JobState): Promise<void> {
@@ -288,8 +323,16 @@ interface ClientSettings {
   exclude_personal_domains: boolean;
 }
 
-async function processClient(clientId: string): Promise<ProcessingStats> {
-  console.log(`Processing client: ${clientId}`);
+async function processClient(clientId: string, jobId?: string): Promise<ProcessingStats> {
+  const log = (level: 'INFO' | 'WARN' | 'ERROR' | 'DEBUG', message: string, data?: unknown) => {
+    if (jobId) {
+      jobLog(jobId, level, message, data);
+    } else {
+      console.log(`[${level}]`, message, data || '');
+    }
+  };
+  
+  log('INFO', `Starting processing for client: ${clientId}`);
   
   const configs = await attrQuery<ClientSettings>(`
     SELECT id, client_name, sign_ups_mode, meetings_mode, paying_mode,
@@ -311,18 +354,17 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
     excludePersonalDomains: clientConfig.exclude_personal_domains ?? true,
   };
   
-  console.log(`Processing: ${clientConfig.client_name}`);
-  console.log(`  Settings: window=${settings.windowDays}d, signUps=${settings.signUpsMode}, meetings=${settings.meetingsMode}, paying=${settings.payingMode}`);
+  log('INFO', `Processing: ${clientConfig.client_name}`, { settings });
   
   // ============ PHASE 0: Clear existing domain events for this client ============
-  console.log('Clearing existing domain events...');
+  log('INFO', 'Phase 0: Clearing existing domain events...');
   await attrQuery(`
     DELETE FROM domain_event 
     WHERE attributed_domain_id IN (
       SELECT id FROM attributed_domain WHERE client_config_id = $1
     )
   `, [clientConfig.id]);
-  console.log('  Cleared existing events');
+  log('INFO', 'Phase 0: Cleared existing events');
   
   const stats: ProcessingStats = {
     totalSignUps: 0,
@@ -358,7 +400,13 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
   };
   
   // ============ PHASE 1: Get top-level stats ============
-  console.log('Fetching top-level stats...');
+  log('INFO', 'Phase 1: Fetching top-level stats...');
+  
+  // Check for cancellation
+  if (jobId && cancelledJobs.has(jobId)) {
+    log('WARN', 'Job cancelled during Phase 1');
+    throw new Error('Job cancelled by user');
+  }
   
   // Count total emails sent
   const emailCountResult = await prodQuery<{ count: string }>(`
@@ -368,10 +416,17 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
     WHERE ec.type = 'Sent' AND ci.client_id = $1
   `, [clientId]);
   stats.totalEmailsSent = parseInt(emailCountResult[0]?.count || '0', 10);
-  console.log(`  Total emails sent: ${stats.totalEmailsSent}`);
+  log('INFO', `Phase 1: Total emails sent: ${stats.totalEmailsSent.toLocaleString()}`);
   
   // ============ PHASE 2: Fetch attribution events ============
-  console.log('Fetching attribution events...');
+  log('INFO', 'Phase 2: Fetching attribution events...');
+  
+  // Check for cancellation
+  if (jobId && cancelledJobs.has(jobId)) {
+    log('WARN', 'Job cancelled during Phase 2');
+    throw new Error('Job cancelled by user');
+  }
+  
   const events = await prodQuery<{
     id: string;
     event_type: string;
@@ -393,10 +448,21 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
     else if (e.event_type === 'meeting_booked') stats.totalMeetings++;
     else if (e.event_type === 'paying_customer') stats.totalPaying++;
   }
-  console.log(`  Sign-ups: ${stats.totalSignUps}, Meetings: ${stats.totalMeetings}, Paying: ${stats.totalPaying}`);
+  log('INFO', `Phase 2: Found ${events.length} attribution events`, { 
+    signUps: stats.totalSignUps, 
+    meetings: stats.totalMeetings, 
+    paying: stats.totalPaying 
+  });
   
   // ============ PHASE 3: Fetch positive replies ============
-  console.log('Fetching positive replies...');
+  log('INFO', 'Phase 3: Fetching positive replies...');
+  
+  // Check for cancellation
+  if (jobId && cancelledJobs.has(jobId)) {
+    log('WARN', 'Job cancelled during Phase 3');
+    throw new Error('Job cancelled by user');
+  }
+  
   const positiveReplies = await prodQuery<{
     id: string;
     lead_email: string;
@@ -417,9 +483,11 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
   `, [clientId]);
   
   stats.totalPositiveReplies = positiveReplies.length;
-  console.log(`  Positive replies: ${stats.totalPositiveReplies}`);
+  log('INFO', `Phase 3: Found ${stats.totalPositiveReplies} positive replies`);
   
   // ============ PHASE 4: Build email/domain send time maps ============
+  log('INFO', 'Phase 4: Building email/domain send time maps...');
+  
   // Collect all emails and domains we need to look up
   const emails = new Set<string>();
   const domains = new Set<string>();
@@ -440,20 +508,36 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
     if (domain) domains.add(domain);
   }
   
-  console.log(`Unique emails: ${emails.size}, unique domains: ${domains.size}`);
+  log('INFO', `Phase 4: Need to look up ${emails.size.toLocaleString()} emails, ${domains.size.toLocaleString()} domains`);
   
   // BATCH LOOKUP: Query send times in chunks
-  console.log('Fetching email send times (chunked)...');
+  log('INFO', 'Phase 4a: Fetching email send times (chunked)...');
   const emailSendTimes = new Map<string, Date>(); // Legacy: first email (for backwards compat)
   const emailAllSendTimes = new Map<string, Date[]>(); // All timestamps per email
   const domainSendTimes = new Map<string, Date>();
   const CHUNK_SIZE = 100;
   
   const emailArray = Array.from(emails);
+  const emailChunks = Math.ceil(emailArray.length / CHUNK_SIZE);
+  let emailsProcessed = 0;
+  
   for (let i = 0; i < emailArray.length; i += CHUNK_SIZE) {
+    // Check for cancellation every 10 chunks
+    if (jobId && i % (CHUNK_SIZE * 10) === 0 && cancelledJobs.has(jobId)) {
+      log('WARN', 'Job cancelled during Phase 4a (email lookups)');
+      throw new Error('Job cancelled by user');
+    }
+    
     const chunk = emailArray.slice(i, i + CHUNK_SIZE);
+    emailsProcessed += chunk.length;
+    
+    // Log progress every 500 emails
     if (i % 500 === 0 && emailArray.length > 500) {
-      console.log(`  Checking emails ${i + 1}-${Math.min(i + CHUNK_SIZE, emailArray.length)}/${emailArray.length}`);
+      log('DEBUG', `Phase 4a: Email lookup progress`, { 
+        processed: emailsProcessed, 
+        total: emailArray.length,
+        percent: Math.round((emailsProcessed / emailArray.length) * 100) 
+      });
     }
     
     // Get ALL email timestamps (not just MIN) for accurate window calculation
@@ -478,17 +562,33 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
       }
     }
   }
-  console.log(`  Found ${emailSendTimes.size} emails with send history`);
+  log('INFO', `Phase 4a complete: Found ${emailSendTimes.size.toLocaleString()} emails with send history`);
   
   // For domains, we need ALL email timestamps to properly check window
   // Store array of timestamps per domain for accurate window checking
+  log('INFO', 'Phase 4b: Fetching domain send times (chunked)...');
   const domainAllSendTimes = new Map<string, Date[]>();
   
   const domainArray = Array.from(domains);
+  let domainsProcessed = 0;
+  
   for (let i = 0; i < domainArray.length; i += CHUNK_SIZE) {
+    // Check for cancellation every 10 chunks
+    if (jobId && i % (CHUNK_SIZE * 10) === 0 && cancelledJobs.has(jobId)) {
+      log('WARN', 'Job cancelled during Phase 4b (domain lookups)');
+      throw new Error('Job cancelled by user');
+    }
+    
     const chunk = domainArray.slice(i, i + CHUNK_SIZE);
+    domainsProcessed += chunk.length;
+    
+    // Log progress every 500 domains
     if (i % 500 === 0 && domainArray.length > 500) {
-      console.log(`  Checking domains ${i + 1}-${Math.min(i + CHUNK_SIZE, domainArray.length)}/${domainArray.length}`);
+      log('DEBUG', `Phase 4b: Domain lookup progress`, { 
+        processed: domainsProcessed, 
+        total: domainArray.length,
+        percent: Math.round((domainsProcessed / domainArray.length) * 100) 
+      });
     }
     
     // Get ALL email timestamps for each domain (not just MIN)
@@ -513,6 +613,7 @@ async function processClient(clientId: string): Promise<ProcessingStats> {
       }
     }
   }
+  log('INFO', `Phase 4b complete: Found ${domainSendTimes.size.toLocaleString()} domains with send history`);
   console.log(`  Found ${domainSendTimes.size} domains with send history`);
   
   // Helper function to find the most recent email before an event time (for domains)
@@ -1196,17 +1297,24 @@ async function processAllClientsAsync(job: JobState): Promise<void> {
       
       // Skip excluded clients
       if (SKIP_CLIENTS.has(client.client_name)) {
-        console.log(`\n=== Skipping ${i + 1}/${clients.length}: ${client.client_name} (excluded) ===`);
+        await jobLog(job.id, 'INFO', `Skipping ${client.client_name} (excluded)`);
         results.push({ client: client.client_name, stats: { ...emptyStats } });
         continue;
       }
       
       try {
-        console.log(`\n=== Processing ${i + 1}/${clients.length}: ${client.client_name} ===`);
-        const stats = await processClient(client.client_id);
+        await jobLog(job.id, 'INFO', `=== Starting ${i + 1}/${clients.length}: ${client.client_name} ===`);
+        const startTime = Date.now();
+        const stats = await processClient(client.client_id, job.id);
+        const duration = Math.round((Date.now() - startTime) / 1000);
+        await jobLog(job.id, 'INFO', `=== Completed ${client.client_name} in ${duration}s ===`, { 
+          duration, 
+          domains: stats.totalDomains,
+          attributed: stats.attributedSignUps + stats.attributedMeetings + stats.attributedPaying
+        });
         results.push({ client: client.client_name, stats });
       } catch (error) {
-        console.error(`Failed to process ${client.client_name}:`, error);
+        await jobLog(job.id, 'ERROR', `Failed to process ${client.client_name}: ${(error as Error).message}`);
         results.push({ client: client.client_name, stats: { ...emptyStats, errors: 1 } });
       }
       
@@ -1257,6 +1365,63 @@ app.get('/health', async (req, res) => {
     res.json({ status: 'healthy', timestamp: new Date().toISOString() });
   } catch (error) {
     res.status(500).json({ status: 'unhealthy', error: (error as Error).message });
+  }
+});
+
+// Get logs for a specific job
+app.get('/job/:jobId/logs', async (req, res) => {
+  const { jobId } = req.params;
+  const { since, limit = '100' } = req.query;
+  
+  try {
+    // First check in-memory logs
+    const memoryLogs = jobLogs.get(jobId) || [];
+    
+    // Also fetch from database for persistence
+    let query = `
+      SELECT timestamp, level, message, data
+      FROM job_log
+      WHERE job_id = $1
+    `;
+    const params: (string | number)[] = [jobId];
+    
+    if (since) {
+      query += ` AND timestamp > $2`;
+      params.push(since as string);
+    }
+    
+    query += ` ORDER BY timestamp DESC LIMIT $${params.length + 1}`;
+    params.push(parseInt(limit as string, 10));
+    
+    const dbLogs = await attrQuery<{ timestamp: Date; level: string; message: string; data: unknown }>(query, params);
+    
+    // Combine and dedupe (prefer memory as more recent)
+    const allLogs = [...memoryLogs];
+    const memoryTimestamps = new Set(memoryLogs.map(l => l.timestamp.getTime()));
+    
+    for (const log of dbLogs) {
+      if (!memoryTimestamps.has(new Date(log.timestamp).getTime())) {
+        allLogs.push({
+          timestamp: new Date(log.timestamp),
+          level: log.level,
+          message: log.message,
+          data: log.data,
+        });
+      }
+    }
+    
+    // Sort by timestamp descending and limit
+    allLogs.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+    const limitedLogs = allLogs.slice(0, parseInt(limit as string, 10));
+    
+    res.json({ 
+      jobId, 
+      logs: limitedLogs.reverse(), // Return in chronological order
+      count: limitedLogs.length 
+    });
+  } catch (error) {
+    console.error('Error fetching job logs:', error);
+    res.status(500).json({ error: 'Failed to fetch logs' });
   }
 });
 

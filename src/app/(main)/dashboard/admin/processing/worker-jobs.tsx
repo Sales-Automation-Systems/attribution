@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Clock, CheckCircle, XCircle, RefreshCw, StopCircle, Ban } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, RefreshCw, StopCircle, Ban, ChevronDown, ChevronUp, Terminal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
@@ -22,12 +22,22 @@ interface WorkerJob {
   error?: string;
 }
 
+interface JobLog {
+  timestamp: string;
+  level: 'INFO' | 'WARN' | 'ERROR' | 'DEBUG';
+  message: string;
+  data?: unknown;
+}
+
 export function WorkerJobsDisplay() {
   const [jobs, setJobs] = useState<WorkerJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [cancellingJobs, setCancellingJobs] = useState<Set<string>>(new Set());
+  const [expandedJobLogs, setExpandedJobLogs] = useState<string | null>(null);
+  const [jobLogs, setJobLogs] = useState<Record<string, JobLog[]>>({});
+  const [logsLoading, setLogsLoading] = useState(false);
 
   const fetchJobs = async () => {
     try {
@@ -44,12 +54,49 @@ export function WorkerJobsDisplay() {
     }
   };
 
+  const fetchJobLogs = useCallback(async (jobId: string) => {
+    setLogsLoading(true);
+    try {
+      const res = await fetch(`/api/worker/jobs/${jobId}/logs?limit=200`);
+      if (!res.ok) throw new Error('Failed to fetch logs');
+      const data = await res.json();
+      setJobLogs((prev) => ({ ...prev, [jobId]: data.logs || [] }));
+    } catch (err) {
+      console.error('Error fetching logs:', err);
+    } finally {
+      setLogsLoading(false);
+    }
+  }, []);
+
+  const toggleLogs = (jobId: string) => {
+    if (expandedJobLogs === jobId) {
+      setExpandedJobLogs(null);
+    } else {
+      setExpandedJobLogs(jobId);
+      fetchJobLogs(jobId);
+    }
+  };
+
   useEffect(() => {
     fetchJobs();
     // Auto-refresh every 5 seconds
     const interval = setInterval(fetchJobs, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  // Auto-refresh logs for expanded running job
+  useEffect(() => {
+    if (!expandedJobLogs) return;
+    
+    const job = jobs.find(j => j.id === expandedJobLogs);
+    if (job?.status !== 'running') return;
+    
+    const logInterval = setInterval(() => {
+      fetchJobLogs(expandedJobLogs);
+    }, 2000);
+    
+    return () => clearInterval(logInterval);
+  }, [expandedJobLogs, jobs, fetchJobLogs]);
 
   const cancelJob = async (jobId: string) => {
     setCancellingJobs((prev) => new Set(prev).add(jobId));
@@ -232,6 +279,67 @@ export function WorkerJobsDisplay() {
                     <span>Job ID: {job.id}</span>
                     <span>Started: {new Date(job.startedAt).toLocaleTimeString()}</span>
                   </div>
+                  
+                  {/* Logs Toggle */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="mt-2 w-full justify-between"
+                    onClick={() => toggleLogs(job.id)}
+                  >
+                    <span className="flex items-center gap-2">
+                      <Terminal className="h-3 w-3" />
+                      View Logs
+                    </span>
+                    {expandedJobLogs === job.id ? (
+                      <ChevronUp className="h-4 w-4" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4" />
+                    )}
+                  </Button>
+                  
+                  {/* Logs Panel */}
+                  {expandedJobLogs === job.id && (
+                    <div className="mt-2 bg-gray-900 rounded-lg p-3 max-h-80 overflow-y-auto font-mono text-xs">
+                      {logsLoading && jobLogs[job.id]?.length === 0 ? (
+                        <div className="text-gray-400 flex items-center gap-2">
+                          <RefreshCw className="h-3 w-3 animate-spin" />
+                          Loading logs...
+                        </div>
+                      ) : jobLogs[job.id]?.length === 0 ? (
+                        <div className="text-gray-400">No logs yet...</div>
+                      ) : (
+                        <div className="space-y-1">
+                          {jobLogs[job.id]?.map((log, idx) => (
+                            <div key={idx} className="flex gap-2">
+                              <span className="text-gray-500 shrink-0">
+                                {new Date(log.timestamp).toLocaleTimeString()}
+                              </span>
+                              <span
+                                className={
+                                  log.level === 'ERROR'
+                                    ? 'text-red-400'
+                                    : log.level === 'WARN'
+                                      ? 'text-yellow-400'
+                                      : log.level === 'DEBUG'
+                                        ? 'text-gray-400'
+                                        : 'text-green-400'
+                                }
+                              >
+                                [{log.level}]
+                              </span>
+                              <span className="text-gray-200">{log.message}</span>
+                              {log.data && (
+                                <span className="text-gray-500">
+                                  {JSON.stringify(log.data)}
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
