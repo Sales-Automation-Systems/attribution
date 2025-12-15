@@ -141,28 +141,31 @@ export function AccountsTable({
   // NOTE: selectedDomain is intentionally NOT in deps - this effect syncs URL→state, not state→URL
   useEffect(() => {
     const accountParam = searchParams.get('account');
+    const fullUrl = searchParams.toString();
     // #region agent log
-    console.log('[DEBUG H2] URL sync effect triggered', {accountParam, isClosing:isClosingRef.current});
-    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:useEffect-urlSync',message:'URL sync effect triggered',data:{accountParam,isClosing:isClosingRef.current},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
+    console.log('[DEBUG H2] URL sync effect triggered', {accountParam, fullUrl, isClosing:isClosingRef.current, timestamp: Date.now()});
+    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:useEffect-urlSync',message:'URL sync effect triggered',data:{accountParam,fullUrl,isClosing:isClosingRef.current},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
     // #endregion
     
     // FIX: Skip if we're intentionally closing (prevents race condition with our own URL updates)
     if (isClosingRef.current) {
-      console.log('[DEBUG H2] Skipping - intentionally closing');
+      console.log('[DEBUG H2] Skipping - intentionally closing (isClosingRef=true)');
       return;
     }
     
     if (accountParam) {
       const domain = domains.find(d => d.domain === accountParam);
       // #region agent log
-      console.log('[DEBUG H2] Opening dialog from URL', {accountParam, foundDomain:!!domain});
+      console.log('[DEBUG H2] Opening dialog from URL', {accountParam, foundDomain:!!domain, timestamp: Date.now()});
       fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:useEffect-urlSync-opening',message:'Opening dialog from URL',data:{accountParam,foundDomain:!!domain},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
       // #endregion
       if (domain) {
+        console.log('[DEBUG H2] setSelectedDomain called with domain:', domain.domain);
         setSelectedDomain(domain);
       }
     } else {
       // URL has no account param, ensure dialog is closed
+      console.log('[DEBUG H2] URL has no account param, setting selectedDomain to null');
       setSelectedDomain(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -171,15 +174,20 @@ export function AccountsTable({
   // Update URL when selecting/deselecting account
   const handleSelectDomain = useCallback((domain: AccountDomain | null) => {
     // #region agent log
-    console.log('[DEBUG H2-H4] handleSelectDomain called', {domainName:domain?.domain||null, action:domain?'open':'close'});
+    console.log('[DEBUG H2-H4] handleSelectDomain called', {domainName:domain?.domain||null, action:domain?'open':'close', timestamp: Date.now()});
     fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:handleSelectDomain',message:'handleSelectDomain called',data:{domainName:domain?.domain||null,action:domain?'open':'close'},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2-H4'})}).catch(()=>{});
     // #endregion
     
     // FIX: Set closing flag when closing to prevent race condition with URL sync useEffect
+    // Using longer timeout to ensure it persists through async URL update
     if (!domain) {
       isClosingRef.current = true;
-      // Reset the flag after URL has time to sync (next tick)
-      setTimeout(() => { isClosingRef.current = false; }, 0);
+      console.log('[DEBUG H6] isClosingRef set to TRUE');
+      // Reset the flag after URL has definitely synced (100ms should be plenty)
+      setTimeout(() => { 
+        isClosingRef.current = false; 
+        console.log('[DEBUG H6] isClosingRef reset to FALSE (after 100ms)');
+      }, 100);
     }
     
     setSelectedDomain(domain);

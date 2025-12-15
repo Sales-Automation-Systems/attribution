@@ -58,8 +58,10 @@ function getStatusType(domain: TimelineDomain): 'attributed' | 'outside_window' 
 export function TimelineDialog({ domain, isOpen, onClose, slug, uuid }: TimelineDialogProps) {
   // #region agent log
   const handleOpenChange = (open: boolean) => {
-    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'timeline-dialog.tsx:onOpenChange',message:'Dialog onOpenChange fired',data:{newOpenState:open,currentIsOpen:isOpen,domainName:domain?.domain},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
+    console.log('[DEBUG H7] Dialog onOpenChange fired', {newOpenState:open, currentIsOpen:isOpen, domainName:domain?.domain, timestamp: Date.now()});
+    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'timeline-dialog.tsx:onOpenChange',message:'Dialog onOpenChange fired',data:{newOpenState:open,currentIsOpen:isOpen,domainName:domain?.domain},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H7'})}).catch(()=>{});
     if (!open) {
+      console.log('[DEBUG H7] Calling onClose()');
       onClose();
     }
   };
