@@ -173,29 +173,30 @@ export function AccountsTable({
   // Update URL when selecting/deselecting account
   const handleSelectDomain = useCallback((domain: AccountDomain | null) => {
     const now = Date.now();
+    const action = domain ? 'OPEN' : 'CLOSE';
+    const isLocked = now < dialogLockedUntilRef.current;
     
-    // #region agent log
-    console.log('[DEBUG] handleSelectDomain', {
-      action: domain ? 'OPEN' : 'CLOSE',
-      domain: domain?.domain || null,
-      lockedUntil: dialogLockedUntilRef.current,
-      isLocked: now < dialogLockedUntilRef.current,
-      now
-    });
-    // #endregion
+    // DEBUG: Very visible logging
+    console.log(`[DEBUG] ========== handleSelectDomain: ${action} ==========`);
+    console.log('[DEBUG] Domain:', domain?.domain || 'null');
+    console.log('[DEBUG] Is locked:', isLocked);
+    console.log('[DEBUG] Locked until:', dialogLockedUntilRef.current);
+    console.log('[DEBUG] Current time:', now);
     
     // LOCK GUARD: If dialog is locked (within 1 second of closing), block ALL opens
-    if (domain && now < dialogLockedUntilRef.current) {
-      console.log('[DEBUG] ⛔ BLOCKED: Dialog is locked until', dialogLockedUntilRef.current);
+    if (domain && isLocked) {
+      console.log('[DEBUG] ⛔⛔⛔ BLOCKED - DIALOG IS LOCKED ⛔⛔⛔');
+      alert('BLOCKED: Dialog tried to open while locked!');
       return;
     }
     
     // When closing, lock the dialog for 1 second
     if (!domain) {
       dialogLockedUntilRef.current = now + 1000;
-      console.log('[DEBUG] 🔒 Dialog LOCKED until', dialogLockedUntilRef.current);
+      console.log('[DEBUG] 🔒🔒🔒 Dialog LOCKED for 1 second 🔒🔒🔒');
     }
     
+    console.log('[DEBUG] Setting selectedDomain to:', domain?.domain || 'null');
     setSelectedDomain(domain);
     
     // Only update URL when opening (not closing - to avoid race conditions)

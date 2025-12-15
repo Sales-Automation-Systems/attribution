@@ -62,7 +62,8 @@ export function TimelineDialog({ domain, isOpen, onClose, slug, uuid }: Timeline
   // Don't render anything if dialog is not open or no domain
   if (!isOpen || !domain) return null;
   
-  console.log('[DEBUG] 📋 TimelineDialog rendering', {domain: domain.domain, isOpen});
+  // DEBUG: Log every render
+  console.log('[DEBUG] 📋 TimelineDialog RENDER #' + Date.now(), {domain: domain.domain, isOpen});
 
   const statusType = getStatusType(domain);
 
@@ -142,7 +143,8 @@ export function TimelineDialog({ domain, isOpen, onClose, slug, uuid }: Timeline
           className="absolute top-4 right-4 h-8 w-8 rounded-sm opacity-70 hover:opacity-100 z-10"
           onClick={(e) => {
             e.stopPropagation();
-            console.log('[DEBUG] ❌ Close button clicked', {timestamp: Date.now()});
+            e.preventDefault();
+            console.log('[DEBUG] ❌❌❌ CLOSE BUTTON CLICKED ❌❌❌');
             onClose();
           }}
         >
