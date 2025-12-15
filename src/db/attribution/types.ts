@@ -55,6 +55,13 @@ export interface ClientConfig {
   last_processed_at: Date | null;
   created_at: Date;
   updated_at: Date;
+  // Billing model fields
+  billing_model: 'flat_revshare' | 'plg_sales_split';
+  revshare_plg: number | null;
+  revshare_sales: number | null;
+  fee_per_signup: number | null;
+  fee_per_meeting: number | null;
+  reconciliation_interval: 'monthly' | 'quarterly' | 'custom';
 }
 
 // Domain status types
@@ -264,5 +271,81 @@ export interface TaskWithDetails extends Task {
   client_name?: string;
   domain?: string;
   comment_count?: number;
+}
+
+// ============ Reconciliation System ============
+
+export type ReconciliationStatus = 
+  | 'DRAFT'           // Agency is preparing the reconciliation
+  | 'PENDING_CLIENT'  // Sent to client for revenue submission
+  | 'CLIENT_SUBMITTED' // Client has submitted revenue data
+  | 'UNDER_REVIEW'    // Agency is reviewing submitted data
+  | 'FINALIZED';      // Reconciliation complete
+
+export type ReconciliationLineStatus = 
+  | 'PENDING'    // Awaiting revenue submission
+  | 'SUBMITTED'  // Revenue has been entered
+  | 'DISPUTED'   // Client or agency disputed this line
+  | 'CONFIRMED'; // Both parties agree on the amount
+
+export type MotionType = 'PLG' | 'SALES';
+
+export interface ReconciliationPeriod {
+  id: string;
+  client_config_id: string;
+  period_name: string;
+  start_date: Date;
+  end_date: Date;
+  status: ReconciliationStatus;
+  created_by: string | null;
+  created_at: Date;
+  sent_to_client_at: Date | null;
+  client_submitted_at: Date | null;
+  finalized_at: Date | null;
+  finalized_by: string | null;
+  total_signups: number;
+  total_meetings: number;
+  total_paying_customers: number;
+  total_revenue_submitted: number;
+  total_amount_owed: number;
+  agency_notes: string | null;
+  client_notes: string | null;
+  updated_at: Date;
+}
+
+export interface ReconciliationLineItem {
+  id: string;
+  reconciliation_period_id: string;
+  attributed_domain_id: string | null;
+  domain: string;
+  motion_type: MotionType | null;
+  signup_count: number;
+  meeting_count: number;
+  revenue_submitted: number | null;
+  revenue_submitted_at: Date | null;
+  revenue_notes: string | null;
+  revshare_rate_applied: number | null;
+  signup_fee_applied: number | null;
+  meeting_fee_applied: number | null;
+  amount_owed: number | null;
+  status: ReconciliationLineStatus;
+  dispute_reason: string | null;
+  dispute_submitted_at: Date | null;
+  resolution_notes: string | null;
+  resolved_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+// Extended types for UI
+export interface ReconciliationPeriodWithClient extends ReconciliationPeriod {
+  client_name?: string;
+  client_slug?: string;
+}
+
+export interface ReconciliationLineItemWithDomain extends ReconciliationLineItem {
+  has_meeting_booked?: boolean;
+  first_event_at?: Date | null;
+  last_event_at?: Date | null;
 }
 

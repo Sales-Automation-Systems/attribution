@@ -6,6 +6,7 @@ import {
   AlertCircle,
   Server,
   Flag,
+  DollarSign,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -54,6 +55,11 @@ export const sidebarItems: NavGroup[] = [
         url: '/dashboard/tasks',
         icon: Flag,
       },
+      {
+        title: 'Reconciliation',
+        url: '/dashboard/reconciliation',
+        icon: DollarSign,
+      },
     ],
   },
   {
@@ -94,4 +100,5 @@ export const sidebarItems: NavGroup[] = [
     ],
   },
 ];
+
 

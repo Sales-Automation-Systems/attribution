@@ -130,6 +130,70 @@ export async function POST(request: NextRequest) {
         -- Add phase column to worker_job for more detailed progress tracking
         ALTER TABLE worker_job ADD COLUMN IF NOT EXISTS phase VARCHAR(100);
       `,
+      '016_reconciliation.sql': `
+        -- Billing model fields on client_config
+        ALTER TABLE client_config ADD COLUMN IF NOT EXISTS billing_model VARCHAR(50) DEFAULT 'flat_revshare';
+        ALTER TABLE client_config ADD COLUMN IF NOT EXISTS revshare_plg DECIMAL(5,4);
+        ALTER TABLE client_config ADD COLUMN IF NOT EXISTS revshare_sales DECIMAL(5,4);
+        ALTER TABLE client_config ADD COLUMN IF NOT EXISTS fee_per_signup DECIMAL(10,2);
+        ALTER TABLE client_config ADD COLUMN IF NOT EXISTS fee_per_meeting DECIMAL(10,2);
+        ALTER TABLE client_config ADD COLUMN IF NOT EXISTS reconciliation_interval VARCHAR(20) DEFAULT 'monthly';
+
+        -- Reconciliation Period Table
+        CREATE TABLE IF NOT EXISTS reconciliation_period (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          client_config_id UUID NOT NULL REFERENCES client_config(id) ON DELETE CASCADE,
+          period_name VARCHAR(100) NOT NULL,
+          start_date DATE NOT NULL,
+          end_date DATE NOT NULL,
+          status VARCHAR(50) NOT NULL DEFAULT 'DRAFT',
+          created_by VARCHAR(255),
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          sent_to_client_at TIMESTAMP WITH TIME ZONE,
+          client_submitted_at TIMESTAMP WITH TIME ZONE,
+          finalized_at TIMESTAMP WITH TIME ZONE,
+          finalized_by VARCHAR(255),
+          total_signups INTEGER DEFAULT 0,
+          total_meetings INTEGER DEFAULT 0,
+          total_paying_customers INTEGER DEFAULT 0,
+          total_revenue_submitted DECIMAL(15,2) DEFAULT 0,
+          total_amount_owed DECIMAL(15,2) DEFAULT 0,
+          agency_notes TEXT,
+          client_notes TEXT,
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_recon_period_client ON reconciliation_period(client_config_id);
+        CREATE INDEX IF NOT EXISTS idx_recon_period_status ON reconciliation_period(status);
+
+        -- Reconciliation Line Item Table
+        CREATE TABLE IF NOT EXISTS reconciliation_line_item (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          reconciliation_period_id UUID NOT NULL REFERENCES reconciliation_period(id) ON DELETE CASCADE,
+          attributed_domain_id UUID REFERENCES attributed_domain(id) ON DELETE SET NULL,
+          domain VARCHAR(255) NOT NULL,
+          motion_type VARCHAR(20),
+          signup_count INTEGER DEFAULT 0,
+          meeting_count INTEGER DEFAULT 0,
+          revenue_submitted DECIMAL(15,2),
+          revenue_submitted_at TIMESTAMP WITH TIME ZONE,
+          revenue_notes TEXT,
+          revshare_rate_applied DECIMAL(5,4),
+          signup_fee_applied DECIMAL(10,2),
+          meeting_fee_applied DECIMAL(10,2),
+          amount_owed DECIMAL(15,2),
+          status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
+          dispute_reason TEXT,
+          dispute_submitted_at TIMESTAMP WITH TIME ZONE,
+          resolution_notes TEXT,
+          resolved_at TIMESTAMP WITH TIME ZONE,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_recon_item_period ON reconciliation_line_item(reconciliation_period_id);
+        CREATE INDEX IF NOT EXISTS idx_recon_item_status ON reconciliation_line_item(status);
+      `,
     };
 
     const sql = migrations[migrationFile];

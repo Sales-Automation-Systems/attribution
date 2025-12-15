@@ -17,11 +17,22 @@ export async function GET() {
       soft_match_enabled: boolean;
       exclude_personal_domains: boolean;
       last_processed_at: Date | null;
+      // Billing model fields
+      billing_model: string;
+      revshare_plg: number | null;
+      revshare_sales: number | null;
+      fee_per_signup: number | null;
+      fee_per_meeting: number | null;
+      reconciliation_interval: string;
     }>(`
       SELECT id, client_id, client_name, slug, rev_share_rate,
              sign_ups_mode, meetings_mode, paying_mode,
              attribution_window_days, soft_match_enabled, exclude_personal_domains,
-             last_processed_at
+             last_processed_at,
+             COALESCE(billing_model, 'flat_revshare') as billing_model,
+             revshare_plg, revshare_sales,
+             fee_per_signup, fee_per_meeting,
+             COALESCE(reconciliation_interval, 'monthly') as reconciliation_interval
       FROM client_config
       ORDER BY client_name
     `);
@@ -49,6 +60,13 @@ export async function PATCH(req: NextRequest) {
       attribution_window_days,
       soft_match_enabled,
       exclude_personal_domains,
+      // Billing model fields
+      billing_model,
+      revshare_plg,
+      revshare_sales,
+      fee_per_signup,
+      fee_per_meeting,
+      reconciliation_interval,
     } = body;
 
     if (!clientId) {
@@ -111,6 +129,31 @@ export async function PATCH(req: NextRequest) {
     if (exclude_personal_domains !== undefined) {
       updates.push(`exclude_personal_domains = $${paramIndex++}`);
       values.push(exclude_personal_domains);
+    }
+    // Billing model fields
+    if (billing_model !== undefined) {
+      updates.push(`billing_model = $${paramIndex++}`);
+      values.push(billing_model);
+    }
+    if (revshare_plg !== undefined) {
+      updates.push(`revshare_plg = $${paramIndex++}`);
+      values.push(revshare_plg);
+    }
+    if (revshare_sales !== undefined) {
+      updates.push(`revshare_sales = $${paramIndex++}`);
+      values.push(revshare_sales);
+    }
+    if (fee_per_signup !== undefined) {
+      updates.push(`fee_per_signup = $${paramIndex++}`);
+      values.push(fee_per_signup);
+    }
+    if (fee_per_meeting !== undefined) {
+      updates.push(`fee_per_meeting = $${paramIndex++}`);
+      values.push(fee_per_meeting);
+    }
+    if (reconciliation_interval !== undefined) {
+      updates.push(`reconciliation_interval = $${paramIndex++}`);
+      values.push(reconciliation_interval);
     }
 
     if (updates.length === 0) {

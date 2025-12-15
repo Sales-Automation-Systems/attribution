@@ -36,6 +36,13 @@ interface ClientSettings {
   soft_match_enabled: boolean;
   exclude_personal_domains: boolean;
   last_processed_at: string | null;
+  // Billing model fields
+  billing_model: 'flat_revshare' | 'plg_sales_split';
+  revshare_plg: number | null;
+  revshare_sales: number | null;
+  fee_per_signup: number | null;
+  fee_per_meeting: number | null;
+  reconciliation_interval: 'monthly' | 'quarterly' | 'custom';
 }
 
 // Extracted component to avoid unstable nested component
@@ -56,6 +63,51 @@ function ModeSelect({
       <SelectContent>
         <SelectItem value="per_event">Per Event</SelectItem>
         <SelectItem value="per_domain">Per Domain</SelectItem>
+      </SelectContent>
+    </Select>
+  );
+}
+
+function BillingModelSelect({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  disabled: boolean;
+}) {
+  return (
+    <Select value={value || 'flat_revshare'} onValueChange={onChange} disabled={disabled}>
+      <SelectTrigger className="w-[130px] h-8 text-xs">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="flat_revshare">Flat RevShare</SelectItem>
+        <SelectItem value="plg_sales_split">PLG/Sales Split</SelectItem>
+      </SelectContent>
+    </Select>
+  );
+}
+
+function IntervalSelect({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  disabled: boolean;
+}) {
+  return (
+    <Select value={value || 'monthly'} onValueChange={onChange} disabled={disabled}>
+      <SelectTrigger className="w-[110px] h-8 text-xs">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="monthly">Monthly</SelectItem>
+        <SelectItem value="quarterly">Quarterly</SelectItem>
+        <SelectItem value="custom">Custom</SelectItem>
       </SelectContent>
     </Select>
   );
@@ -139,7 +191,13 @@ export function ClientSettingsTable() {
           <TableHeader>
             <TableRow className="bg-muted/50">
               <TableHead className="w-[180px] sticky left-0 bg-muted/50">Client</TableHead>
+              <TableHead className="text-center w-[130px]">Billing Model</TableHead>
               <TableHead className="text-center w-[80px]">Rev Share</TableHead>
+              <TableHead className="text-center w-[80px]">PLG %</TableHead>
+              <TableHead className="text-center w-[80px]">Sales %</TableHead>
+              <TableHead className="text-center w-[80px]">$/Signup</TableHead>
+              <TableHead className="text-center w-[80px]">$/Meeting</TableHead>
+              <TableHead className="text-center w-[110px]">Recon Interval</TableHead>
               <TableHead className="text-center w-[120px]">Sign-ups</TableHead>
               <TableHead className="text-center w-[120px]">Meetings</TableHead>
               <TableHead className="text-center w-[120px]">Paying</TableHead>
@@ -160,6 +218,15 @@ export function ClientSettingsTable() {
                       {client.slug}
                     </Badge>
                   </div>
+                </TableCell>
+
+                {/* Billing Model */}
+                <TableCell className="text-center">
+                  <BillingModelSelect
+                    value={client.billing_model}
+                    onChange={(v) => updateSetting(client.id, 'billing_model', v)}
+                    disabled={saving === client.id}
+                  />
                 </TableCell>
 
                 {/* Rev Share Rate */}
@@ -201,6 +268,169 @@ export function ClientSettingsTable() {
                       {(client.rev_share_rate * 100).toFixed(0)}%
                     </button>
                   )}
+                </TableCell>
+
+                {/* PLG RevShare Rate */}
+                <TableCell className="text-center">
+                  {client.billing_model === 'plg_sales_split' ? (
+                    editingCell?.clientId === client.id &&
+                    editingCell?.field === 'revshare_plg' ? (
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max="1"
+                        defaultValue={client.revshare_plg ?? ''}
+                        className="w-16 h-8 text-xs text-center"
+                        autoFocus
+                        onBlur={(e) => {
+                          const val = parseFloat(e.target.value);
+                          if (!isNaN(val) && val >= 0 && val <= 1) {
+                            updateSetting(client.id, 'revshare_plg', val);
+                          } else if (e.target.value === '') {
+                            updateSetting(client.id, 'revshare_plg', null);
+                          } else {
+                            setEditingCell(null);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                          if (e.key === 'Escape') setEditingCell(null);
+                        }}
+                      />
+                    ) : (
+                      <button
+                        className="px-2 py-1 rounded hover:bg-muted transition-colors"
+                        onClick={() => setEditingCell({ clientId: client.id, field: 'revshare_plg' })}
+                      >
+                        {client.revshare_plg != null ? `${(client.revshare_plg * 100).toFixed(0)}%` : '-'}
+                      </button>
+                    )
+                  ) : (
+                    <span className="text-muted-foreground">-</span>
+                  )}
+                </TableCell>
+
+                {/* Sales RevShare Rate */}
+                <TableCell className="text-center">
+                  {client.billing_model === 'plg_sales_split' ? (
+                    editingCell?.clientId === client.id &&
+                    editingCell?.field === 'revshare_sales' ? (
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max="1"
+                        defaultValue={client.revshare_sales ?? ''}
+                        className="w-16 h-8 text-xs text-center"
+                        autoFocus
+                        onBlur={(e) => {
+                          const val = parseFloat(e.target.value);
+                          if (!isNaN(val) && val >= 0 && val <= 1) {
+                            updateSetting(client.id, 'revshare_sales', val);
+                          } else if (e.target.value === '') {
+                            updateSetting(client.id, 'revshare_sales', null);
+                          } else {
+                            setEditingCell(null);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                          if (e.key === 'Escape') setEditingCell(null);
+                        }}
+                      />
+                    ) : (
+                      <button
+                        className="px-2 py-1 rounded hover:bg-muted transition-colors"
+                        onClick={() => setEditingCell({ clientId: client.id, field: 'revshare_sales' })}
+                      >
+                        {client.revshare_sales != null ? `${(client.revshare_sales * 100).toFixed(0)}%` : '-'}
+                      </button>
+                    )
+                  ) : (
+                    <span className="text-muted-foreground">-</span>
+                  )}
+                </TableCell>
+
+                {/* Fee per Signup */}
+                <TableCell className="text-center">
+                  {editingCell?.clientId === client.id &&
+                  editingCell?.field === 'fee_per_signup' ? (
+                    <Input
+                      type="number"
+                      step="1"
+                      min="0"
+                      defaultValue={client.fee_per_signup ?? ''}
+                      className="w-16 h-8 text-xs text-center"
+                      autoFocus
+                      onBlur={(e) => {
+                        const val = parseFloat(e.target.value);
+                        if (!isNaN(val) && val >= 0) {
+                          updateSetting(client.id, 'fee_per_signup', val);
+                        } else if (e.target.value === '') {
+                          updateSetting(client.id, 'fee_per_signup', null);
+                        } else {
+                          setEditingCell(null);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                        if (e.key === 'Escape') setEditingCell(null);
+                      }}
+                    />
+                  ) : (
+                    <button
+                      className="px-2 py-1 rounded hover:bg-muted transition-colors"
+                      onClick={() => setEditingCell({ clientId: client.id, field: 'fee_per_signup' })}
+                    >
+                      {client.fee_per_signup != null ? `$${client.fee_per_signup}` : '-'}
+                    </button>
+                  )}
+                </TableCell>
+
+                {/* Fee per Meeting */}
+                <TableCell className="text-center">
+                  {editingCell?.clientId === client.id &&
+                  editingCell?.field === 'fee_per_meeting' ? (
+                    <Input
+                      type="number"
+                      step="1"
+                      min="0"
+                      defaultValue={client.fee_per_meeting ?? ''}
+                      className="w-16 h-8 text-xs text-center"
+                      autoFocus
+                      onBlur={(e) => {
+                        const val = parseFloat(e.target.value);
+                        if (!isNaN(val) && val >= 0) {
+                          updateSetting(client.id, 'fee_per_meeting', val);
+                        } else if (e.target.value === '') {
+                          updateSetting(client.id, 'fee_per_meeting', null);
+                        } else {
+                          setEditingCell(null);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                        if (e.key === 'Escape') setEditingCell(null);
+                      }}
+                    />
+                  ) : (
+                    <button
+                      className="px-2 py-1 rounded hover:bg-muted transition-colors"
+                      onClick={() => setEditingCell({ clientId: client.id, field: 'fee_per_meeting' })}
+                    >
+                      {client.fee_per_meeting != null ? `$${client.fee_per_meeting}` : '-'}
+                    </button>
+                  )}
+                </TableCell>
+
+                {/* Reconciliation Interval */}
+                <TableCell className="text-center">
+                  <IntervalSelect
+                    value={client.reconciliation_interval}
+                    onChange={(v) => updateSetting(client.id, 'reconciliation_interval', v)}
+                    disabled={saving === client.id}
+                  />
                 </TableCell>
 
                 {/* Sign-ups Mode */}

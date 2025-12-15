@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { AttributionBreakdown } from '@/components/attribution/attribution-breakdown';
 import { ClientDashboardWrapper } from '@/components/attribution/client-dashboard-wrapper';
+import { ClientNav } from '@/components/attribution/client-nav';
 import { DefinitionTooltip } from '@/components/ui/definition-tooltip';
 import type { AccountDomain } from '@/components/attribution/accounts-table';
 
@@ -54,6 +55,9 @@ export default async function ClientDashboardPage({
 
   return (
     <div className="flex flex-col gap-6 p-6">
+      {/* Navigation */}
+      <ClientNav slug={slug} uuid={uuid} />
+
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
