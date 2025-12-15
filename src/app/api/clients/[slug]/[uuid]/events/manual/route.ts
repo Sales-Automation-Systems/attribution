@@ -149,7 +149,7 @@ export async function POST(
         source_id, source_table, metadata, created_at
       ) VALUES (
         $1, $2, $3, $4, $5,
-        'manual', 'manual_entry', $6, NOW()
+        NULL, 'manual_entry', $6, NOW()
       )`,
       [
         eventId,
