@@ -8,6 +8,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   ExternalLink,
   MessageSquare,
@@ -19,6 +20,7 @@ import {
   CircleSlash,
   Flag,
   ArrowUpCircle,
+  X,
 } from 'lucide-react';
 import { AccountTimeline } from './account-timeline';
 import { DefinitionTooltip, SimpleTooltip } from '@/components/ui/definition-tooltip';
@@ -58,14 +60,16 @@ function getStatusType(domain: TimelineDomain): 'attributed' | 'outside_window' 
 export function TimelineDialog({ domain, isOpen, onClose, slug, uuid }: TimelineDialogProps) {
   // #region agent log
   const handleOpenChange = (open: boolean) => {
-    console.log('[DEBUG H7] Dialog onOpenChange fired', {newOpenState:open, currentIsOpen:isOpen, domainName:domain?.domain, timestamp: Date.now()});
-    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'timeline-dialog.tsx:onOpenChange',message:'Dialog onOpenChange fired',data:{newOpenState:open,currentIsOpen:isOpen,domainName:domain?.domain},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H7'})}).catch(()=>{});
-    if (!open) {
-      console.log('[DEBUG H7] Calling onClose()');
+    console.log('[DEBUG] Dialog onOpenChange', {newOpenState:open, currentIsOpen:isOpen, domainName:domain?.domain, timestamp: Date.now()});
+    // Only call onClose when transitioning from open to closed
+    if (!open && isOpen) {
+      console.log('[DEBUG] Calling onClose()');
       onClose();
     }
   };
   // #endregion
+  
+  // Don't render anything if no domain (dialog not needed)
   if (!domain) return null;
 
   const statusType = getStatusType(domain);
@@ -122,7 +126,25 @@ export function TimelineDialog({ domain, isOpen, onClose, slug, uuid }: Timeline
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className="w-[calc(100vw-3rem)] sm:w-[calc(100vw-6rem)] md:w-[calc(100vw-12rem)] lg:w-[calc(100vw-20rem)] max-w-none sm:max-w-none md:max-w-none lg:max-w-none max-h-[85vh] overflow-hidden flex flex-col p-0 gap-0">
+      <DialogContent 
+        className="w-[calc(100vw-3rem)] sm:w-[calc(100vw-6rem)] md:w-[calc(100vw-12rem)] lg:w-[calc(100vw-20rem)] max-w-none sm:max-w-none md:max-w-none lg:max-w-none max-h-[85vh] overflow-hidden flex flex-col p-0 gap-0"
+        showCloseButton={false}
+      >
+        {/* Custom Close Button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute top-4 right-4 h-8 w-8 rounded-sm opacity-70 hover:opacity-100 z-10"
+          onClick={(e) => {
+            e.stopPropagation();
+            console.log('[DEBUG] Custom close button clicked', {timestamp: Date.now()});
+            onClose();
+          }}
+        >
+          <X className="h-4 w-4" />
+          <span className="sr-only">Close</span>
+        </Button>
+        
         {/* Header */}
         <DialogHeader className="pl-6 pr-12 pt-6 pb-4 border-b shrink-0 bg-background">
           <div className="flex items-start justify-between gap-4">
