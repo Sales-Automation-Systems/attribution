@@ -329,7 +329,7 @@ export function WorkerJobsDisplay() {
                                 [{log.level}]
                               </span>
                               <span className="text-gray-200">{log.message}</span>
-                              {log.data && (
+                              {log.data !== undefined && log.data !== null && (
                                 <span className="text-gray-500">
                                   {JSON.stringify(log.data)}
                                 </span>
