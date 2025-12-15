@@ -95,7 +95,7 @@ export function AddEventModal({
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || 'Failed to add event');
+        throw new Error(data.details || data.error || 'Failed to add event');
       }
 
       // Success
