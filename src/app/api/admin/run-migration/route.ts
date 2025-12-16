@@ -250,6 +250,11 @@ export async function POST(request: NextRequest) {
         COMMENT ON COLUMN client_config.custom_event_name IS 'Custom billable event type name for this client (e.g., Proposal, HUD Agreement)';
         COMMENT ON COLUMN client_config.fee_per_custom_event IS 'Fee charged per custom event occurrence';
       `,
+      '021_fix_recon_constraints.sql': `
+        -- Remove NOT NULL constraints from deprecated year/month columns
+        ALTER TABLE reconciliation_period ALTER COLUMN year DROP NOT NULL;
+        ALTER TABLE reconciliation_period ALTER COLUMN month DROP NOT NULL;
+      `,
     };
 
     const sql = migrations[migrationFile];
