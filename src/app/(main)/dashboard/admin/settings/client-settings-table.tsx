@@ -9,7 +9,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -47,29 +46,6 @@ interface ClientSettings {
   billing_cycle: 'monthly' | 'quarterly' | '28_day';
   estimated_acv: number;
   review_window_days: number;
-}
-
-// Extracted component to avoid unstable nested component
-function ModeSelect({
-  value,
-  onChange,
-  disabled,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  disabled: boolean;
-}) {
-  return (
-    <Select value={value} onValueChange={onChange} disabled={disabled}>
-      <SelectTrigger className="w-[120px] h-8 text-xs">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="per_event">Per Event</SelectItem>
-        <SelectItem value="per_domain">Per Domain</SelectItem>
-      </SelectContent>
-    </Select>
-  );
 }
 
 function BillingModelSelect({
@@ -206,12 +182,6 @@ export function ClientSettingsTable() {
               <TableHead className="text-center w-[100px]">Billing Cycle</TableHead>
               <TableHead className="text-center w-[90px]">Est. ACV</TableHead>
               <TableHead className="text-center w-[80px]">Review Days</TableHead>
-              <TableHead className="text-center w-[120px]">Sign-ups</TableHead>
-              <TableHead className="text-center w-[120px]">Meetings</TableHead>
-              <TableHead className="text-center w-[120px]">Paying</TableHead>
-              <TableHead className="text-center w-[80px]">Window</TableHead>
-              <TableHead className="text-center w-[100px]">Company Match</TableHead>
-              <TableHead className="text-center w-[100px]">Excl. Personal</TableHead>
               <TableHead className="w-[100px]">Last Run</TableHead>
             </TableRow>
           </TableHeader>
@@ -532,98 +502,6 @@ export function ClientSettingsTable() {
                       {client.review_window_days || 10}d
                     </button>
                   )}
-                </TableCell>
-
-                {/* Sign-ups Mode */}
-                <TableCell className="text-center">
-                  <ModeSelect
-                    value={client.sign_ups_mode}
-                    onChange={(v) => updateSetting(client.id, 'sign_ups_mode', v)}
-                    disabled={saving === client.id}
-                  />
-                </TableCell>
-
-                {/* Meetings Mode */}
-                <TableCell className="text-center">
-                  <ModeSelect
-                    value={client.meetings_mode}
-                    onChange={(v) => updateSetting(client.id, 'meetings_mode', v)}
-                    disabled={saving === client.id}
-                  />
-                </TableCell>
-
-                {/* Paying Mode */}
-                <TableCell className="text-center">
-                  <ModeSelect
-                    value={client.paying_mode}
-                    onChange={(v) => updateSetting(client.id, 'paying_mode', v)}
-                    disabled={saving === client.id}
-                  />
-                </TableCell>
-
-                {/* Attribution Window */}
-                <TableCell className="text-center">
-                  {editingCell?.clientId === client.id &&
-                  editingCell?.field === 'attribution_window_days' ? (
-                    <Input
-                      type="number"
-                      min="1"
-                      max="365"
-                      defaultValue={client.attribution_window_days}
-                      className="w-16 h-8 text-xs text-center"
-                      autoFocus
-                      onBlur={(e) => {
-                        const val = parseInt(e.target.value);
-                        if (!isNaN(val) && val >= 1 && val <= 365) {
-                          updateSetting(client.id, 'attribution_window_days', val);
-                        } else {
-                          setEditingCell(null);
-                        }
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          (e.target as HTMLInputElement).blur();
-                        }
-                        if (e.key === 'Escape') {
-                          setEditingCell(null);
-                        }
-                      }}
-                    />
-                  ) : (
-                    <button
-                      className="px-2 py-1 rounded hover:bg-muted transition-colors cursor-pointer underline-offset-2 hover:underline"
-                      onClick={() =>
-                        setEditingCell({
-                          clientId: client.id,
-                          field: 'attribution_window_days',
-                        })
-                      }
-                    >
-                      {client.attribution_window_days}d
-                    </button>
-                  )}
-                </TableCell>
-
-                {/* Company Match Enabled */}
-                <TableCell className="text-center">
-                  <Switch
-                    checked={client.soft_match_enabled}
-                    onCheckedChange={(checked) =>
-                      updateSetting(client.id, 'soft_match_enabled', checked)
-                    }
-                    disabled={saving === client.id}
-                  />
-                </TableCell>
-
-                {/* Exclude Personal Domains */}
-                <TableCell className="text-center">
-                  <Switch
-                    checked={client.exclude_personal_domains}
-                    onCheckedChange={(checked) =>
-                      updateSetting(client.id, 'exclude_personal_domains', checked)
-                    }
-                    disabled={saving === client.id}
-                  />
                 </TableCell>
 
                 {/* Last Processed */}
