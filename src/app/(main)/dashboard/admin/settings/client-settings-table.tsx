@@ -170,24 +170,24 @@ export function ClientSettingsTable() {
         </Button>
       </div>
 
-      <div className="rounded-lg border overflow-x-auto">
+      <div className="rounded-lg border overflow-auto max-h-[calc(100vh-200px)]">
         <Table>
-          <TableHeader>
-            <TableRow className="bg-muted/50">
-              <TableHead className="w-[180px] sticky left-0 z-20 bg-muted border-r">Client</TableHead>
-              <TableHead className="text-center w-[130px]">Billing Model</TableHead>
-              <TableHead className="text-center w-[80px]">Rev Share</TableHead>
-              <TableHead className="text-center w-[80px]">PLG %</TableHead>
-              <TableHead className="text-center w-[80px]">Sales %</TableHead>
-              <TableHead className="text-center w-[80px]">$/Signup</TableHead>
-              <TableHead className="text-center w-[80px]">$/Meeting</TableHead>
-              <TableHead className="text-center w-[110px]">Custom Event</TableHead>
-              <TableHead className="text-center w-[80px]">$/Custom</TableHead>
-              <TableHead className="text-center w-[110px]">Contract Start</TableHead>
-              <TableHead className="text-center w-[100px]">Billing Cycle</TableHead>
-              <TableHead className="text-center w-[90px]">Est. ACV</TableHead>
-              <TableHead className="text-center w-[80px]">Review Days</TableHead>
-              <TableHead className="w-[100px]">Last Run</TableHead>
+          <TableHeader className="sticky top-0 z-30">
+            <TableRow className="bg-muted">
+              <TableHead className="w-[180px] sticky left-0 z-40 bg-muted border-r">Client</TableHead>
+              <TableHead className="text-center w-[130px] bg-muted">Billing Model</TableHead>
+              <TableHead className="text-center w-[80px] bg-muted">Rev Share</TableHead>
+              <TableHead className="text-center w-[80px] bg-muted">PLG %</TableHead>
+              <TableHead className="text-center w-[80px] bg-muted">Sales %</TableHead>
+              <TableHead className="text-center w-[80px] bg-muted">$/Signup</TableHead>
+              <TableHead className="text-center w-[80px] bg-muted">$/Meeting</TableHead>
+              <TableHead className="text-center w-[110px] bg-muted">Custom Event</TableHead>
+              <TableHead className="text-center w-[80px] bg-muted">$/Custom</TableHead>
+              <TableHead className="text-center w-[110px] bg-muted">Contract Start</TableHead>
+              <TableHead className="text-center w-[100px] bg-muted">Billing Cycle</TableHead>
+              <TableHead className="text-center w-[90px] bg-muted">Est. ACV</TableHead>
+              <TableHead className="text-center w-[80px] bg-muted">Review Days</TableHead>
+              <TableHead className="w-[100px] bg-muted">Last Run</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
