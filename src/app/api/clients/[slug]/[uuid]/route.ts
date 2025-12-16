@@ -2,7 +2,7 @@
 // Get client by slug and UUID
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getClientConfigBySlugAndUuid, getDashboardStats, getAttributedDomains, getReconciliationPeriods } from '@/db/attribution/queries';
+import { getClientConfigBySlugAndUuid, getDashboardStats, getAttributedDomains } from '@/db/attribution/queries';
 
 export async function GET(
   req: NextRequest,
@@ -21,9 +21,6 @@ export async function GET(
 
     // Get recent attributed domains
     const recentDomains = await getAttributedDomains(client.id, { limit: 10 });
-
-    // Get reconciliation periods
-    const periods = await getReconciliationPeriods(client.id);
 
     return NextResponse.json({
       client: {
@@ -53,17 +50,6 @@ export async function GET(
         hasPayingCustomer: d.has_paying_customer,
         isWithinWindow: d.is_within_window,
         firstEventAt: d.first_event_at,
-      })),
-      reconciliationPeriods: periods.map((p) => ({
-        id: p.id,
-        year: p.year,
-        month: p.month,
-        status: p.status,
-        netNewAttributed: p.net_new_attributed,
-        netNewPaying: p.net_new_paying,
-        totalRevenue: p.total_revenue,
-        revShareAmount: p.rev_share_amount,
-        deadline: p.deadline,
       })),
     });
   } catch (error) {

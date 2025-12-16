@@ -36,14 +36,16 @@ import {
   Calendar, Clock, FileCheck, AlertTriangle
 } from 'lucide-react';
 import { format } from 'date-fns';
-import type { ReconciliationStatus, ReconciliationLineStatus, MotionType } from '@/db/attribution/types';
+type ReconciliationStatusType = 'DRAFT' | 'PENDING_CLIENT' | 'CLIENT_SUBMITTED' | 'UNDER_REVIEW' | 'FINALIZED';
+type LineStatusType = 'PENDING' | 'SUBMITTED' | 'DISPUTED' | 'CONFIRMED';
+type MotionTypeValue = 'PLG' | 'SALES';
 
 interface ReconciliationPeriod {
   id: string;
   period_name: string;
   start_date: string;
   end_date: string;
-  status: ReconciliationStatus;
+  status: ReconciliationStatusType;
   total_paying_customers: number;
   total_signups: number;
   total_meetings: number;
@@ -62,7 +64,7 @@ interface ReconciliationPeriod {
 interface LineItem {
   id: string;
   domain: string;
-  motion_type: MotionType | null;
+  motion_type: MotionTypeValue | null;
   signup_count: number;
   meeting_count: number;
   revenue_submitted: number | null;
@@ -71,11 +73,11 @@ interface LineItem {
   signup_fee_applied: number | null;
   meeting_fee_applied: number | null;
   amount_owed: number | null;
-  status: ReconciliationLineStatus;
+  status: LineStatusType;
   dispute_reason: string | null;
 }
 
-const STATUS_CONFIG: Record<ReconciliationStatus, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive' }> = {
+const STATUS_CONFIG: Record<ReconciliationStatusType, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive' }> = {
   DRAFT: { label: 'Draft', variant: 'secondary' },
   PENDING_CLIENT: { label: 'Awaiting Your Input', variant: 'default' },
   CLIENT_SUBMITTED: { label: 'Submitted', variant: 'secondary' },

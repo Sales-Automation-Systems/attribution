@@ -114,43 +114,7 @@ async function registerJobHandlers() {
     }
   });
 
-  // Create reconciliation periods (monthly)
-  await boss.work('create-reconciliation-periods', { batchSize: 1 }, async () => {
-    currentStatus = 'processing';
-    console.log('Creating reconciliation periods...');
-
-    try {
-      const { createReconciliationPeriod } = await import('@/db/attribution/queries');
-      const clients = await getAllClientConfigs();
-
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = now.getMonth() + 1; // 1-12
-
-      // Set deadline to 10th of the month, 11:59:59 PM Pacific
-      const deadline = new Date(year, month - 1, 10, 23, 59, 59);
-
-      let created = 0;
-      for (const client of clients) {
-        const period = await createReconciliationPeriod({
-          client_config_id: client.id,
-          year,
-          month,
-          deadline,
-          rev_share_rate: client.rev_share_rate,
-        });
-        
-        if (period) {
-          created++;
-        }
-      }
-
-      console.log(`Created ${created} reconciliation periods for ${year}-${month}`);
-      return { created, year, month };
-    } finally {
-      currentStatus = 'running';
-    }
-  });
+  // Note: Reconciliation periods are now created via the admin dashboard
 }
 
 function startHeartbeat() {

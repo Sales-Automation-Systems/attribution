@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { attrQuery } from '@/db';
-import type { ReconciliationStatus } from '@/db/attribution/types';
+
+type ReconciliationStatusType = 'DRAFT' | 'PENDING_CLIENT' | 'CLIENT_SUBMITTED' | 'UNDER_REVIEW' | 'FINALIZED';
 
 // PATCH update reconciliation period status
 export async function PATCH(
@@ -11,14 +12,14 @@ export async function PATCH(
   
   try {
     const body = await req.json();
-    const { status, notes } = body as { status: ReconciliationStatus; notes?: string };
+    const { status, notes } = body as { status: ReconciliationStatusType; notes?: string };
 
     if (!status) {
       return NextResponse.json({ error: 'Status is required' }, { status: 400 });
     }
 
     // Validate status transition
-    const [currentPeriod] = await attrQuery<{ status: ReconciliationStatus }>(`
+    const [currentPeriod] = await attrQuery<{ status: ReconciliationStatusType }>(`
       SELECT status FROM reconciliation_period WHERE id = $1
     `, [periodId]);
 
@@ -27,7 +28,7 @@ export async function PATCH(
     }
 
     // Define valid transitions
-    const validTransitions: Record<ReconciliationStatus, ReconciliationStatus[]> = {
+    const validTransitions: Record<ReconciliationStatusType, ReconciliationStatusType[]> = {
       DRAFT: ['PENDING_CLIENT'],
       PENDING_CLIENT: ['CLIENT_SUBMITTED', 'DRAFT'], // Allow reverting to draft
       CLIENT_SUBMITTED: ['UNDER_REVIEW', 'PENDING_CLIENT'], // Allow sending back

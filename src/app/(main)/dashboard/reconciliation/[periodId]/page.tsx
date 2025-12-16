@@ -30,7 +30,9 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import Link from 'next/link';
-import type { ReconciliationStatus, ReconciliationLineStatus, MotionType } from '@/db/attribution/types';
+type ReconciliationStatusType = 'DRAFT' | 'PENDING_CLIENT' | 'CLIENT_SUBMITTED' | 'UNDER_REVIEW' | 'FINALIZED';
+type LineStatusType = 'PENDING' | 'SUBMITTED' | 'DISPUTED' | 'CONFIRMED';
+type MotionTypeValue = 'PLG' | 'SALES';
 
 interface ReconciliationPeriodDetail {
   id: string;
@@ -40,7 +42,7 @@ interface ReconciliationPeriodDetail {
   period_name: string;
   start_date: string;
   end_date: string;
-  status: ReconciliationStatus;
+  status: ReconciliationStatusType;
   created_by: string | null;
   created_at: string;
   sent_to_client_at: string | null;
@@ -68,7 +70,7 @@ interface LineItem {
   reconciliation_period_id: string;
   attributed_domain_id: string | null;
   domain: string;
-  motion_type: MotionType | null;
+  motion_type: MotionTypeValue | null;
   signup_count: number;
   meeting_count: number;
   revenue_submitted: number | null;
@@ -78,14 +80,14 @@ interface LineItem {
   signup_fee_applied: number | null;
   meeting_fee_applied: number | null;
   amount_owed: number | null;
-  status: ReconciliationLineStatus;
+  status: LineStatusType;
   dispute_reason: string | null;
   dispute_submitted_at: string | null;
   resolution_notes: string | null;
   resolved_at: string | null;
 }
 
-const STATUS_CONFIG: Record<ReconciliationStatus, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive'; color: string }> = {
+const STATUS_CONFIG: Record<ReconciliationStatusType, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive'; color: string }> = {
   DRAFT: { label: 'Draft', variant: 'secondary', color: 'text-gray-500' },
   PENDING_CLIENT: { label: 'Awaiting Client', variant: 'outline', color: 'text-yellow-600' },
   CLIENT_SUBMITTED: { label: 'Client Submitted', variant: 'default', color: 'text-blue-600' },
@@ -93,7 +95,7 @@ const STATUS_CONFIG: Record<ReconciliationStatus, { label: string; variant: 'def
   FINALIZED: { label: 'Finalized', variant: 'secondary', color: 'text-green-600' },
 };
 
-const LINE_STATUS_CONFIG: Record<ReconciliationLineStatus, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive' }> = {
+const LINE_STATUS_CONFIG: Record<LineStatusType, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive' }> = {
   PENDING: { label: 'Pending', variant: 'outline' },
   SUBMITTED: { label: 'Submitted', variant: 'default' },
   DISPUTED: { label: 'Disputed', variant: 'destructive' },
@@ -134,7 +136,7 @@ export default function ReconciliationDetailPage() {
     fetchPeriod();
   }, [fetchPeriod]);
 
-  const updateStatus = async (newStatus: ReconciliationStatus) => {
+  const updateStatus = async (newStatus: ReconciliationStatusType) => {
     setActionLoading(true);
     try {
       const response = await fetch(`/api/reconciliation/${periodId}/status`, {

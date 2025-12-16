@@ -150,35 +150,7 @@ export interface AttributionMatch {
   created_at: Date;
 }
 
-export type ReconciliationStatus = 'OPEN' | 'SUBMITTED' | 'LOCKED';
-
-export interface ReconciliationPeriod {
-  id: string;
-  client_config_id: string;
-  year: number;
-  month: number; // 0 = historical (pre-Dec 2025)
-  status: ReconciliationStatus;
-  deadline: Date | null;
-  net_new_attributed: number;
-  net_new_paying: number;
-  total_revenue: number;
-  rev_share_rate: number | null;
-  rev_share_amount: number;
-  submitted_at: Date | null;
-  locked_at: Date | null;
-  created_at: Date;
-  updated_at: Date;
-}
-
-export interface ReconciliationEntry {
-  id: string;
-  reconciliation_period_id: string;
-  attributed_domain_id: string;
-  revenue: number | null;
-  notes: string | null;
-  created_at: Date;
-  updated_at: Date;
-}
+// Old reconciliation types removed - see new system below
 
 export type ProcessingJobStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
 export type ProcessingJobType = 'FULL_PROCESS' | 'INCREMENTAL' | 'SINGLE_CLIENT';

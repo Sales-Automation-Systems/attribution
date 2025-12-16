@@ -28,7 +28,7 @@ export async function POST(
     }
 
     // Update line item to disputed status
-    const [updated] = await attrQuery(`
+    const [updated] = await attrQuery<{ domain: string }>(`
       UPDATE reconciliation_line_item
       SET 
         status = 'DISPUTED',
@@ -59,7 +59,7 @@ export async function POST(
       FROM reconciliation_period rp
       WHERE rp.id = $4
     `, [
-      `Dispute: ${updated.domain}`,
+      `Dispute: ${updated?.domain || 'Unknown'}`,
       `Line item disputed in reconciliation period.\n\nReason: ${reason}`,
       submittedBy || 'agency',
       periodId,

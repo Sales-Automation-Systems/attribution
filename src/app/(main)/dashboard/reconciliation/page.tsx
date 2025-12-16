@@ -37,7 +37,7 @@ import { toast } from 'sonner';
 import { Loader2, Plus, CalendarIcon, Eye, FileText, RefreshCw, DollarSign } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, subMonths, startOfQuarter, endOfQuarter, subQuarters } from 'date-fns';
 import Link from 'next/link';
-import type { ReconciliationStatus } from '@/db/attribution/types';
+type ReconciliationStatusType = 'DRAFT' | 'PENDING_CLIENT' | 'CLIENT_SUBMITTED' | 'UNDER_REVIEW' | 'FINALIZED';
 
 interface ClientOption {
   id: string;
@@ -58,7 +58,7 @@ interface ReconciliationPeriod {
   period_name: string;
   start_date: string;
   end_date: string;
-  status: ReconciliationStatus;
+  status: ReconciliationStatusType;
   total_paying_customers: number;
   total_revenue_submitted: number;
   total_amount_owed: number;
@@ -72,7 +72,7 @@ interface PreviewData {
   meetings: number;
 }
 
-const STATUS_CONFIG: Record<ReconciliationStatus, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive' }> = {
+const STATUS_CONFIG: Record<ReconciliationStatusType, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive' }> = {
   DRAFT: { label: 'Draft', variant: 'secondary' },
   PENDING_CLIENT: { label: 'Awaiting Client', variant: 'outline' },
   CLIENT_SUBMITTED: { label: 'Client Submitted', variant: 'default' },
