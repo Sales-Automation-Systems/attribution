@@ -209,7 +209,32 @@ export async function POST(request: NextRequest) {
         CREATE INDEX IF NOT EXISTS idx_recon_period_deadline ON reconciliation_period(review_deadline) WHERE review_deadline IS NOT NULL;
         CREATE INDEX IF NOT EXISTS idx_recon_period_auto_billed ON reconciliation_period(auto_billed_at) WHERE auto_billed_at IS NOT NULL;
       `,
-      '018_unique_constraints.sql': `
+      '018_reconciliation_schema_update.sql': `
+        -- Add missing columns to reconciliation_period for flexible date-based periods
+        ALTER TABLE reconciliation_period ADD COLUMN IF NOT EXISTS period_name VARCHAR(100);
+        ALTER TABLE reconciliation_period ADD COLUMN IF NOT EXISTS start_date DATE;
+        ALTER TABLE reconciliation_period ADD COLUMN IF NOT EXISTS end_date DATE;
+        ALTER TABLE reconciliation_period ADD COLUMN IF NOT EXISTS created_by VARCHAR(255);
+        ALTER TABLE reconciliation_period ADD COLUMN IF NOT EXISTS sent_to_client_at TIMESTAMP WITH TIME ZONE;
+        ALTER TABLE reconciliation_period ADD COLUMN IF NOT EXISTS client_submitted_at TIMESTAMP WITH TIME ZONE;
+        ALTER TABLE reconciliation_period ADD COLUMN IF NOT EXISTS finalized_at TIMESTAMP WITH TIME ZONE;
+        ALTER TABLE reconciliation_period ADD COLUMN IF NOT EXISTS finalized_by VARCHAR(255);
+        ALTER TABLE reconciliation_period ADD COLUMN IF NOT EXISTS total_signups INTEGER DEFAULT 0;
+        ALTER TABLE reconciliation_period ADD COLUMN IF NOT EXISTS total_meetings INTEGER DEFAULT 0;
+        ALTER TABLE reconciliation_period ADD COLUMN IF NOT EXISTS total_paying_customers INTEGER DEFAULT 0;
+        ALTER TABLE reconciliation_period ADD COLUMN IF NOT EXISTS total_revenue_submitted DECIMAL(15,2) DEFAULT 0;
+        ALTER TABLE reconciliation_period ADD COLUMN IF NOT EXISTS total_amount_owed DECIMAL(15,2) DEFAULT 0;
+        ALTER TABLE reconciliation_period ADD COLUMN IF NOT EXISTS agency_notes TEXT;
+        ALTER TABLE reconciliation_period ADD COLUMN IF NOT EXISTS client_notes TEXT;
+        
+        -- Backfill period_name, start_date, end_date from year/month for existing records
+        UPDATE reconciliation_period 
+        SET period_name = to_char(make_date(year, month, 1), 'Month YYYY'),
+            start_date = make_date(year, month, 1),
+            end_date = (make_date(year, month, 1) + interval '1 month - 1 day')::date
+        WHERE period_name IS NULL AND year IS NOT NULL AND month IS NOT NULL;
+      `,
+      '019_unique_constraints.sql': `
         -- Unique constraint on client + period_name for upserts (ignore if exists)
         CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_client_period_name ON reconciliation_period(client_config_id, period_name);
         
