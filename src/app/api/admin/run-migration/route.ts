@@ -209,7 +209,7 @@ export async function POST(request: NextRequest) {
         CREATE INDEX IF NOT EXISTS idx_recon_period_deadline ON reconciliation_period(review_deadline) WHERE review_deadline IS NOT NULL;
         CREATE INDEX IF NOT EXISTS idx_recon_period_auto_billed ON reconciliation_period(auto_billed_at) WHERE auto_billed_at IS NOT NULL;
       `,
-      '017b_unique_constraints.sql': `
+      '018_unique_constraints.sql': `
         -- Unique constraint on client + period_name for upserts (ignore if exists)
         CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_client_period_name ON reconciliation_period(client_config_id, period_name);
         
