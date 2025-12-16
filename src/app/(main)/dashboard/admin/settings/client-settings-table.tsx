@@ -18,7 +18,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -244,12 +243,7 @@ export function ClientSettingsTable() {
               <TableRow key={client.id}>
                 {/* Client Name */}
                 <TableCell className="font-medium sticky left-0 z-10 bg-background border-r">
-                  <div>
-                    {client.client_name}
-                    <Badge variant="outline" className="ml-2 text-xs font-mono">
-                      {client.slug}
-                    </Badge>
-                  </div>
+                  {client.client_name}
                 </TableCell>
 
                 {/* Billing Model */}
