@@ -35,8 +35,8 @@ import {
   Loader2, Send, CheckCircle, DollarSign, Building2,
   Calendar, Clock, FileCheck, AlertTriangle
 } from 'lucide-react';
-import { format } from 'date-fns';
-type ReconciliationStatusType = 'DRAFT' | 'PENDING_CLIENT' | 'CLIENT_SUBMITTED' | 'UNDER_REVIEW' | 'FINALIZED';
+import { format, differenceInDays, differenceInHours, isPast } from 'date-fns';
+type ReconciliationStatusType = 'UPCOMING' | 'OPEN' | 'PENDING_CLIENT' | 'CLIENT_SUBMITTED' | 'UNDER_REVIEW' | 'AUTO_BILLED' | 'FINALIZED';
 type LineStatusType = 'PENDING' | 'SUBMITTED' | 'DISPUTED' | 'CONFIRMED';
 type MotionTypeValue = 'PLG' | 'SALES';
 
@@ -59,6 +59,10 @@ interface ReconciliationPeriod {
   revshare_sales: number | null;
   fee_per_signup: number | null;
   fee_per_meeting: number | null;
+  // Auto-reconciliation fields
+  review_deadline: string | null;
+  estimated_total: number | null;
+  auto_generated: boolean;
 }
 
 interface LineItem {
@@ -78,10 +82,12 @@ interface LineItem {
 }
 
 const STATUS_CONFIG: Record<ReconciliationStatusType, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive' }> = {
-  DRAFT: { label: 'Draft', variant: 'secondary' },
+  UPCOMING: { label: 'Upcoming', variant: 'outline' },
+  OPEN: { label: 'Action Required', variant: 'default' },
   PENDING_CLIENT: { label: 'Awaiting Your Input', variant: 'default' },
   CLIENT_SUBMITTED: { label: 'Submitted', variant: 'secondary' },
   UNDER_REVIEW: { label: 'Under Review', variant: 'outline' },
+  AUTO_BILLED: { label: 'Auto-Billed', variant: 'destructive' },
   FINALIZED: { label: 'Finalized', variant: 'secondary' },
 };
 
@@ -111,13 +117,15 @@ export default function ClientReconciliationPage() {
       const response = await fetch(`/api/clients/${slug}/${uuid}/reconciliation`);
       if (!response.ok) throw new Error('Failed to fetch');
       const data = await response.json();
-      setPeriods(data.periods);
+      setPeriods(data.periods || []);
       
-      // Find active period (PENDING_CLIENT status)
-      const pending = data.periods.find((p: ReconciliationPeriod) => p.status === 'PENDING_CLIENT');
-      if (pending) {
-        setActivePeriod(pending);
-        fetchLineItems(pending.id);
+      // Find active period (OPEN or PENDING_CLIENT status)
+      const actionable = (data.periods || []).find((p: ReconciliationPeriod) => 
+        p.status === 'OPEN' || p.status === 'PENDING_CLIENT'
+      );
+      if (actionable) {
+        setActivePeriod(actionable);
+        fetchLineItems(actionable.id);
       }
     } catch {
       toast.error('Failed to load reconciliation data');
@@ -249,6 +257,31 @@ export default function ClientReconciliationPage() {
     ).length;
   };
 
+  const getDeadlineInfo = (period: ReconciliationPeriod) => {
+    if (!period.review_deadline) return null;
+    
+    const deadline = new Date(period.review_deadline);
+    const now = new Date();
+    
+    if (isPast(deadline)) {
+      return { text: 'Overdue', isOverdue: true, daysLeft: 0 };
+    }
+    
+    const daysLeft = differenceInDays(deadline, now);
+    const hoursLeft = differenceInHours(deadline, now);
+    
+    if (daysLeft === 0) {
+      return { text: `${hoursLeft} hours left`, isOverdue: false, daysLeft: 0, isUrgent: true };
+    }
+    
+    return { 
+      text: `${daysLeft} day${daysLeft === 1 ? '' : 's'} left`, 
+      isOverdue: false, 
+      daysLeft,
+      isUrgent: daysLeft <= 3
+    };
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -286,9 +319,28 @@ export default function ClientReconciliationPage() {
                     <Badge variant={STATUS_CONFIG[activePeriod.status].variant}>
                       {STATUS_CONFIG[activePeriod.status].label}
                     </Badge>
+                    {/* Deadline countdown */}
+                    {activePeriod.review_deadline && (() => {
+                      const deadlineInfo = getDeadlineInfo(activePeriod);
+                      if (!deadlineInfo) return null;
+                      return (
+                        <Badge 
+                          variant={deadlineInfo.isOverdue ? 'destructive' : deadlineInfo.isUrgent ? 'default' : 'outline'}
+                          className="ml-2"
+                        >
+                          <Clock className="h-3 w-3 mr-1" />
+                          {deadlineInfo.text}
+                        </Badge>
+                      );
+                    })()}
                   </CardTitle>
                   <CardDescription>
                     {format(new Date(activePeriod.start_date), 'MMM d')} - {format(new Date(activePeriod.end_date), 'MMM d, yyyy')}
+                    {activePeriod.review_deadline && (
+                      <span className="ml-2">
+                        • Due by {format(new Date(activePeriod.review_deadline), 'MMM d, yyyy')}
+                      </span>
+                    )}
                   </CardDescription>
                 </div>
                 <Button 
@@ -301,6 +353,24 @@ export default function ClientReconciliationPage() {
               </div>
             </CardHeader>
             <CardContent>
+              {/* Auto-bill warning */}
+              {activePeriod.review_deadline && activePeriod.estimated_total && (() => {
+                const deadlineInfo = getDeadlineInfo(activePeriod);
+                if (deadlineInfo && (deadlineInfo.isUrgent || deadlineInfo.isOverdue)) {
+                  return (
+                    <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg mb-4 text-amber-800 dark:text-amber-200">
+                      <AlertTriangle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                      <div className="text-sm">
+                        <strong>Auto-billing notice:</strong> If you don&apos;t submit by {format(new Date(activePeriod.review_deadline), 'MMMM d')}, 
+                        we&apos;ll bill an estimated <strong>{formatCurrency(activePeriod.estimated_total)}</strong> based on default customer values.
+                        You can always reconcile the actual amounts later.
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
               {activePeriod.agency_notes && (
                 <div className="bg-muted p-3 rounded-lg mb-4">
                   <div className="text-sm font-medium mb-1">Note from agency:</div>
@@ -422,8 +492,36 @@ export default function ClientReconciliationPage() {
         </Card>
       )}
 
+      {/* Upcoming Periods */}
+      {periods.filter(p => p.status === 'UPCOMING').length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Upcoming Periods</CardTitle>
+            <CardDescription>
+              These periods haven&apos;t ended yet - reconciliation will open when the period ends
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {periods.filter(p => p.status === 'UPCOMING').map((period) => (
+                <div key={period.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">{period.period_name}</span>
+                    <span className="text-sm text-muted-foreground">
+                      {format(new Date(period.start_date), 'MMM d')} - {format(new Date(period.end_date), 'MMM d, yyyy')}
+                    </span>
+                  </div>
+                  <Badge variant="outline">Opens {format(new Date(period.end_date), 'MMM d')}</Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Past Reconciliations */}
-      {periods.filter(p => p.status !== 'PENDING_CLIENT').length > 0 && (
+      {periods.filter(p => !['PENDING_CLIENT', 'OPEN', 'UPCOMING'].includes(p.status)).length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Past Reconciliations</CardTitle>
@@ -433,7 +531,7 @@ export default function ClientReconciliationPage() {
           </CardHeader>
           <CardContent>
             <Accordion type="single" collapsible className="w-full">
-              {periods.filter(p => p.status !== 'PENDING_CLIENT').map((period) => (
+              {periods.filter(p => !['PENDING_CLIENT', 'OPEN', 'UPCOMING'].includes(p.status)).map((period) => (
                 <AccordionItem key={period.id} value={period.id}>
                   <AccordionTrigger>
                     <div className="flex items-center gap-4">

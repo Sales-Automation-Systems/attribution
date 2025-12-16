@@ -34,10 +34,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
-import { Loader2, Plus, CalendarIcon, Eye, FileText, RefreshCw, DollarSign } from 'lucide-react';
+import { Loader2, Plus, CalendarIcon, Eye, FileText, RefreshCw, DollarSign, Zap, AlertTriangle } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, subMonths, startOfQuarter, endOfQuarter, subQuarters } from 'date-fns';
 import Link from 'next/link';
-type ReconciliationStatusType = 'DRAFT' | 'PENDING_CLIENT' | 'CLIENT_SUBMITTED' | 'UNDER_REVIEW' | 'FINALIZED';
+type ReconciliationStatusType = 'UPCOMING' | 'OPEN' | 'PENDING_CLIENT' | 'CLIENT_SUBMITTED' | 'UNDER_REVIEW' | 'AUTO_BILLED' | 'FINALIZED';
 
 interface ClientOption {
   id: string;
@@ -48,6 +48,9 @@ interface ClientOption {
   revshare_plg: number | null;
   revshare_sales: number | null;
   reconciliation_interval: string;
+  contract_start_date: string | null;
+  billing_cycle: string;
+  estimated_acv: number;
 }
 
 interface ReconciliationPeriod {
@@ -64,6 +67,11 @@ interface ReconciliationPeriod {
   total_amount_owed: number;
   created_at: string;
   finalized_at: string | null;
+  // Auto-reconciliation fields
+  review_deadline: string | null;
+  estimated_total: number | null;
+  auto_generated: boolean;
+  auto_billed_at: string | null;
 }
 
 interface PreviewData {
@@ -73,10 +81,12 @@ interface PreviewData {
 }
 
 const STATUS_CONFIG: Record<ReconciliationStatusType, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive' }> = {
-  DRAFT: { label: 'Draft', variant: 'secondary' },
+  UPCOMING: { label: 'Upcoming', variant: 'outline' },
+  OPEN: { label: 'Open', variant: 'default' },
   PENDING_CLIENT: { label: 'Awaiting Client', variant: 'outline' },
   CLIENT_SUBMITTED: { label: 'Client Submitted', variant: 'default' },
   UNDER_REVIEW: { label: 'Under Review', variant: 'default' },
+  AUTO_BILLED: { label: 'Auto-Billed', variant: 'destructive' },
   FINALIZED: { label: 'Finalized', variant: 'secondary' },
 };
 
@@ -95,6 +105,11 @@ export default function ReconciliationDashboard() {
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [notes, setNotes] = useState<string>('');
+
+  // Sync & auto-bill state
+  const [syncing, setSyncing] = useState(false);
+  const [autoBilling, setAutoBilling] = useState(false);
+  const [overdueCounts, setOverdueCounts] = useState<{ count: number }>({ count: 0 });
 
   const fetchPeriods = useCallback(async () => {
     try {
@@ -121,10 +136,72 @@ export default function ReconciliationDashboard() {
     }
   }, []);
 
+  const fetchOverdueCounts = useCallback(async () => {
+    try {
+      const response = await fetch('/api/reconciliation/auto-bill');
+      if (response.ok) {
+        const data = await response.json();
+        setOverdueCounts({ count: data.count || 0 });
+      }
+    } catch {
+      // Ignore errors for overdue check
+    }
+  }, []);
+
   useEffect(() => {
     fetchPeriods();
     fetchClients();
-  }, [fetchPeriods, fetchClients]);
+    fetchOverdueCounts();
+  }, [fetchPeriods, fetchClients, fetchOverdueCounts]);
+
+  const syncAllPeriods = async () => {
+    setSyncing(true);
+    try {
+      const response = await fetch('/api/reconciliation/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ syncAll: true }),
+      });
+
+      if (!response.ok) throw new Error('Sync failed');
+      
+      const data = await response.json();
+      toast.success(`Synced ${data.totalClients} clients, created ${data.results.reduce((acc: number, r: { periodsCreated: number }) => acc + r.periodsCreated, 0)} new periods`);
+      fetchPeriods();
+      fetchOverdueCounts();
+    } catch {
+      toast.error('Failed to sync periods');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const runAutoBilling = async () => {
+    if (overdueCounts.count === 0) {
+      toast.info('No overdue periods to process');
+      return;
+    }
+
+    setAutoBilling(true);
+    try {
+      const response = await fetch('/api/reconciliation/auto-bill', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+
+      if (!response.ok) throw new Error('Auto-billing failed');
+      
+      const data = await response.json();
+      toast.success(`Auto-billed ${data.processed} overdue periods`);
+      fetchPeriods();
+      fetchOverdueCounts();
+    } catch {
+      toast.error('Failed to run auto-billing');
+    } finally {
+      setAutoBilling(false);
+    }
+  };
 
   const applyPreset = (preset: string) => {
     const now = new Date();
@@ -259,10 +336,20 @@ export default function ReconciliationDashboard() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={fetchPeriods}>
-            <RefreshCw className="h-4 w-4 mr-2" />
+          <Button variant="outline" size="sm" onClick={fetchPeriods} disabled={loading}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
+          <Button variant="outline" size="sm" onClick={syncAllPeriods} disabled={syncing}>
+            <Zap className={`h-4 w-4 mr-2 ${syncing ? 'animate-pulse' : ''}`} />
+            {syncing ? 'Syncing...' : 'Sync Periods'}
+          </Button>
+          {overdueCounts.count > 0 && (
+            <Button variant="destructive" size="sm" onClick={runAutoBilling} disabled={autoBilling}>
+              <AlertTriangle className="h-4 w-4 mr-2" />
+              {autoBilling ? 'Processing...' : `Auto-Bill (${overdueCounts.count})`}
+            </Button>
+          )}
           <Dialog open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (!open) resetForm(); }}>
             <DialogTrigger asChild>
               <Button>

@@ -24,6 +24,11 @@ export async function GET() {
       fee_per_signup: number | null;
       fee_per_meeting: number | null;
       reconciliation_interval: string;
+      // Auto-reconciliation fields
+      contract_start_date: string | null;
+      billing_cycle: string;
+      estimated_acv: number;
+      review_window_days: number;
     }>(`
       SELECT id, client_id, client_name, slug, rev_share_rate,
              sign_ups_mode, meetings_mode, paying_mode,
@@ -32,7 +37,11 @@ export async function GET() {
              COALESCE(billing_model, 'flat_revshare') as billing_model,
              revshare_plg, revshare_sales,
              fee_per_signup, fee_per_meeting,
-             COALESCE(reconciliation_interval, 'monthly') as reconciliation_interval
+             COALESCE(reconciliation_interval, 'monthly') as reconciliation_interval,
+             contract_start_date,
+             COALESCE(billing_cycle, 'monthly') as billing_cycle,
+             COALESCE(estimated_acv, 10000) as estimated_acv,
+             COALESCE(review_window_days, 10) as review_window_days
       FROM client_config
       ORDER BY client_name
     `);
@@ -67,6 +76,11 @@ export async function PATCH(req: NextRequest) {
       fee_per_signup,
       fee_per_meeting,
       reconciliation_interval,
+      // Auto-reconciliation fields
+      contract_start_date,
+      billing_cycle,
+      estimated_acv,
+      review_window_days,
     } = body;
 
     if (!clientId) {
@@ -154,6 +168,23 @@ export async function PATCH(req: NextRequest) {
     if (reconciliation_interval !== undefined) {
       updates.push(`reconciliation_interval = $${paramIndex++}`);
       values.push(reconciliation_interval);
+    }
+    // Auto-reconciliation fields
+    if (contract_start_date !== undefined) {
+      updates.push(`contract_start_date = $${paramIndex++}`);
+      values.push(contract_start_date);
+    }
+    if (billing_cycle !== undefined) {
+      updates.push(`billing_cycle = $${paramIndex++}`);
+      values.push(billing_cycle);
+    }
+    if (estimated_acv !== undefined) {
+      updates.push(`estimated_acv = $${paramIndex++}`);
+      values.push(estimated_acv);
+    }
+    if (review_window_days !== undefined) {
+      updates.push(`review_window_days = $${paramIndex++}`);
+      values.push(review_window_days);
     }
 
     if (updates.length === 0) {

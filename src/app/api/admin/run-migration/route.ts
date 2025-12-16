@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { attrPool } from '@/db';
-import * as fs from 'fs';
-import * as path from 'path';
 
 // This endpoint runs a specific migration file
 // Only for admin use - should be protected in production
@@ -193,6 +191,34 @@ export async function POST(request: NextRequest) {
 
         CREATE INDEX IF NOT EXISTS idx_recon_item_period ON reconciliation_line_item(reconciliation_period_id);
         CREATE INDEX IF NOT EXISTS idx_recon_item_status ON reconciliation_line_item(status);
+      `,
+      '017_auto_reconciliation.sql': `
+        -- Contract and billing fields on client_config
+        ALTER TABLE client_config ADD COLUMN IF NOT EXISTS contract_start_date DATE;
+        ALTER TABLE client_config ADD COLUMN IF NOT EXISTS billing_cycle VARCHAR(20) DEFAULT 'monthly';
+        ALTER TABLE client_config ADD COLUMN IF NOT EXISTS estimated_acv DECIMAL(12,2) DEFAULT 10000;
+        ALTER TABLE client_config ADD COLUMN IF NOT EXISTS review_window_days INTEGER DEFAULT 10;
+
+        -- Auto-generation fields on reconciliation_period
+        ALTER TABLE reconciliation_period ADD COLUMN IF NOT EXISTS auto_generated BOOLEAN DEFAULT true;
+        ALTER TABLE reconciliation_period ADD COLUMN IF NOT EXISTS review_deadline DATE;
+        ALTER TABLE reconciliation_period ADD COLUMN IF NOT EXISTS auto_billed_at TIMESTAMP WITH TIME ZONE;
+        ALTER TABLE reconciliation_period ADD COLUMN IF NOT EXISTS estimated_total DECIMAL(15,2);
+
+        -- Unique constraints for upserts
+        DO $$ BEGIN
+          ALTER TABLE reconciliation_period ADD CONSTRAINT unique_client_period_name UNIQUE (client_config_id, period_name);
+        EXCEPTION WHEN duplicate_table THEN NULL;
+        END $$;
+        
+        DO $$ BEGIN
+          ALTER TABLE reconciliation_line_item ADD CONSTRAINT unique_period_domain UNIQUE (reconciliation_period_id, domain);
+        EXCEPTION WHEN duplicate_table THEN NULL;
+        END $$;
+
+        -- Indexes
+        CREATE INDEX IF NOT EXISTS idx_recon_period_deadline ON reconciliation_period(review_deadline) WHERE review_deadline IS NOT NULL;
+        CREATE INDEX IF NOT EXISTS idx_recon_period_auto_billed ON reconciliation_period(auto_billed_at) WHERE auto_billed_at IS NOT NULL;
       `,
     };
 

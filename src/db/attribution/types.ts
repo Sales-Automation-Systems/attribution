@@ -62,6 +62,11 @@ export interface ClientConfig {
   fee_per_signup: number | null;
   fee_per_meeting: number | null;
   reconciliation_interval: 'monthly' | 'quarterly' | 'custom';
+  // Auto-reconciliation fields
+  contract_start_date: Date | null;
+  billing_cycle: 'monthly' | 'quarterly' | '28_day';
+  estimated_acv: number;
+  review_window_days: number;
 }
 
 // Domain status types
@@ -248,10 +253,12 @@ export interface TaskWithDetails extends Task {
 // ============ Reconciliation System ============
 
 export type ReconciliationStatus = 
-  | 'DRAFT'           // Agency is preparing the reconciliation
-  | 'PENDING_CLIENT'  // Sent to client for revenue submission
+  | 'UPCOMING'        // Period hasn't ended yet, not ready for reconciliation
+  | 'OPEN'            // Period ended, awaiting client submission
+  | 'PENDING_CLIENT'  // Sent to client for revenue submission (legacy)
   | 'CLIENT_SUBMITTED' // Client has submitted revenue data
   | 'UNDER_REVIEW'    // Agency is reviewing submitted data
+  | 'AUTO_BILLED'     // Client missed deadline, auto-billed using estimates
   | 'FINALIZED';      // Reconciliation complete
 
 export type ReconciliationLineStatus = 
@@ -283,6 +290,11 @@ export interface ReconciliationPeriod {
   agency_notes: string | null;
   client_notes: string | null;
   updated_at: Date;
+  // Auto-reconciliation fields
+  auto_generated: boolean;
+  review_deadline: Date | null;
+  auto_billed_at: Date | null;
+  estimated_total: number | null;
 }
 
 export interface ReconciliationLineItem {

@@ -43,6 +43,11 @@ interface ClientSettings {
   fee_per_signup: number | null;
   fee_per_meeting: number | null;
   reconciliation_interval: 'monthly' | 'quarterly' | 'custom';
+  // Auto-reconciliation fields
+  contract_start_date: string | null;
+  billing_cycle: 'monthly' | 'quarterly' | '28_day';
+  estimated_acv: number;
+  review_window_days: number;
 }
 
 // Extracted component to avoid unstable nested component
@@ -108,6 +113,29 @@ function IntervalSelect({
         <SelectItem value="monthly">Monthly</SelectItem>
         <SelectItem value="quarterly">Quarterly</SelectItem>
         <SelectItem value="custom">Custom</SelectItem>
+      </SelectContent>
+    </Select>
+  );
+}
+
+function BillingCycleSelect({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  disabled: boolean;
+}) {
+  return (
+    <Select value={value || 'monthly'} onValueChange={onChange} disabled={disabled}>
+      <SelectTrigger className="w-[100px] h-8 text-xs">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="monthly">Monthly</SelectItem>
+        <SelectItem value="quarterly">Quarterly</SelectItem>
+        <SelectItem value="28_day">28-Day</SelectItem>
       </SelectContent>
     </Select>
   );
@@ -190,7 +218,7 @@ export function ClientSettingsTable() {
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
-              <TableHead className="w-[180px] sticky left-0 bg-muted/50">Client</TableHead>
+              <TableHead className="w-[180px] sticky left-0 z-20 bg-muted border-r">Client</TableHead>
               <TableHead className="text-center w-[130px]">Billing Model</TableHead>
               <TableHead className="text-center w-[80px]">Rev Share</TableHead>
               <TableHead className="text-center w-[80px]">PLG %</TableHead>
@@ -198,6 +226,10 @@ export function ClientSettingsTable() {
               <TableHead className="text-center w-[80px]">$/Signup</TableHead>
               <TableHead className="text-center w-[80px]">$/Meeting</TableHead>
               <TableHead className="text-center w-[110px]">Recon Interval</TableHead>
+              <TableHead className="text-center w-[110px]">Contract Start</TableHead>
+              <TableHead className="text-center w-[100px]">Billing Cycle</TableHead>
+              <TableHead className="text-center w-[90px]">Est. ACV</TableHead>
+              <TableHead className="text-center w-[80px]">Review Days</TableHead>
               <TableHead className="text-center w-[120px]">Sign-ups</TableHead>
               <TableHead className="text-center w-[120px]">Meetings</TableHead>
               <TableHead className="text-center w-[120px]">Paying</TableHead>
@@ -211,7 +243,7 @@ export function ClientSettingsTable() {
             {clients.map((client) => (
               <TableRow key={client.id}>
                 {/* Client Name */}
-                <TableCell className="font-medium sticky left-0 bg-background">
+                <TableCell className="font-medium sticky left-0 z-10 bg-background border-r">
                   <div>
                     {client.client_name}
                     <Badge variant="outline" className="ml-2 text-xs font-mono">
@@ -431,6 +463,113 @@ export function ClientSettingsTable() {
                     onChange={(v) => updateSetting(client.id, 'reconciliation_interval', v)}
                     disabled={saving === client.id}
                   />
+                </TableCell>
+
+                {/* Contract Start Date */}
+                <TableCell className="text-center">
+                  {editingCell?.clientId === client.id &&
+                  editingCell?.field === 'contract_start_date' ? (
+                    <Input
+                      type="date"
+                      defaultValue={client.contract_start_date || ''}
+                      className="w-[120px] h-8 text-xs"
+                      autoFocus
+                      onBlur={(e) => {
+                        const val = e.target.value;
+                        updateSetting(client.id, 'contract_start_date', val || null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                        if (e.key === 'Escape') setEditingCell(null);
+                      }}
+                    />
+                  ) : (
+                    <button
+                      className="px-2 py-1 rounded hover:bg-muted transition-colors text-xs"
+                      onClick={() => setEditingCell({ clientId: client.id, field: 'contract_start_date' })}
+                    >
+                      {client.contract_start_date
+                        ? new Date(client.contract_start_date).toLocaleDateString()
+                        : '-'}
+                    </button>
+                  )}
+                </TableCell>
+
+                {/* Billing Cycle */}
+                <TableCell className="text-center">
+                  <BillingCycleSelect
+                    value={client.billing_cycle}
+                    onChange={(v) => updateSetting(client.id, 'billing_cycle', v)}
+                    disabled={saving === client.id}
+                  />
+                </TableCell>
+
+                {/* Estimated ACV */}
+                <TableCell className="text-center">
+                  {editingCell?.clientId === client.id &&
+                  editingCell?.field === 'estimated_acv' ? (
+                    <Input
+                      type="number"
+                      step="1000"
+                      min="0"
+                      defaultValue={client.estimated_acv}
+                      className="w-20 h-8 text-xs text-center"
+                      autoFocus
+                      onBlur={(e) => {
+                        const val = parseFloat(e.target.value);
+                        if (!isNaN(val) && val >= 0) {
+                          updateSetting(client.id, 'estimated_acv', val);
+                        } else {
+                          setEditingCell(null);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                        if (e.key === 'Escape') setEditingCell(null);
+                      }}
+                    />
+                  ) : (
+                    <button
+                      className="px-2 py-1 rounded hover:bg-muted transition-colors"
+                      onClick={() => setEditingCell({ clientId: client.id, field: 'estimated_acv' })}
+                    >
+                      ${client.estimated_acv?.toLocaleString() || '10,000'}
+                    </button>
+                  )}
+                </TableCell>
+
+                {/* Review Window Days */}
+                <TableCell className="text-center">
+                  {editingCell?.clientId === client.id &&
+                  editingCell?.field === 'review_window_days' ? (
+                    <Input
+                      type="number"
+                      min="1"
+                      max="30"
+                      defaultValue={client.review_window_days}
+                      className="w-14 h-8 text-xs text-center"
+                      autoFocus
+                      onBlur={(e) => {
+                        const val = parseInt(e.target.value);
+                        if (!isNaN(val) && val >= 1 && val <= 30) {
+                          updateSetting(client.id, 'review_window_days', val);
+                        } else {
+                          setEditingCell(null);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                        if (e.key === 'Escape') setEditingCell(null);
+                      }}
+                    />
+                  ) : (
+                    <button
+                      className="px-2 py-1 rounded hover:bg-muted transition-colors"
+                      onClick={() => setEditingCell({ clientId: client.id, field: 'review_window_days' })}
+                    >
+                      {client.review_window_days || 10}d
+                    </button>
+                  )}
                 </TableCell>
 
                 {/* Sign-ups Mode */}
