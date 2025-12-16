@@ -232,12 +232,12 @@ async function populateLineItems(
     // Count sign-ups and meetings for this domain in the period
     const [counts] = await attrQuery<{ signup_count: number; meeting_count: number }>(`
       SELECT 
-        COUNT(CASE WHEN event_type = 'SIGN_UP' THEN 1 END) as signup_count,
-        COUNT(CASE WHEN event_type = 'MEETING_BOOKED' THEN 1 END) as meeting_count
+        COUNT(CASE WHEN event_source = 'SIGN_UP' THEN 1 END) as signup_count,
+        COUNT(CASE WHEN event_source = 'MEETING_BOOKED' THEN 1 END) as meeting_count
       FROM domain_event
       WHERE attributed_domain_id = $1
-        AND event_at >= $2
-        AND event_at <= $3
+        AND event_time >= $2
+        AND event_time <= $3
     `, [domain.id, format(startDate, 'yyyy-MM-dd'), format(endDate, 'yyyy-MM-dd 23:59:59')]);
 
     // Upsert line item
