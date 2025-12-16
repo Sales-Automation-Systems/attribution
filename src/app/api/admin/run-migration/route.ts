@@ -205,20 +205,16 @@ export async function POST(request: NextRequest) {
         ALTER TABLE reconciliation_period ADD COLUMN IF NOT EXISTS auto_billed_at TIMESTAMP WITH TIME ZONE;
         ALTER TABLE reconciliation_period ADD COLUMN IF NOT EXISTS estimated_total DECIMAL(15,2);
 
-        -- Unique constraints for upserts
-        DO $$ BEGIN
-          ALTER TABLE reconciliation_period ADD CONSTRAINT unique_client_period_name UNIQUE (client_config_id, period_name);
-        EXCEPTION WHEN duplicate_table THEN NULL;
-        END $$;
-        
-        DO $$ BEGIN
-          ALTER TABLE reconciliation_line_item ADD CONSTRAINT unique_period_domain UNIQUE (reconciliation_period_id, domain);
-        EXCEPTION WHEN duplicate_table THEN NULL;
-        END $$;
-
         -- Indexes
         CREATE INDEX IF NOT EXISTS idx_recon_period_deadline ON reconciliation_period(review_deadline) WHERE review_deadline IS NOT NULL;
         CREATE INDEX IF NOT EXISTS idx_recon_period_auto_billed ON reconciliation_period(auto_billed_at) WHERE auto_billed_at IS NOT NULL;
+      `,
+      '017b_unique_constraints.sql': `
+        -- Unique constraint on client + period_name for upserts (ignore if exists)
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_client_period_name ON reconciliation_period(client_config_id, period_name);
+        
+        -- Unique constraint on period + domain for line item upserts (ignore if exists)
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_period_domain ON reconciliation_line_item(reconciliation_period_id, domain);
       `,
     };
 
