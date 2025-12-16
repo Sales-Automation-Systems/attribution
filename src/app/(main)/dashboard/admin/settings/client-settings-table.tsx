@@ -46,6 +46,9 @@ interface ClientSettings {
   billing_cycle: 'monthly' | 'quarterly' | '28_day';
   estimated_acv: number;
   review_window_days: number;
+  // Custom event fields
+  custom_event_name: string | null;
+  fee_per_custom_event: number | null;
 }
 
 function BillingModelSelect({
@@ -178,6 +181,8 @@ export function ClientSettingsTable() {
               <TableHead className="text-center w-[80px]">Sales %</TableHead>
               <TableHead className="text-center w-[80px]">$/Signup</TableHead>
               <TableHead className="text-center w-[80px]">$/Meeting</TableHead>
+              <TableHead className="text-center w-[110px]">Custom Event</TableHead>
+              <TableHead className="text-center w-[80px]">$/Custom</TableHead>
               <TableHead className="text-center w-[110px]">Contract Start</TableHead>
               <TableHead className="text-center w-[100px]">Billing Cycle</TableHead>
               <TableHead className="text-center w-[90px]">Est. ACV</TableHead>
@@ -393,6 +398,72 @@ export function ClientSettingsTable() {
                       onClick={() => setEditingCell({ clientId: client.id, field: 'fee_per_meeting' })}
                     >
                       {client.fee_per_meeting != null ? `$${client.fee_per_meeting}` : '-'}
+                    </button>
+                  )}
+                </TableCell>
+
+                {/* Custom Event Name */}
+                <TableCell className="text-center">
+                  {editingCell?.clientId === client.id &&
+                  editingCell?.field === 'custom_event_name' ? (
+                    <Input
+                      type="text"
+                      maxLength={100}
+                      defaultValue={client.custom_event_name ?? ''}
+                      className="w-24 h-8 text-xs text-center"
+                      placeholder="e.g., Proposal"
+                      autoFocus
+                      onBlur={(e) => {
+                        const val = e.target.value.trim();
+                        updateSetting(client.id, 'custom_event_name', val || null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                        if (e.key === 'Escape') setEditingCell(null);
+                      }}
+                    />
+                  ) : (
+                    <button
+                      className="px-2 py-1 rounded hover:bg-muted transition-colors cursor-pointer underline-offset-2 hover:underline text-xs"
+                      onClick={() => setEditingCell({ clientId: client.id, field: 'custom_event_name' })}
+                    >
+                      {client.custom_event_name || '-'}
+                    </button>
+                  )}
+                </TableCell>
+
+                {/* Fee per Custom Event */}
+                <TableCell className="text-center">
+                  {editingCell?.clientId === client.id &&
+                  editingCell?.field === 'fee_per_custom_event' ? (
+                    <Input
+                      type="number"
+                      step="1"
+                      min="0"
+                      defaultValue={client.fee_per_custom_event ?? ''}
+                      className="w-16 h-8 text-xs text-center"
+                      autoFocus
+                      onBlur={(e) => {
+                        const val = parseFloat(e.target.value);
+                        if (!isNaN(val) && val >= 0) {
+                          updateSetting(client.id, 'fee_per_custom_event', val);
+                        } else if (e.target.value === '') {
+                          updateSetting(client.id, 'fee_per_custom_event', null);
+                        } else {
+                          setEditingCell(null);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                        if (e.key === 'Escape') setEditingCell(null);
+                      }}
+                    />
+                  ) : (
+                    <button
+                      className="px-2 py-1 rounded hover:bg-muted transition-colors cursor-pointer underline-offset-2 hover:underline"
+                      onClick={() => setEditingCell({ clientId: client.id, field: 'fee_per_custom_event' })}
+                    >
+                      {client.fee_per_custom_event != null ? `$${client.fee_per_custom_event}` : '-'}
                     </button>
                   )}
                 </TableCell>

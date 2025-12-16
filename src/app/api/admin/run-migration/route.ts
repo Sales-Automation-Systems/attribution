@@ -241,6 +241,15 @@ export async function POST(request: NextRequest) {
         -- Unique constraint on period + domain for line item upserts (ignore if exists)
         CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_period_domain ON reconciliation_line_item(reconciliation_period_id, domain);
       `,
+      '020_custom_event.sql': `
+        -- Add custom event fields to client_config
+        ALTER TABLE client_config ADD COLUMN IF NOT EXISTS custom_event_name VARCHAR(100);
+        ALTER TABLE client_config ADD COLUMN IF NOT EXISTS fee_per_custom_event DECIMAL(10,2);
+
+        -- Add comments for documentation
+        COMMENT ON COLUMN client_config.custom_event_name IS 'Custom billable event type name for this client (e.g., Proposal, HUD Agreement)';
+        COMMENT ON COLUMN client_config.fee_per_custom_event IS 'Fee charged per custom event occurrence';
+      `,
     };
 
     const sql = migrations[migrationFile];

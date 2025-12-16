@@ -29,6 +29,9 @@ export async function GET() {
       billing_cycle: string;
       estimated_acv: number;
       review_window_days: number;
+      // Custom event fields
+      custom_event_name: string | null;
+      fee_per_custom_event: number | null;
     }>(`
       SELECT id, client_id, client_name, slug, rev_share_rate,
              sign_ups_mode, meetings_mode, paying_mode,
@@ -41,7 +44,9 @@ export async function GET() {
              contract_start_date,
              COALESCE(billing_cycle, 'monthly') as billing_cycle,
              COALESCE(estimated_acv, 10000) as estimated_acv,
-             COALESCE(review_window_days, 10) as review_window_days
+             COALESCE(review_window_days, 10) as review_window_days,
+             custom_event_name,
+             fee_per_custom_event
       FROM client_config
       ORDER BY client_name
     `);
@@ -81,6 +86,9 @@ export async function PATCH(req: NextRequest) {
       billing_cycle,
       estimated_acv,
       review_window_days,
+      // Custom event fields
+      custom_event_name,
+      fee_per_custom_event,
     } = body;
 
     if (!clientId) {
@@ -185,6 +193,15 @@ export async function PATCH(req: NextRequest) {
     if (review_window_days !== undefined) {
       updates.push(`review_window_days = $${paramIndex++}`);
       values.push(review_window_days);
+    }
+    // Custom event fields
+    if (custom_event_name !== undefined) {
+      updates.push(`custom_event_name = $${paramIndex++}`);
+      values.push(custom_event_name);
+    }
+    if (fee_per_custom_event !== undefined) {
+      updates.push(`fee_per_custom_event = $${paramIndex++}`);
+      values.push(fee_per_custom_event);
     }
 
     if (updates.length === 0) {

@@ -67,6 +67,9 @@ export interface ClientConfig {
   billing_cycle: 'monthly' | 'quarterly' | '28_day';
   estimated_acv: number;
   review_window_days: number;
+  // Custom event fields
+  custom_event_name: string | null;
+  fee_per_custom_event: number | null;
 }
 
 // Domain status types
