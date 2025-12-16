@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { getClientConfigBySlugAndUuid } from '@/db/attribution/queries';
 import { getTasksByClient, getTaskComments, getTasksCountByStatus } from '@/db/attribution/task-queries';
 import { ClientTasksView } from '@/components/tasks/client-tasks-view';
+import { ClientNav } from '@/components/attribution/client-nav';
 
 // Force dynamic rendering - this page needs database access
 export const dynamic = 'force-dynamic';
@@ -50,6 +51,9 @@ export default async function ClientTasksPage({
 
   return (
     <div className="flex flex-col gap-6 p-6">
+      {/* Navigation */}
+      <ClientNav slug={slug} uuid={uuid} />
+
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
