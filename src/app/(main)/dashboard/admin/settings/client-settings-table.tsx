@@ -94,28 +94,6 @@ function BillingModelSelect({
   );
 }
 
-function IntervalSelect({
-  value,
-  onChange,
-  disabled,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  disabled: boolean;
-}) {
-  return (
-    <Select value={value || 'monthly'} onValueChange={onChange} disabled={disabled}>
-      <SelectTrigger className="w-[110px] h-8 text-xs">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="monthly">Monthly</SelectItem>
-        <SelectItem value="quarterly">Quarterly</SelectItem>
-        <SelectItem value="custom">Custom</SelectItem>
-      </SelectContent>
-    </Select>
-  );
-}
 
 function BillingCycleSelect({
   value,
@@ -224,7 +202,6 @@ export function ClientSettingsTable() {
               <TableHead className="text-center w-[80px]">Sales %</TableHead>
               <TableHead className="text-center w-[80px]">$/Signup</TableHead>
               <TableHead className="text-center w-[80px]">$/Meeting</TableHead>
-              <TableHead className="text-center w-[110px]">Recon Interval</TableHead>
               <TableHead className="text-center w-[110px]">Contract Start</TableHead>
               <TableHead className="text-center w-[100px]">Billing Cycle</TableHead>
               <TableHead className="text-center w-[90px]">Est. ACV</TableHead>
@@ -261,16 +238,16 @@ export function ClientSettingsTable() {
                   editingCell?.field === 'rev_share_rate' ? (
                     <Input
                       type="number"
-                      step="0.01"
+                      step="1"
                       min="0"
-                      max="1"
-                      defaultValue={client.rev_share_rate}
+                      max="100"
+                      defaultValue={(client.rev_share_rate * 100).toFixed(0)}
                       className="w-16 h-8 text-xs text-center"
                       autoFocus
                       onBlur={(e) => {
                         const val = parseFloat(e.target.value);
-                        if (!isNaN(val) && val >= 0 && val <= 1) {
-                          updateSetting(client.id, 'rev_share_rate', val);
+                        if (!isNaN(val) && val >= 0 && val <= 100) {
+                          updateSetting(client.id, 'rev_share_rate', val / 100);
                         } else {
                           setEditingCell(null);
                         }
@@ -286,7 +263,7 @@ export function ClientSettingsTable() {
                     />
                   ) : (
                     <button
-                      className="px-2 py-1 rounded hover:bg-muted transition-colors"
+                      className="px-2 py-1 rounded hover:bg-muted transition-colors cursor-pointer underline-offset-2 hover:underline"
                       onClick={() =>
                         setEditingCell({ clientId: client.id, field: 'rev_share_rate' })
                       }
@@ -303,16 +280,16 @@ export function ClientSettingsTable() {
                     editingCell?.field === 'revshare_plg' ? (
                       <Input
                         type="number"
-                        step="0.01"
+                        step="1"
                         min="0"
-                        max="1"
-                        defaultValue={client.revshare_plg ?? ''}
+                        max="100"
+                        defaultValue={client.revshare_plg != null ? (client.revshare_plg * 100).toFixed(0) : ''}
                         className="w-16 h-8 text-xs text-center"
                         autoFocus
                         onBlur={(e) => {
                           const val = parseFloat(e.target.value);
-                          if (!isNaN(val) && val >= 0 && val <= 1) {
-                            updateSetting(client.id, 'revshare_plg', val);
+                          if (!isNaN(val) && val >= 0 && val <= 100) {
+                            updateSetting(client.id, 'revshare_plg', val / 100);
                           } else if (e.target.value === '') {
                             updateSetting(client.id, 'revshare_plg', null);
                           } else {
@@ -326,7 +303,7 @@ export function ClientSettingsTable() {
                       />
                     ) : (
                       <button
-                        className="px-2 py-1 rounded hover:bg-muted transition-colors"
+                        className="px-2 py-1 rounded hover:bg-muted transition-colors cursor-pointer underline-offset-2 hover:underline"
                         onClick={() => setEditingCell({ clientId: client.id, field: 'revshare_plg' })}
                       >
                         {client.revshare_plg != null ? `${(client.revshare_plg * 100).toFixed(0)}%` : '-'}
@@ -344,16 +321,16 @@ export function ClientSettingsTable() {
                     editingCell?.field === 'revshare_sales' ? (
                       <Input
                         type="number"
-                        step="0.01"
+                        step="1"
                         min="0"
-                        max="1"
-                        defaultValue={client.revshare_sales ?? ''}
+                        max="100"
+                        defaultValue={client.revshare_sales != null ? (client.revshare_sales * 100).toFixed(0) : ''}
                         className="w-16 h-8 text-xs text-center"
                         autoFocus
                         onBlur={(e) => {
                           const val = parseFloat(e.target.value);
-                          if (!isNaN(val) && val >= 0 && val <= 1) {
-                            updateSetting(client.id, 'revshare_sales', val);
+                          if (!isNaN(val) && val >= 0 && val <= 100) {
+                            updateSetting(client.id, 'revshare_sales', val / 100);
                           } else if (e.target.value === '') {
                             updateSetting(client.id, 'revshare_sales', null);
                           } else {
@@ -367,7 +344,7 @@ export function ClientSettingsTable() {
                       />
                     ) : (
                       <button
-                        className="px-2 py-1 rounded hover:bg-muted transition-colors"
+                        className="px-2 py-1 rounded hover:bg-muted transition-colors cursor-pointer underline-offset-2 hover:underline"
                         onClick={() => setEditingCell({ clientId: client.id, field: 'revshare_sales' })}
                       >
                         {client.revshare_sales != null ? `${(client.revshare_sales * 100).toFixed(0)}%` : '-'}
@@ -406,7 +383,7 @@ export function ClientSettingsTable() {
                     />
                   ) : (
                     <button
-                      className="px-2 py-1 rounded hover:bg-muted transition-colors"
+                      className="px-2 py-1 rounded hover:bg-muted transition-colors cursor-pointer underline-offset-2 hover:underline"
                       onClick={() => setEditingCell({ clientId: client.id, field: 'fee_per_signup' })}
                     >
                       {client.fee_per_signup != null ? `$${client.fee_per_signup}` : '-'}
@@ -442,21 +419,12 @@ export function ClientSettingsTable() {
                     />
                   ) : (
                     <button
-                      className="px-2 py-1 rounded hover:bg-muted transition-colors"
+                      className="px-2 py-1 rounded hover:bg-muted transition-colors cursor-pointer underline-offset-2 hover:underline"
                       onClick={() => setEditingCell({ clientId: client.id, field: 'fee_per_meeting' })}
                     >
                       {client.fee_per_meeting != null ? `$${client.fee_per_meeting}` : '-'}
                     </button>
                   )}
-                </TableCell>
-
-                {/* Reconciliation Interval */}
-                <TableCell className="text-center">
-                  <IntervalSelect
-                    value={client.reconciliation_interval}
-                    onChange={(v) => updateSetting(client.id, 'reconciliation_interval', v)}
-                    disabled={saving === client.id}
-                  />
                 </TableCell>
 
                 {/* Contract Start Date */}
@@ -524,7 +492,7 @@ export function ClientSettingsTable() {
                     />
                   ) : (
                     <button
-                      className="px-2 py-1 rounded hover:bg-muted transition-colors"
+                      className="px-2 py-1 rounded hover:bg-muted transition-colors cursor-pointer underline-offset-2 hover:underline"
                       onClick={() => setEditingCell({ clientId: client.id, field: 'estimated_acv' })}
                     >
                       ${client.estimated_acv?.toLocaleString() || '10,000'}
@@ -558,7 +526,7 @@ export function ClientSettingsTable() {
                     />
                   ) : (
                     <button
-                      className="px-2 py-1 rounded hover:bg-muted transition-colors"
+                      className="px-2 py-1 rounded hover:bg-muted transition-colors cursor-pointer underline-offset-2 hover:underline"
                       onClick={() => setEditingCell({ clientId: client.id, field: 'review_window_days' })}
                     >
                       {client.review_window_days || 10}d
@@ -623,7 +591,7 @@ export function ClientSettingsTable() {
                     />
                   ) : (
                     <button
-                      className="px-2 py-1 rounded hover:bg-muted transition-colors"
+                      className="px-2 py-1 rounded hover:bg-muted transition-colors cursor-pointer underline-offset-2 hover:underline"
                       onClick={() =>
                         setEditingCell({
                           clientId: client.id,
