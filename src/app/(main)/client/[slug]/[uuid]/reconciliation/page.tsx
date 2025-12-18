@@ -30,10 +30,16 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import { 
   Loader2, Send, DollarSign,
-  Calendar, Clock, FileCheck, AlertTriangle
+  Calendar, Clock, FileCheck, AlertTriangle, Pencil
 } from 'lucide-react';
 import { format, differenceInDays, differenceInHours, isPast, addMonths, startOfMonth } from 'date-fns';
 
@@ -114,6 +120,10 @@ export default function ClientReconciliationPage() {
   const [clientNotes, setClientNotes] = useState('');
   const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
   const [savingItem, setSavingItem] = useState<string | null>(null);
+  
+  // Past period line items (for read-only display)
+  const [pastPeriodItems, setPastPeriodItems] = useState<Record<string, LineItem[]>>({});
+  const [loadingPastPeriod, setLoadingPastPeriod] = useState<string | null>(null);
 
   const fetchPeriods = useCallback(async () => {
     try {
@@ -164,6 +174,26 @@ export default function ClientReconciliationPage() {
   useEffect(() => {
     fetchPeriods();
   }, [fetchPeriods]);
+
+  // Fetch line items for a past period (read-only display)
+  const fetchPastPeriodItems = async (periodId: string) => {
+    if (pastPeriodItems[periodId]) return; // Already loaded
+    
+    setLoadingPastPeriod(periodId);
+    try {
+      const response = await fetch(`/api/clients/${slug}/${uuid}/reconciliation/${periodId}`);
+      if (!response.ok) throw new Error('Failed to fetch');
+      const data = await response.json();
+      setPastPeriodItems(prev => ({
+        ...prev,
+        [periodId]: data.lineItems || [],
+      }));
+    } catch {
+      toast.error('Failed to load period details');
+    } finally {
+      setLoadingPastPeriod(null);
+    }
+  };
 
   const selectPeriod = (period: ReconciliationPeriod) => {
     setActivePeriod(period);
@@ -590,36 +620,125 @@ export default function ClientReconciliationPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Accordion type="single" collapsible className="w-full">
-              {pastPeriods.map((period) => (
-                <AccordionItem key={period.id} value={period.id}>
-                  <AccordionTrigger>
-                    <div className="flex items-center gap-4">
-                      <span>{period.period_name}</span>
-                      <Badge variant={period.status === 'FINALIZED' ? 'secondary' : 'outline'}>
-                        {period.status === 'FINALIZED' ? 'Finalized' : 
-                         period.status === 'AUTO_BILLED' ? 'Auto-Billed' : 
-                         period.status === 'CLIENT_SUBMITTED' ? 'Submitted' : period.status}
-                      </Badge>
-                      <span className="text-sm text-muted-foreground">
-                        {format(new Date(period.start_date), 'MMM d')} - {format(new Date(period.end_date), 'MMM d, yyyy')}
-                      </span>
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
-                      <div>
-                        <div className="text-sm text-muted-foreground">Paying Customers</div>
-                        <div className="text-xl font-bold">{period.total_paying_customers}</div>
+            <Accordion 
+              type="single" 
+              collapsible 
+              className="w-full"
+              onValueChange={(value) => value && fetchPastPeriodItems(value)}
+            >
+              {pastPeriods.map((period) => {
+                const pastItems = pastPeriodItems[period.id] || [];
+                const pastMonthLabels = getMonthLabels(period);
+                const isPastQuarterly = period.billing_cycle === 'quarterly';
+                
+                return (
+                  <AccordionItem key={period.id} value={period.id}>
+                    <AccordionTrigger>
+                      <div className="flex items-center gap-4">
+                        <span>{period.period_name}</span>
+                        <Badge variant={period.status === 'FINALIZED' ? 'secondary' : 'outline'}>
+                          {period.status === 'FINALIZED' ? 'Finalized' : 
+                           period.status === 'AUTO_BILLED' ? 'Auto-Billed' : 
+                           period.status === 'CLIENT_SUBMITTED' ? 'Submitted' : period.status}
+                        </Badge>
+                        <span className="text-sm text-muted-foreground">
+                          {format(new Date(period.start_date), 'MMM d')} - {format(new Date(period.end_date), 'MMM d, yyyy')}
+                        </span>
                       </div>
-                      <div>
-                        <div className="text-sm text-muted-foreground">Total Revenue Submitted</div>
-                        <div className="text-xl font-bold">{formatCurrency(period.total_revenue_submitted)}</div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-4">
+                        {/* Summary */}
+                        <div className="flex items-center justify-between">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <div className="text-sm text-muted-foreground">Paying Customers</div>
+                              <div className="text-xl font-bold">{period.total_paying_customers}</div>
+                            </div>
+                            <div>
+                              <div className="text-sm text-muted-foreground">Total Revenue</div>
+                              <div className="text-xl font-bold">{formatCurrency(period.total_revenue_submitted)}</div>
+                            </div>
+                          </div>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="outline" size="sm" disabled>
+                                  <Pencil className="h-4 w-4 mr-2" />
+                                  Edit
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Only available for agency users</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </div>
+                        
+                        {/* Line Items Table (read-only, grayed out) */}
+                        {loadingPastPeriod === period.id ? (
+                          <div className="flex items-center justify-center py-8">
+                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                          </div>
+                        ) : pastItems.length > 0 ? (
+                          <div className="rounded-lg border opacity-60">
+                            <Table>
+                              <TableHeader>
+                                <TableRow className="bg-muted/50">
+                                  <TableHead className="w-[200px]">Domain</TableHead>
+                                  <TableHead className="w-[120px]">Became Paying</TableHead>
+                                  {isPastQuarterly ? (
+                                    <>
+                                      <TableHead className="text-center w-[100px]">{pastMonthLabels[0]}</TableHead>
+                                      <TableHead className="text-center w-[100px]">{pastMonthLabels[1]}</TableHead>
+                                      <TableHead className="text-center w-[100px]">{pastMonthLabels[2]}</TableHead>
+                                    </>
+                                  ) : (
+                                    <TableHead className="text-center w-[120px]">{pastMonthLabels[0]}</TableHead>
+                                  )}
+                                  <TableHead className="text-right w-[100px]">Total</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {pastItems.map((item) => (
+                                  <TableRow key={item.id}>
+                                    <TableCell className="font-medium">{item.domain}</TableCell>
+                                    <TableCell className="text-sm text-muted-foreground">
+                                      {item.paying_customer_date 
+                                        ? format(new Date(item.paying_customer_date), 'MMM d, yyyy')
+                                        : '-'}
+                                    </TableCell>
+                                    <TableCell className="text-center text-muted-foreground">
+                                      {item.revenue_month_1 !== null ? formatCurrency(item.revenue_month_1) : '-'}
+                                    </TableCell>
+                                    {isPastQuarterly && (
+                                      <>
+                                        <TableCell className="text-center text-muted-foreground">
+                                          {item.revenue_month_2 !== null ? formatCurrency(item.revenue_month_2) : '-'}
+                                        </TableCell>
+                                        <TableCell className="text-center text-muted-foreground">
+                                          {item.revenue_month_3 !== null ? formatCurrency(item.revenue_month_3) : '-'}
+                                        </TableCell>
+                                      </>
+                                    )}
+                                    <TableCell className="text-right font-medium">
+                                      {item.revenue_submitted !== null ? formatCurrency(item.revenue_submitted) : '-'}
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        ) : (
+                          <div className="text-center py-4 text-muted-foreground text-sm">
+                            No line items for this period
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-              ))}
+                    </AccordionContent>
+                  </AccordionItem>
+                );
+              })}
             </Accordion>
           </CardContent>
         </Card>
