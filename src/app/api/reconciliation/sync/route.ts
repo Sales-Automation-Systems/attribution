@@ -197,8 +197,15 @@ export async function POST(req: NextRequest) {
 /**
  * Populate line items for a period from attributed domains
  * 
- * IMPORTANT: Uses the PAYING_CUSTOMER event date (not first_event_at) for period assignment.
- * A customer who became paying on Oct 1st goes in Q4, even if first email was in Q3.
+ * Uses a 12-month billing window from when the customer became paying.
+ * A customer appears in every period within 12 months of their paying_customer_date.
+ * 
+ * Example: Customer becomes paying July 15, 2025
+ * - Appears in Q3 2025 (Jul-Sep) - months 1-3
+ * - Appears in Q4 2025 (Oct-Dec) - months 4-6
+ * - Appears in Q1 2026 (Jan-Mar) - months 7-9
+ * - Appears in Q2 2026 (Apr-Jun) - months 10-12
+ * - Does NOT appear in Q3 2026 (beyond 12 months)
  */
 async function populateLineItems(
   periodId: string,
@@ -210,7 +217,10 @@ async function populateLineItems(
   const startDateStr = format(startDate, 'yyyy-MM-dd');
   const endDateStr = format(endDate, 'yyyy-MM-dd') + ' 23:59:59';
   
-  // Get attributed domains with paying customers, using the paying_customer event date
+  // Get attributed domains with paying customers within their 12-month billing window
+  // A domain appears if:
+  // 1. They became paying by the end of this period (event_time <= period_end)
+  // 2. Their 12-month window extends into this period (event_time + 12 months > period_start)
   const domains = await attrQuery<{
     id: string;
     domain: string;
@@ -228,9 +238,9 @@ async function populateLineItems(
     WHERE ad.client_config_id = $1
       AND ad.status IN ('ATTRIBUTED', 'MANUAL', 'CLIENT_PROMOTED')
       AND ad.has_paying_customer = true
-      AND de.event_time >= $2
-      AND de.event_time <= $3
-  `, [clientConfigId, startDateStr, endDateStr]);
+      AND de.event_time <= $2
+      AND de.event_time + INTERVAL '12 months' > $3
+  `, [clientConfigId, endDateStr, startDateStr]);
 
   let created = 0;
 
