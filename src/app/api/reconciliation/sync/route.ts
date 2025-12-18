@@ -207,6 +207,22 @@ async function populateLineItems(
   endDate: Date,
   client: ClientConfig
 ): Promise<number> {
+  const startDateStr = format(startDate, 'yyyy-MM-dd');
+  const endDateStr = format(endDate, 'yyyy-MM-dd') + ' 23:59:59';
+  
+  console.log(`[populateLineItems] Querying for client ${clientConfigId}, period ${startDateStr} to ${endDateStr}`);
+  
+  // Debug: Log all paying domains for this client regardless of date
+  const allPayingDomains = await attrQuery<{ domain: string; status: string; event_time: Date | null }>(`
+    SELECT ad.domain, ad.status, de.event_time
+    FROM attributed_domain ad
+    LEFT JOIN domain_event de ON de.attributed_domain_id = ad.id 
+      AND de.event_source = 'PAYING_CUSTOMER'
+    WHERE ad.client_config_id = $1
+      AND ad.has_paying_customer = true
+  `, [clientConfigId]);
+  console.log(`[populateLineItems] All paying domains for client: ${JSON.stringify(allPayingDomains.map(d => ({ domain: d.domain, status: d.status, event_time: d.event_time })))}`);
+  
   // Get attributed domains with paying customers, using the paying_customer event date
   const domains = await attrQuery<{
     id: string;
@@ -227,7 +243,9 @@ async function populateLineItems(
       AND ad.has_paying_customer = true
       AND de.event_time >= $2
       AND de.event_time <= $3
-  `, [clientConfigId, format(startDate, 'yyyy-MM-dd'), format(endDate, 'yyyy-MM-dd 23:59:59')]);
+  `, [clientConfigId, startDateStr, endDateStr]);
+
+  console.log(`[populateLineItems] Found ${domains.length} paying domains: ${domains.map(d => d.domain).join(', ')}`);
 
   let created = 0;
 
