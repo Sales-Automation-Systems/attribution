@@ -73,6 +73,7 @@ export async function POST(req: NextRequest) {
     }
 
     const results = [];
+    let debugInfo: Record<string, unknown>[] = [];
 
     for (const client of clients) {
       if (!client.contract_start_date) {
@@ -153,7 +154,7 @@ export async function POST(req: NextRequest) {
         // For OPEN periods (including active periods we're currently in), populate line items
         // UPCOMING periods that haven't started yet don't get line items yet
         if (period.status === 'OPEN' || period.status === 'OVERDUE') {
-          const lineItems = await populateLineItems(
+          const { created: lineItems, debug } = await populateLineItems(
             upsertedPeriod.id,
             client.id,
             period.start_date,
@@ -161,6 +162,9 @@ export async function POST(req: NextRequest) {
             client
           );
           lineItemsCreated += lineItems;
+          if (debug) {
+            debugInfo.push({ periodName: period.period_name, ...debug });
+          }
 
           // Backfill paying_customer_date for existing line items that are missing it
           await backfillPayingCustomerDates(upsertedPeriod.id);
@@ -184,6 +188,7 @@ export async function POST(req: NextRequest) {
       success: true,
       results,
       totalClients: clients.length,
+      debug: debugInfo,
     });
   } catch (error) {
     console.error('Error syncing reconciliation periods:', error);
@@ -206,7 +211,7 @@ async function populateLineItems(
   startDate: Date,
   endDate: Date,
   client: ClientConfig
-): Promise<number> {
+): Promise<{ created: number; debug: Record<string, unknown> }> {
   const startDateStr = format(startDate, 'yyyy-MM-dd');
   const endDateStr = format(endDate, 'yyyy-MM-dd') + ' 23:59:59';
   
@@ -303,7 +308,14 @@ async function populateLineItems(
     created++;
   }
 
-  return created;
+  return {
+    created,
+    debug: {
+      dateRange: { start: startDateStr, end: endDateStr },
+      allPayingDomains: allPayingDomains.map(d => ({ domain: d.domain, status: d.status, event_time: d.event_time })),
+      filteredDomains: domains.map(d => d.domain),
+    }
+  };
 }
 
 /**
