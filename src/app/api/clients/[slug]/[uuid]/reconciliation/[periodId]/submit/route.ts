@@ -28,9 +28,10 @@ export async function POST(
       return NextResponse.json({ error: 'Period not found' }, { status: 404 });
     }
 
-    if (period.status !== 'PENDING_CLIENT') {
+    // Allow submission from OPEN or PENDING_CLIENT status
+    if (!['OPEN', 'PENDING_CLIENT'].includes(period.status)) {
       return NextResponse.json(
-        { error: 'Cannot submit - reconciliation is not in pending status' },
+        { error: 'Cannot submit - reconciliation is not open for submission' },
         { status: 400 }
       );
     }
