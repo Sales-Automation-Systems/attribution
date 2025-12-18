@@ -63,17 +63,18 @@ export async function PATCH(
 
     // Update the line item with monthly revenue breakdown
     // Status is SUBMITTED if any value was entered (including 0)
+    // Cast parameters to DECIMAL to avoid PostgreSQL type inference issues with null
     const [updated] = await attrQuery(`
       UPDATE reconciliation_line_item
       SET 
-        revenue_month_1 = $1,
-        revenue_month_2 = $2,
-        revenue_month_3 = $3,
-        revenue_submitted = $4,
-        revenue_submitted_at = CASE WHEN ($1 IS NOT NULL OR $2 IS NOT NULL OR $3 IS NOT NULL) THEN NOW() ELSE NULL END,
+        revenue_month_1 = $1::DECIMAL,
+        revenue_month_2 = $2::DECIMAL,
+        revenue_month_3 = $3::DECIMAL,
+        revenue_submitted = $4::DECIMAL,
+        revenue_submitted_at = CASE WHEN $8::BOOLEAN THEN NOW() ELSE NULL END,
         revenue_notes = $5,
-        amount_owed = $6,
-        status = CASE WHEN ($1 IS NOT NULL OR $2 IS NOT NULL OR $3 IS NOT NULL) THEN 'SUBMITTED' ELSE 'PENDING' END,
+        amount_owed = $6::DECIMAL,
+        status = CASE WHEN $8::BOOLEAN THEN 'SUBMITTED' ELSE 'PENDING' END,
         updated_at = NOW()
       WHERE id = $7
       RETURNING *
@@ -82,9 +83,10 @@ export async function PATCH(
       revenue_month_2 ?? null, 
       revenue_month_3 ?? null, 
       hasAnyInput ? totalRevenue : null, 
-      notes, 
+      notes ?? null, 
       amountOwed, 
-      itemId
+      itemId,
+      hasAnyInput,
     ]);
 
     // Update period totals
