@@ -12,6 +12,10 @@ export async function POST(
     // Parse request body
     const body = await request.json();
     const { domain, eventType, eventDate, contactEmail, notes } = body;
+
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'events/manual/route.ts:14',message:'Request body received',data:{domain,eventType,eventDate,contactEmail:contactEmail?'[provided]':null,notes:notes?'[provided]':null},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
     
     // TODO: Get submittedBy from auth session in production
     // For now, use placeholder
@@ -56,6 +60,10 @@ export async function POST(
 
     let domainId: string;
     const eventDateParsed = new Date(eventDate);
+
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'events/manual/route.ts:61',message:'Date parsed',data:{eventDate,eventDateParsed:eventDateParsed?.toISOString?.(),isValidDate:!isNaN(eventDateParsed.getTime()),existingDomainCount:existingDomain.rows.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
 
     if (existingDomain.rows.length > 0) {
       // Domain exists - update it
@@ -102,6 +110,9 @@ export async function POST(
         `UPDATE attributed_domain SET ${updateFields.join(', ')} WHERE id = $${paramIndex}`,
         [...updateValues, domainId]
       );
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'events/manual/route.ts:108',message:'Existing domain updated',data:{domainId,cleanDomain,eventType,branch:'UPDATE'},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,E'})}).catch(()=>{});
+      // #endregion
     } else {
       // Create new domain record
       domainId = randomUUID();
@@ -132,6 +143,9 @@ export async function POST(
           notes ? `[Manual ${eventType}] ${notes}` : null,
         ]
       );
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'events/manual/route.ts:140',message:'New domain created',data:{domainId,cleanDomain,eventType,branch:'INSERT'},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,E'})}).catch(()=>{});
+      // #endregion
     }
 
     // Also create a domain_event record
@@ -142,6 +156,10 @@ export async function POST(
         : eventType === 'meeting_booked'
           ? 'MEETING_BOOKED'
           : 'PAYING_CUSTOMER';
+
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'events/manual/route.ts:158',message:'About to insert domain_event',data:{eventId,domainId,eventSource,eventDateParsed:eventDateParsed?.toISOString?.()},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B,C'})}).catch(()=>{});
+    // #endregion
 
     await attrPool.query(
       `INSERT INTO domain_event (
@@ -161,6 +179,10 @@ export async function POST(
       ]
     );
 
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'events/manual/route.ts:180',message:'domain_event inserted successfully',data:{eventId,domainId,eventSource},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,C'})}).catch(()=>{});
+    // #endregion
+
     return NextResponse.json({
       success: true,
       message: 'Event added successfully',
@@ -170,6 +192,9 @@ export async function POST(
       eventDate: eventDateParsed.toISOString(),
     });
   } catch (error) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'events/manual/route.ts:catch',message:'Error in manual event handler',data:{error:error instanceof Error ? error.message : String(error),stack:error instanceof Error ? error.stack : null},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,C'})}).catch(()=>{});
+    // #endregion
     console.error('Error adding manual event:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json({ 
@@ -178,4 +203,3 @@ export async function POST(
     }, { status: 500 });
   }
 }
-
