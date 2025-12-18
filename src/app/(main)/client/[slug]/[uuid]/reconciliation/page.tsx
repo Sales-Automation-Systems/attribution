@@ -259,10 +259,11 @@ export default function ClientReconciliationPage() {
     return lineItems.filter(item => {
       const input = revenueInputs[item.id];
       if (!input) return false;
-      const total = (parseFloat(input.month1) || 0) + 
-                   (parseFloat(input.month2) || 0) + 
-                   (parseFloat(input.month3) || 0);
-      return total > 0;
+      // Check if any value was entered (including 0), not just if total > 0
+      const hasMonth1 = input.month1 !== '' && input.month1 !== null && input.month1 !== undefined;
+      const hasMonth2 = input.month2 !== '' && input.month2 !== null && input.month2 !== undefined;
+      const hasMonth3 = input.month3 !== '' && input.month3 !== null && input.month3 !== undefined;
+      return hasMonth1 || hasMonth2 || hasMonth3;
     }).length;
   };
 
