@@ -43,3 +43,4 @@ COMMENT ON COLUMN task.type IS 'Task type: DISPUTE, RECONCILIATION, MANUAL_ATTRI
 COMMENT ON COLUMN task.status IS 'OPEN (new), PENDING_INFO (awaiting client), APPROVED (dispute accepted), REJECTED (dispute denied)';
 COMMENT ON TABLE task_comment IS 'Correspondence thread for tasks between client and agency';
 
+

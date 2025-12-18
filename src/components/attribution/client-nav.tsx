@@ -46,3 +46,4 @@ export function ClientNav({ slug, uuid }: ClientNavProps) {
   );
 }
 
+

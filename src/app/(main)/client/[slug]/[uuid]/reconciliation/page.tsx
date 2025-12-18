@@ -9,6 +9,14 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ClientNav } from '@/components/attribution/client-nav';
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -24,8 +32,8 @@ import {
 } from '@/components/ui/accordion';
 import { toast } from 'sonner';
 import { 
-  Loader2, Send, DollarSign, Building2,
-  Calendar, Clock, FileCheck, AlertTriangle, ChevronRight
+  Loader2, Send, DollarSign,
+  Calendar, Clock, FileCheck, AlertTriangle
 } from 'lucide-react';
 import { format, differenceInDays, differenceInHours, isPast, addMonths, startOfMonth } from 'date-fns';
 
@@ -303,24 +311,32 @@ export default function ClientReconciliationPage() {
     if (period.billing_cycle === 'quarterly') {
       // 3 months for quarterly
       return [
-        format(startDate, 'MMMM yyyy'),
-        format(addMonths(startOfMonth(startDate), 1), 'MMMM yyyy'),
-        format(addMonths(startOfMonth(startDate), 2), 'MMMM yyyy'),
+        format(startDate, 'MMM yyyy'),
+        format(addMonths(startOfMonth(startDate), 1), 'MMM yyyy'),
+        format(addMonths(startOfMonth(startDate), 2), 'MMM yyyy'),
       ];
     }
     
     // Single month for monthly or 28-day
-    return [format(startDate, 'MMMM yyyy')];
+    return [format(startDate, 'MMM yyyy')];
   };
 
   const isQuarterly = activePeriod?.billing_cycle === 'quarterly';
 
   // Split periods into current (OPEN) and upcoming (UPCOMING)
-  const currentPeriods = periods.filter(p => p.status === 'OPEN' || p.status === 'PENDING_CLIENT');
-  const upcomingPeriods = periods.filter(p => p.status === 'UPCOMING');
-  const pastPeriods = periods.filter(p => 
+  // Sort by start_date chronologically
+  const sortedPeriods = [...periods].sort((a, b) => 
+    new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
+  );
+  
+  const currentPeriods = sortedPeriods.filter(p => p.status === 'OPEN' || p.status === 'PENDING_CLIENT');
+  const upcomingPeriods = sortedPeriods.filter(p => p.status === 'UPCOMING');
+  const pastPeriods = sortedPeriods.filter(p => 
     !['OPEN', 'PENDING_CLIENT', 'UPCOMING'].includes(p.status)
   );
+
+  // Only show the next upcoming period
+  const nextUpcomingPeriod = upcomingPeriods[0];
 
   if (loading) {
     return (
@@ -346,237 +362,212 @@ export default function ClientReconciliationPage() {
         </div>
       </div>
 
-      {/* Period Selection */}
-      {currentPeriods.length > 0 && (
-        <Card>
+      {/* Upcoming Period (show only next one, at top) */}
+      {nextUpcomingPeriod && (
+        <Card className="border-dashed">
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Current Periods</CardTitle>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Calendar className="h-5 w-5 text-muted-foreground" />
+                <CardTitle className="text-lg">Upcoming: {nextUpcomingPeriod.period_name}</CardTitle>
+                <Badge variant="outline">
+                  Starts {format(new Date(nextUpcomingPeriod.start_date), 'MMM d, yyyy')}
+                </Badge>
+              </div>
+            </div>
             <CardDescription>
-              Enter revenue data for these periods
+              {format(new Date(nextUpcomingPeriod.start_date), 'MMM d')} - {format(new Date(nextUpcomingPeriod.end_date), 'MMM d, yyyy')}
+              {' • '}Revenue entry will open when this period starts
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {currentPeriods.map((period) => {
-              const deadlineInfo = getDeadlineInfo(period);
-              const isActive = activePeriod?.id === period.id;
-              
-              return (
-                <button
-                  key={period.id}
-                  onClick={() => selectPeriod(period)}
-                  className={`w-full flex items-center justify-between p-3 rounded-lg border transition-colors ${
-                    isActive 
-                      ? 'border-primary bg-primary/5' 
-                      : 'hover:bg-muted/50'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">{period.period_name}</span>
-                    <span className="text-sm text-muted-foreground">
-                      {format(new Date(period.start_date), 'MMM d')} - {format(new Date(period.end_date), 'MMM d, yyyy')}
-                    </span>
-                    {isPast(new Date(period.end_date)) ? (
-                      <Badge variant="secondary">Period Ended</Badge>
-                    ) : (
-                      <Badge variant="outline">Active</Badge>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {deadlineInfo && (
-                      <Badge 
-                        variant={deadlineInfo.isOverdue ? 'destructive' : deadlineInfo.isUrgent ? 'default' : 'outline'}
-                      >
-                        <Clock className="h-3 w-3 mr-1" />
-                        {deadlineInfo.text}
-                      </Badge>
-                    )}
-                    <ChevronRight className={`h-4 w-4 transition-transform ${isActive ? 'rotate-90' : ''}`} />
-                  </div>
-                </button>
-              );
-            })}
-          </CardContent>
         </Card>
       )}
 
-      {/* Active Period Revenue Entry */}
-      {activePeriod && (
-        <Card className="border-primary">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-3">
-                  {activePeriod.period_name}
-                  <Badge variant="outline">
-                    {activePeriod.total_paying_customers} customer{activePeriod.total_paying_customers !== 1 ? 's' : ''}
-                  </Badge>
-                </CardTitle>
-                <CardDescription>
-                  Enter the revenue collected from each customer
-                  {isQuarterly && ' - broken down by month'}
-                </CardDescription>
-              </div>
-              <Button 
-                onClick={() => setSubmitDialogOpen(true)}
-                disabled={getFilledCount() === 0}
+      {/* Current Periods */}
+      {currentPeriods.length > 0 && (
+        <div className="space-y-4">
+          {currentPeriods.map((period) => {
+            const isActive = activePeriod?.id === period.id;
+            const deadlineInfo = getDeadlineInfo(period);
+            const monthLabels = getMonthLabels(period);
+            
+            return (
+              <Card 
+                key={period.id} 
+                className={isActive ? 'border-primary' : 'cursor-pointer hover:border-primary/50'}
+                onClick={() => !isActive && selectPeriod(period)}
               >
-                <Send className="h-4 w-4 mr-2" />
-                Submit ({getFilledCount()}/{lineItems.length})
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {/* Auto-bill warning */}
-            {activePeriod.review_deadline && activePeriod.estimated_total && (() => {
-              const deadlineInfo = getDeadlineInfo(activePeriod);
-              if (deadlineInfo && (deadlineInfo.isUrgent || deadlineInfo.isOverdue)) {
-                return (
-                  <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg mb-4 text-amber-800 dark:text-amber-200">
-                    <AlertTriangle className="h-5 w-5 flex-shrink-0 mt-0.5" />
-                    <div className="text-sm">
-                      <strong>Auto-billing notice:</strong> If you don&apos;t submit by {format(new Date(activePeriod.review_deadline), 'MMMM d')}, 
-                      we&apos;ll bill an estimated <strong>{formatCurrency(activePeriod.estimated_total)}</strong> based on default customer values.
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <CardTitle className="text-lg">{period.period_name}</CardTitle>
+                      <Badge variant={isPast(new Date(period.end_date)) ? 'secondary' : 'outline'}>
+                        {isPast(new Date(period.end_date)) ? 'Period Ended' : 'Active'}
+                      </Badge>
+                      {deadlineInfo && (
+                        <Badge 
+                          variant={deadlineInfo.isOverdue ? 'destructive' : deadlineInfo.isUrgent ? 'default' : 'outline'}
+                        >
+                          <Clock className="h-3 w-3 mr-1" />
+                          {deadlineInfo.text}
+                        </Badge>
+                      )}
                     </div>
+                    {isActive && (
+                      <Button 
+                        onClick={(e) => { e.stopPropagation(); setSubmitDialogOpen(true); }}
+                        disabled={getFilledCount() === 0}
+                      >
+                        <Send className="h-4 w-4 mr-2" />
+                        Submit ({getFilledCount()}/{lineItems.length})
+                      </Button>
+                    )}
                   </div>
-                );
-              }
-              return null;
-            })()}
+                  <CardDescription>
+                    {format(new Date(period.start_date), 'MMM d')} - {format(new Date(period.end_date), 'MMM d, yyyy')}
+                    {' • '}{period.total_paying_customers} paying customer{period.total_paying_customers !== 1 ? 's' : ''}
+                  </CardDescription>
+                </CardHeader>
+                
+                {isActive && (
+                  <CardContent>
+                    {/* Auto-bill warning */}
+                    {period.review_deadline && period.estimated_total && deadlineInfo && (deadlineInfo.isUrgent || deadlineInfo.isOverdue) && (
+                      <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg mb-4 text-amber-800 dark:text-amber-200">
+                        <AlertTriangle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                        <div className="text-sm">
+                          <strong>Auto-billing notice:</strong> If you don&apos;t submit by {format(new Date(period.review_deadline), 'MMMM d')}, 
+                          we&apos;ll bill an estimated <strong>{formatCurrency(period.estimated_total)}</strong> based on default customer values.
+                        </div>
+                      </div>
+                    )}
 
-            {activePeriod.agency_notes && (
-              <div className="bg-muted p-3 rounded-lg mb-4">
-                <div className="text-sm font-medium mb-1">Note from agency:</div>
-                <div className="text-sm text-muted-foreground">{activePeriod.agency_notes}</div>
-              </div>
-            )}
+                    {period.agency_notes && (
+                      <div className="bg-muted p-3 rounded-lg mb-4">
+                        <div className="text-sm font-medium mb-1">Note from agency:</div>
+                        <div className="text-sm text-muted-foreground">{period.agency_notes}</div>
+                      </div>
+                    )}
 
-            {/* Line Items - Customer Revenue Entry */}
-            {lineItems.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                No paying customers in this period yet.
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {lineItems.map((item) => {
-                  const input = revenueInputs[item.id] || { month1: '', month2: '', month3: '', notes: '' };
-                  const monthLabels = getMonthLabels(activePeriod);
-                  const total = (parseFloat(input.month1) || 0) + 
-                               (parseFloat(input.month2) || 0) + 
-                               (parseFloat(input.month3) || 0);
-                  
-                  return (
-                    <div key={item.id} className="border rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-3">
-                          <Building2 className="h-5 w-5 text-muted-foreground" />
-                          <span className="font-medium">{item.domain}</span>
-                          <Badge variant={item.motion_type === 'PLG' ? 'outline' : 'secondary'}>
-                            {item.motion_type || 'Unknown'}
-                          </Badge>
-                          {item.paying_customer_date && (
-                            <span className="text-xs text-muted-foreground">
-                              Became paying: {format(new Date(item.paying_customer_date), 'MMM d, yyyy')}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {total > 0 && (
-                            <span className="text-sm font-medium text-green-600">
-                              Total: {formatCurrency(total)}
-                            </span>
-                          )}
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => saveLineItem(item.id)}
-                            disabled={savingItem === item.id}
-                          >
-                            {savingItem === item.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              'Save'
-                            )}
-                          </Button>
-                        </div>
+                    {/* Line Items Table */}
+                    {lineItems.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        No paying customers in this period yet.
                       </div>
-                      
-                      {/* Monthly Revenue Inputs */}
-                      <div className={`grid gap-3 ${isQuarterly ? 'md:grid-cols-3' : 'md:grid-cols-1'}`}>
-                        {/* Month 1 (always shown) */}
-                        <div>
-                          <label className="text-sm text-muted-foreground mb-1 block">
-                            {monthLabels[0]}
-                          </label>
-                          <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
-                            <Input
-                              type="number"
-                              value={input.month1}
-                              onChange={(e) => updateRevenueInput(item.id, 'month1', e.target.value)}
-                              placeholder="0"
-                              className="pl-7"
-                            />
-                          </div>
-                        </div>
-                        
-                        {/* Month 2 & 3 (quarterly only) */}
-                        {isQuarterly && (
-                          <>
-                            <div>
-                              <label className="text-sm text-muted-foreground mb-1 block">
-                                {monthLabels[1]}
-                              </label>
-                              <div className="relative">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
-                                <Input
-                                  type="number"
-                                  value={input.month2}
-                                  onChange={(e) => updateRevenueInput(item.id, 'month2', e.target.value)}
-                                  placeholder="0"
-                                  className="pl-7"
-                                />
-                              </div>
-                            </div>
-                            <div>
-                              <label className="text-sm text-muted-foreground mb-1 block">
-                                {monthLabels[2]}
-                              </label>
-                              <div className="relative">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
-                                <Input
-                                  type="number"
-                                  value={input.month3}
-                                  onChange={(e) => updateRevenueInput(item.id, 'month3', e.target.value)}
-                                  placeholder="0"
-                                  className="pl-7"
-                                />
-                              </div>
-                            </div>
-                          </>
-                        )}
+                    ) : (
+                      <div className="rounded-lg border overflow-hidden">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-muted/50">
+                              <TableHead className="w-[200px]">Domain</TableHead>
+                              <TableHead className="w-[120px]">Became Paying</TableHead>
+                              {isQuarterly ? (
+                                <>
+                                  <TableHead className="text-center w-[130px]">{monthLabels[0]}</TableHead>
+                                  <TableHead className="text-center w-[130px]">{monthLabels[1]}</TableHead>
+                                  <TableHead className="text-center w-[130px]">{monthLabels[2]}</TableHead>
+                                </>
+                              ) : (
+                                <TableHead className="text-center w-[150px]">{monthLabels[0]}</TableHead>
+                              )}
+                              <TableHead className="text-right w-[100px]">Total</TableHead>
+                              <TableHead className="w-[80px]"></TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {lineItems.map((item) => {
+                              const input = revenueInputs[item.id] || { month1: '', month2: '', month3: '', notes: '' };
+                              const total = (parseFloat(input.month1) || 0) + 
+                                           (parseFloat(input.month2) || 0) + 
+                                           (parseFloat(input.month3) || 0);
+                              
+                              return (
+                                <TableRow key={item.id}>
+                                  <TableCell className="font-medium">
+                                    {item.domain}
+                                  </TableCell>
+                                  <TableCell className="text-sm text-muted-foreground">
+                                    {item.paying_customer_date 
+                                      ? format(new Date(item.paying_customer_date), 'MMM d, yyyy')
+                                      : '-'}
+                                  </TableCell>
+                                  {/* Month 1 */}
+                                  <TableCell>
+                                    <div className="relative">
+                                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                                      <Input
+                                        type="number"
+                                        value={input.month1}
+                                        onChange={(e) => updateRevenueInput(item.id, 'month1', e.target.value)}
+                                        placeholder="0"
+                                        className="pl-6 h-8 text-sm"
+                                      />
+                                    </div>
+                                  </TableCell>
+                                  {/* Month 2 & 3 for quarterly */}
+                                  {isQuarterly && (
+                                    <>
+                                      <TableCell>
+                                        <div className="relative">
+                                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                                          <Input
+                                            type="number"
+                                            value={input.month2}
+                                            onChange={(e) => updateRevenueInput(item.id, 'month2', e.target.value)}
+                                            placeholder="0"
+                                            className="pl-6 h-8 text-sm"
+                                          />
+                                        </div>
+                                      </TableCell>
+                                      <TableCell>
+                                        <div className="relative">
+                                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                                          <Input
+                                            type="number"
+                                            value={input.month3}
+                                            onChange={(e) => updateRevenueInput(item.id, 'month3', e.target.value)}
+                                            placeholder="0"
+                                            className="pl-6 h-8 text-sm"
+                                          />
+                                        </div>
+                                      </TableCell>
+                                    </>
+                                  )}
+                                  <TableCell className="text-right font-medium">
+                                    {total > 0 ? formatCurrency(total) : '-'}
+                                  </TableCell>
+                                  <TableCell>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm"
+                                      onClick={(e) => { e.stopPropagation(); saveLineItem(item.id); }}
+                                      disabled={savingItem === item.id}
+                                      className="h-8"
+                                    >
+                                      {savingItem === item.id ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : (
+                                        'Save'
+                                      )}
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
                       </div>
-                      
-                      {/* Notes */}
-                      <div className="mt-3">
-                        <Input
-                          value={input.notes}
-                          onChange={(e) => updateRevenueInput(item.id, 'notes', e.target.value)}
-                          placeholder="Optional notes..."
-                          className="text-sm"
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                    )}
+                  </CardContent>
+                )}
+              </Card>
+            );
+          })}
+        </div>
       )}
 
       {/* No Active Period */}
-      {!activePeriod && currentPeriods.length === 0 && (
+      {currentPeriods.length === 0 && !nextUpcomingPeriod && (
         <Card>
           <CardContent className="py-16 text-center">
             <FileCheck className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -584,34 +575,6 @@ export default function ClientReconciliationPage() {
             <p className="text-muted-foreground">
               You&apos;re all caught up! There are no reconciliation periods awaiting your input.
             </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Upcoming Periods */}
-      {upcomingPeriods.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Upcoming Periods</CardTitle>
-            <CardDescription>
-              These periods haven&apos;t started yet
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {upcomingPeriods.map((period) => (
-                <div key={period.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">{period.period_name}</span>
-                    <span className="text-sm text-muted-foreground">
-                      {format(new Date(period.start_date), 'MMM d')} - {format(new Date(period.end_date), 'MMM d, yyyy')}
-                    </span>
-                  </div>
-                  <Badge variant="outline">Starts {format(new Date(period.start_date), 'MMM d')}</Badge>
-                </div>
-              ))}
-            </div>
           </CardContent>
         </Card>
       )}
@@ -637,6 +600,9 @@ export default function ClientReconciliationPage() {
                          period.status === 'AUTO_BILLED' ? 'Auto-Billed' : 
                          period.status === 'CLIENT_SUBMITTED' ? 'Submitted' : period.status}
                       </Badge>
+                      <span className="text-sm text-muted-foreground">
+                        {format(new Date(period.start_date), 'MMM d')} - {format(new Date(period.end_date), 'MMM d, yyyy')}
+                      </span>
                     </div>
                   </AccordionTrigger>
                   <AccordionContent>

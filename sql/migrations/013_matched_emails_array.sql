@@ -16,3 +16,4 @@ ON attributed_domain USING GIN(matched_emails);
 -- Add comment for documentation
 COMMENT ON COLUMN attributed_domain.matched_emails IS 'Array of email addresses that were hard-matched (exact email we contacted had success events)';
 
+

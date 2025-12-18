@@ -156,6 +156,9 @@ export async function POST(req: NextRequest) {
           );
           lineItemsCreated += lineItems;
 
+          // Backfill paying_customer_date for existing line items that are missing it
+          await backfillPayingCustomerDates(upsertedPeriod.id);
+
           // Update estimated total
           await updateEstimatedTotal(upsertedPeriod.id, client);
         }
@@ -277,6 +280,23 @@ async function populateLineItems(
   }
 
   return created;
+}
+
+/**
+ * Backfill paying_customer_date for line items that are missing it
+ * This handles line items created before the paying_customer_date column was added
+ */
+async function backfillPayingCustomerDates(periodId: string): Promise<void> {
+  // Find line items missing paying_customer_date and update them from domain_event
+  await attrQuery(`
+    UPDATE reconciliation_line_item rli
+    SET paying_customer_date = de.event_time::date
+    FROM domain_event de
+    WHERE rli.reconciliation_period_id = $1
+      AND rli.paying_customer_date IS NULL
+      AND rli.attributed_domain_id = de.attributed_domain_id
+      AND de.event_source = 'PAYING_CUSTOMER'
+  `, [periodId]);
 }
 
 /**

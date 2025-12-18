@@ -22,3 +22,4 @@ ALTER TABLE client_config ADD CONSTRAINT check_meetings_mode CHECK (meetings_mod
 ALTER TABLE client_config DROP CONSTRAINT IF EXISTS check_paying_mode;
 ALTER TABLE client_config ADD CONSTRAINT check_paying_mode CHECK (paying_mode IN ('per_event', 'per_domain'));
 
+

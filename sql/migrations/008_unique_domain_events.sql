@@ -10,3 +10,4 @@ ALTER TABLE domain_event
 -- Add comment for documentation
 COMMENT ON CONSTRAINT unique_domain_event ON domain_event IS 'Prevents duplicate events from being stored during reprocessing';
 
+
