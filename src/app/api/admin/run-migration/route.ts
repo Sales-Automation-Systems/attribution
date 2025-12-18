@@ -277,6 +277,27 @@ export async function POST(request: NextRequest) {
           AND de.event_source = 'PAYING_CUSTOMER'
           AND de.event_time IS NULL;
       `,
+      '024_create_missing_event.sql': `
+        -- Create missing PAYING_CUSTOMER event for salesautomation.systems
+        -- This domain was marked as paying but no event was created
+        INSERT INTO domain_event (id, attributed_domain_id, event_source, event_time, source_table, metadata, created_at)
+        SELECT 
+          gen_random_uuid(),
+          ad.id,
+          'PAYING_CUSTOMER',
+          '2025-12-13 16:00:00-05'::timestamptz,
+          'manual_fix',
+          '{"notes": "Event created by migration to fix missing event record", "manual": true}'::jsonb,
+          NOW()
+        FROM attributed_domain ad
+        WHERE ad.domain = 'salesautomation.systems'
+          AND ad.has_paying_customer = true
+          AND NOT EXISTS (
+            SELECT 1 FROM domain_event de 
+            WHERE de.attributed_domain_id = ad.id 
+              AND de.event_source = 'PAYING_CUSTOMER'
+          );
+      `,
     };
 
     const sql = migrations[migrationFile];
