@@ -93,8 +93,9 @@ export async function PATCH(
     return NextResponse.json(updated);
   } catch (error) {
     console.error('Error updating line item:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: 'Failed to update line item' },
+      { error: 'Failed to update line item', details: errorMessage },
       { status: 500 }
     );
   }
