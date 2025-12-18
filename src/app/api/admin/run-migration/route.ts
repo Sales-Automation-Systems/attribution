@@ -267,6 +267,16 @@ export async function POST(request: NextRequest) {
         COMMENT ON COLUMN reconciliation_line_item.revenue_month_3 IS 'Revenue for third month (quarterly only)';
         COMMENT ON COLUMN reconciliation_line_item.paying_customer_date IS 'Date when customer became paying';
       `,
+      '023_fix_null_event_times.sql': `
+        -- Fix specific NULL event_time for salesautomation.systems (Dec 13, 2025)
+        UPDATE domain_event de
+        SET event_time = '2025-12-13 16:00:00-05'::timestamptz
+        FROM attributed_domain ad
+        WHERE de.attributed_domain_id = ad.id
+          AND ad.domain = 'salesautomation.systems'
+          AND de.event_source = 'PAYING_CUSTOMER'
+          AND de.event_time IS NULL;
+      `,
     };
 
     const sql = migrations[migrationFile];
