@@ -114,6 +114,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Upsert the period
+        // Update status only if period hasn't been submitted yet (UPCOMING or OPEN)
         const [upsertedPeriod] = await attrQuery<{ id: string; created_at: Date; updated_at: Date }>(`
           INSERT INTO reconciliation_period (
             client_config_id, period_name, start_date, end_date, 
@@ -125,6 +126,11 @@ export async function POST(req: NextRequest) {
             end_date = EXCLUDED.end_date,
             review_deadline = EXCLUDED.review_deadline,
             estimated_total = EXCLUDED.estimated_total,
+            status = CASE 
+              WHEN reconciliation_period.status IN ('UPCOMING', 'OPEN') 
+              THEN EXCLUDED.status 
+              ELSE reconciliation_period.status 
+            END,
             updated_at = NOW()
           RETURNING id, created_at, updated_at
         `, [
