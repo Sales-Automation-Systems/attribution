@@ -324,9 +324,9 @@ export default function ClientReconciliationPage() {
   const isQuarterly = activePeriod?.billing_cycle === 'quarterly';
 
   // Split periods into current (OPEN) and upcoming (UPCOMING)
-  // Sort by start_date chronologically
+  // Sort by start_date descending (newest first: Q4, Q3, Q2)
   const sortedPeriods = [...periods].sort((a, b) => 
-    new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
+    new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
   );
   
   const currentPeriods = sortedPeriods.filter(p => p.status === 'OPEN' || p.status === 'PENDING_CLIENT');

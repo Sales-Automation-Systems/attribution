@@ -50,16 +50,19 @@ export async function PATCH(
     const body = await req.json();
     const { revenue_month_1, revenue_month_2, revenue_month_3, notes } = body;
 
-    // Calculate total revenue from monthly values
-    const totalRevenue = (revenue_month_1 || 0) + (revenue_month_2 || 0) + (revenue_month_3 || 0);
-    const hasRevenue = totalRevenue > 0;
+    // Calculate total revenue from monthly values (use ?? to preserve 0 values)
+    const totalRevenue = (revenue_month_1 ?? 0) + (revenue_month_2 ?? 0) + (revenue_month_3 ?? 0);
+    
+    // Check if user has entered any value (including 0)
+    const hasAnyInput = revenue_month_1 !== null || revenue_month_2 !== null || revenue_month_3 !== null;
 
     // Calculate amount owed based on total revenue
-    const amountOwed = hasRevenue && lineItem.revshare_rate_applied 
+    const amountOwed = hasAnyInput && lineItem.revshare_rate_applied 
       ? totalRevenue * lineItem.revshare_rate_applied 
       : null;
 
     // Update the line item with monthly revenue breakdown
+    // Status is SUBMITTED if any value was entered (including 0)
     const [updated] = await attrQuery(`
       UPDATE reconciliation_line_item
       SET 
@@ -67,18 +70,18 @@ export async function PATCH(
         revenue_month_2 = $2,
         revenue_month_3 = $3,
         revenue_submitted = $4,
-        revenue_submitted_at = CASE WHEN $4 > 0 THEN NOW() ELSE NULL END,
+        revenue_submitted_at = CASE WHEN ($1 IS NOT NULL OR $2 IS NOT NULL OR $3 IS NOT NULL) THEN NOW() ELSE NULL END,
         revenue_notes = $5,
         amount_owed = $6,
-        status = CASE WHEN $4 > 0 THEN 'SUBMITTED' ELSE 'PENDING' END,
+        status = CASE WHEN ($1 IS NOT NULL OR $2 IS NOT NULL OR $3 IS NOT NULL) THEN 'SUBMITTED' ELSE 'PENDING' END,
         updated_at = NOW()
       WHERE id = $7
       RETURNING *
     `, [
-      revenue_month_1 || null, 
-      revenue_month_2 || null, 
-      revenue_month_3 || null, 
-      totalRevenue || null, 
+      revenue_month_1 ?? null, 
+      revenue_month_2 ?? null, 
+      revenue_month_3 ?? null, 
+      hasAnyInput ? totalRevenue : null, 
       notes, 
       amountOwed, 
       itemId
