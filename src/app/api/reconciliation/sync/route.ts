@@ -223,7 +223,7 @@ async function populateLineItems(
     INNER JOIN domain_event de ON de.attributed_domain_id = ad.id 
       AND de.event_source = 'PAYING_CUSTOMER'
     WHERE ad.client_config_id = $1
-      AND ad.status IN ('ATTRIBUTED', 'MANUAL')
+      AND ad.status IN ('ATTRIBUTED', 'MANUAL', 'CLIENT_PROMOTED')
       AND ad.has_paying_customer = true
       AND de.event_time >= $2
       AND de.event_time <= $3
