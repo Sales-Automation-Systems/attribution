@@ -144,7 +144,8 @@ export async function POST(req: NextRequest) {
           periodsUpdated++;
         }
 
-        // For OPEN periods, populate line items from attributed domains
+        // For OPEN periods (including active periods we're currently in), populate line items
+        // UPCOMING periods that haven't started yet don't get line items yet
         if (period.status === 'OPEN' || period.status === 'OVERDUE') {
           const lineItems = await populateLineItems(
             upsertedPeriod.id,
@@ -186,6 +187,9 @@ export async function POST(req: NextRequest) {
 
 /**
  * Populate line items for a period from attributed domains
+ * 
+ * IMPORTANT: Uses the PAYING_CUSTOMER event date (not first_event_at) for period assignment.
+ * A customer who became paying on Oct 1st goes in Q4, even if first email was in Q3.
  */
 async function populateLineItems(
   periodId: string,
@@ -194,24 +198,27 @@ async function populateLineItems(
   endDate: Date,
   client: ClientConfig
 ): Promise<number> {
-  // Get attributed domains with paying customers in this period
+  // Get attributed domains with paying customers, using the paying_customer event date
   const domains = await attrQuery<{
     id: string;
     domain: string;
     has_sign_up: boolean;
     has_meeting_booked: boolean;
     has_paying_customer: boolean;
-    first_event_at: Date;
+    paying_customer_date: Date;
   }>(`
     SELECT ad.id, ad.domain, ad.has_sign_up, ad.has_meeting_booked, 
-           ad.has_paying_customer, ad.first_event_at
+           ad.has_paying_customer,
+           de.event_time as paying_customer_date
     FROM attributed_domain ad
+    INNER JOIN domain_event de ON de.attributed_domain_id = ad.id 
+      AND de.event_source = 'PAYING_CUSTOMER'
     WHERE ad.client_config_id = $1
       AND ad.status IN ('ATTRIBUTED', 'MANUAL')
       AND ad.has_paying_customer = true
-      AND ad.first_event_at >= $2
-      AND ad.first_event_at <= $3
-  `, [clientConfigId, format(startDate, 'yyyy-MM-dd'), format(endDate, 'yyyy-MM-dd')]);
+      AND de.event_time >= $2
+      AND de.event_time <= $3
+  `, [clientConfigId, format(startDate, 'yyyy-MM-dd'), format(endDate, 'yyyy-MM-dd 23:59:59')]);
 
   let created = 0;
 
@@ -240,18 +247,20 @@ async function populateLineItems(
         AND event_time <= $3
     `, [domain.id, format(startDate, 'yyyy-MM-dd'), format(endDate, 'yyyy-MM-dd 23:59:59')]);
 
-    // Upsert line item
+    // Upsert line item with paying_customer_date
     await attrQuery(`
       INSERT INTO reconciliation_line_item (
         reconciliation_period_id, attributed_domain_id, domain,
-        motion_type, signup_count, meeting_count, revshare_rate_applied, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'PENDING')
+        motion_type, signup_count, meeting_count, revshare_rate_applied, 
+        paying_customer_date, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'PENDING')
       ON CONFLICT (reconciliation_period_id, domain)
       DO UPDATE SET
         motion_type = EXCLUDED.motion_type,
         signup_count = EXCLUDED.signup_count,
         meeting_count = EXCLUDED.meeting_count,
         revshare_rate_applied = EXCLUDED.revshare_rate_applied,
+        paying_customer_date = EXCLUDED.paying_customer_date,
         updated_at = NOW()
     `, [
       periodId,
@@ -261,6 +270,7 @@ async function populateLineItems(
       counts?.signup_count || 0,
       counts?.meeting_count || 0,
       revshareRate,
+      format(domain.paying_customer_date, 'yyyy-MM-dd'),
     ]);
 
     created++;

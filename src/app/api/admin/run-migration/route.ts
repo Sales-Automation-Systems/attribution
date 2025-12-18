@@ -255,6 +255,18 @@ export async function POST(request: NextRequest) {
         ALTER TABLE reconciliation_period ALTER COLUMN year DROP NOT NULL;
         ALTER TABLE reconciliation_period ALTER COLUMN month DROP NOT NULL;
       `,
+      '022_monthly_revenue.sql': `
+        -- Add monthly revenue breakdown columns
+        ALTER TABLE reconciliation_line_item ADD COLUMN IF NOT EXISTS revenue_month_1 DECIMAL(15,2);
+        ALTER TABLE reconciliation_line_item ADD COLUMN IF NOT EXISTS revenue_month_2 DECIMAL(15,2);
+        ALTER TABLE reconciliation_line_item ADD COLUMN IF NOT EXISTS revenue_month_3 DECIMAL(15,2);
+        ALTER TABLE reconciliation_line_item ADD COLUMN IF NOT EXISTS paying_customer_date DATE;
+
+        COMMENT ON COLUMN reconciliation_line_item.revenue_month_1 IS 'Revenue for first month of period';
+        COMMENT ON COLUMN reconciliation_line_item.revenue_month_2 IS 'Revenue for second month (quarterly only)';
+        COMMENT ON COLUMN reconciliation_line_item.revenue_month_3 IS 'Revenue for third month (quarterly only)';
+        COMMENT ON COLUMN reconciliation_line_item.paying_customer_date IS 'Date when customer became paying';
+      `,
     };
 
     const sql = migrations[migrationFile];

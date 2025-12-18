@@ -308,9 +308,16 @@ export interface ReconciliationLineItem {
   motion_type: MotionType | null;
   signup_count: number;
   meeting_count: number;
+  // Monthly revenue breakdown (for quarterly clients)
+  revenue_month_1: number | null;
+  revenue_month_2: number | null;
+  revenue_month_3: number | null;
+  // Legacy single revenue field (sum of monthly)
   revenue_submitted: number | null;
   revenue_submitted_at: Date | null;
   revenue_notes: string | null;
+  // Date customer became paying
+  paying_customer_date: Date | null;
   revshare_rate_applied: number | null;
   signup_fee_applied: number | null;
   meeting_fee_applied: number | null;

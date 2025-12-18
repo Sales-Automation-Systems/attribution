@@ -79,7 +79,7 @@ function calculateMonthlyPeriods(
   
   while (isBefore(periodStart, upToDate) || isWithinPeriod(upToDate, periodStart, periodEnd)) {
     const reviewDeadline = addDays(periodEnd, reviewWindowDays);
-    const status = getPeriodStatus(periodEnd, reviewDeadline, upToDate);
+    const status = getPeriodStatus(periodStart, periodEnd, reviewDeadline, upToDate);
     
     periods.push({
       start_date: periodStart,
@@ -118,7 +118,7 @@ function calculateQuarterlyPeriods(
   
   while (isBefore(periodStart, upToDate) || isWithinPeriod(upToDate, periodStart, periodEnd)) {
     const reviewDeadline = addDays(periodEnd, reviewWindowDays);
-    const status = getPeriodStatus(periodEnd, reviewDeadline, upToDate);
+    const status = getPeriodStatus(periodStart, periodEnd, reviewDeadline, upToDate);
     
     // Determine quarter name (Q1, Q2, Q3, Q4)
     const quarter = Math.floor(periodStart.getMonth() / 3) + 1;
@@ -161,7 +161,7 @@ function calculate28DayPeriods(
   
   while (isBefore(periodStart, upToDate) || isWithinPeriod(upToDate, periodStart, periodEnd)) {
     const reviewDeadline = addDays(periodEnd, reviewWindowDays);
-    const status = getPeriodStatus(periodEnd, reviewDeadline, upToDate);
+    const status = getPeriodStatus(periodStart, periodEnd, reviewDeadline, upToDate);
     
     periods.push({
       start_date: periodStart,
@@ -187,18 +187,25 @@ function calculate28DayPeriods(
 
 /**
  * Determine the status of a period
+ * 
+ * UPCOMING = Period hasn't STARTED yet (truly in the future)
+ * OPEN = Period has STARTED (even if not ended) - allow working ahead
+ * OVERDUE = Period ended AND past review deadline with no submission
  */
 function getPeriodStatus(
+  periodStart: Date,
   periodEnd: Date, 
   reviewDeadline: Date, 
   now: Date
 ): 'UPCOMING' | 'OPEN' | 'OVERDUE' {
-  if (isAfter(periodEnd, now)) {
-    return 'UPCOMING'; // Period hasn't ended yet
+  // Period hasn't started yet - truly upcoming
+  if (isAfter(periodStart, now)) {
+    return 'UPCOMING';
   }
   
+  // Period has started (or ended) - check if past review deadline
   if (isAfter(reviewDeadline, now)) {
-    return 'OPEN'; // Within review window
+    return 'OPEN'; // Within review window (including active periods)
   }
   
   return 'OVERDUE'; // Past review deadline

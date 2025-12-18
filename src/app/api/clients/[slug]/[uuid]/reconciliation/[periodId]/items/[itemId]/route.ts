@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { attrQuery } from '@/db';
 
-// PATCH update a reconciliation line item (revenue submission)
+// PATCH update a reconciliation line item (monthly revenue submission)
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string; uuid: string; periodId: string; itemId: string }> }
@@ -18,7 +18,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Client not found' }, { status: 404 });
     }
 
-    // Verify period belongs to this client and is in PENDING_CLIENT status
+    // Verify period belongs to this client and is in OPEN or PENDING_CLIENT status
     const [period] = await attrQuery<{ id: string; status: string }>(`
       SELECT id, status FROM reconciliation_period 
       WHERE id = $1 AND client_config_id = $2
@@ -28,9 +28,10 @@ export async function PATCH(
       return NextResponse.json({ error: 'Period not found' }, { status: 404 });
     }
 
-    if (period.status !== 'PENDING_CLIENT') {
+    // Allow updates for OPEN (active periods) and PENDING_CLIENT status
+    if (!['OPEN', 'PENDING_CLIENT'].includes(period.status)) {
       return NextResponse.json(
-        { error: 'Cannot modify - reconciliation is not in pending status' },
+        { error: 'Cannot modify - reconciliation period is not open for input' },
         { status: 400 }
       );
     }
@@ -47,26 +48,41 @@ export async function PATCH(
     }
 
     const body = await req.json();
-    const { revenue, notes } = body;
+    const { revenue_month_1, revenue_month_2, revenue_month_3, notes } = body;
 
-    // Calculate amount owed
-    const amountOwed = revenue && lineItem.revshare_rate_applied 
-      ? revenue * lineItem.revshare_rate_applied 
+    // Calculate total revenue from monthly values
+    const totalRevenue = (revenue_month_1 || 0) + (revenue_month_2 || 0) + (revenue_month_3 || 0);
+    const hasRevenue = totalRevenue > 0;
+
+    // Calculate amount owed based on total revenue
+    const amountOwed = hasRevenue && lineItem.revshare_rate_applied 
+      ? totalRevenue * lineItem.revshare_rate_applied 
       : null;
 
-    // Update the line item
+    // Update the line item with monthly revenue breakdown
     const [updated] = await attrQuery(`
       UPDATE reconciliation_line_item
       SET 
-        revenue_submitted = $1,
-        revenue_submitted_at = CASE WHEN $1 IS NOT NULL THEN NOW() ELSE NULL END,
-        revenue_notes = $2,
-        amount_owed = $3,
-        status = CASE WHEN $1 IS NOT NULL THEN 'SUBMITTED' ELSE 'PENDING' END,
+        revenue_month_1 = $1,
+        revenue_month_2 = $2,
+        revenue_month_3 = $3,
+        revenue_submitted = $4,
+        revenue_submitted_at = CASE WHEN $4 > 0 THEN NOW() ELSE NULL END,
+        revenue_notes = $5,
+        amount_owed = $6,
+        status = CASE WHEN $4 > 0 THEN 'SUBMITTED' ELSE 'PENDING' END,
         updated_at = NOW()
-      WHERE id = $4
+      WHERE id = $7
       RETURNING *
-    `, [revenue, notes, amountOwed, itemId]);
+    `, [
+      revenue_month_1 || null, 
+      revenue_month_2 || null, 
+      revenue_month_3 || null, 
+      totalRevenue || null, 
+      notes, 
+      amountOwed, 
+      itemId
+    ]);
 
     // Update period totals
     await updatePeriodTotals(periodId);
