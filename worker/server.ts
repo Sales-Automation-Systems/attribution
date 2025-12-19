@@ -1105,21 +1105,21 @@ async function processClient(clientId: string, jobId?: string): Promise<Processi
   
   const DOMAIN_BATCH_SIZE = 500;
   const EVENT_BATCH_SIZE = 1000;
-  const domainArray = Array.from(domainResults.values());
+  const domainsToSave = Array.from(domainResults.values());
   const domainToId = new Map<string, string>();
   let domainsSaved = 0;
   
   // Phase 7a: Batch upsert domains
-  log('INFO', `Phase 7a: Batch upserting ${domainArray.length.toLocaleString()} domains...`);
+  log('INFO', `Phase 7a: Batch upserting ${domainsToSave.length.toLocaleString()} domains...`);
   
-  for (let i = 0; i < domainArray.length; i += DOMAIN_BATCH_SIZE) {
+  for (let i = 0; i < domainsToSave.length; i += DOMAIN_BATCH_SIZE) {
     // Check for cancellation
     if (jobId && cancelledJobs.has(jobId)) {
       log('WARN', 'Job cancelled during Phase 7a (domain upsert)');
       throw new Error('Job cancelled by user');
     }
     
-    const batch = domainArray.slice(i, i + DOMAIN_BATCH_SIZE);
+    const batch = domainsToSave.slice(i, i + DOMAIN_BATCH_SIZE);
     
     // Build multi-value INSERT
     const values: unknown[] = [];
@@ -1211,11 +1211,11 @@ async function processClient(clientId: string, jobId?: string): Promise<Processi
     }
     
     // Progress logging
-    if (domainArray.length > DOMAIN_BATCH_SIZE) {
+    if (domainsToSave.length > DOMAIN_BATCH_SIZE) {
       log('DEBUG', 'Phase 7a: Domain upsert progress', {
         saved: domainsSaved,
-        total: domainArray.length,
-        percent: Math.round((domainsSaved / domainArray.length) * 100)
+        total: domainsToSave.length,
+        percent: Math.round((domainsSaved / domainsToSave.length) * 100)
       });
     }
   }
@@ -1226,7 +1226,18 @@ async function processClient(clientId: string, jobId?: string): Promise<Processi
   log('INFO', `Phase 7b: Batch inserting domain events...`);
   
   // Collect all events with their domain IDs
-  const allEvents: { domainId: string; event: typeof domainEvents extends Map<string, infer V> ? V[number] : never }[] = [];
+  interface BatchEvent {
+    domainId: string;
+    event: {
+      eventSource: string;
+      eventTime: Date;
+      email: string | null;
+      sourceId: string;
+      sourceTable: string;
+      metadata: Record<string, unknown> | null;
+    };
+  }
+  const allEvents: BatchEvent[] = [];
   for (const [domain, events] of domainEvents.entries()) {
     const domainId = domainToId.get(domain);
     if (domainId) {
