@@ -517,7 +517,7 @@ async function processClient(clientId: string, jobId?: string): Promise<Processi
   const emailSendTimes = new Map<string, Date>(); // Legacy: first email (for backwards compat)
   const emailAllSendTimes = new Map<string, Date[]>(); // All timestamps per email
   const domainSendTimes = new Map<string, Date>();
-  const CHUNK_SIZE = 100;
+  const CHUNK_SIZE = 500;
   
   const emailArray = Array.from(emails);
   const emailChunks = Math.ceil(emailArray.length / CHUNK_SIZE);
@@ -1032,7 +1032,7 @@ async function processClient(clientId: string, jobId?: string): Promise<Processi
   
   const attributedDomainsList = Array.from(domainResults.keys());
   log('INFO', `Phase 6.5: Need to fetch emails for ${attributedDomainsList.length.toLocaleString()} domains`);
-  const EMAIL_BATCH_SIZE = 50;
+  const EMAIL_BATCH_SIZE = 200;
   
   for (let i = 0; i < attributedDomainsList.length; i += EMAIL_BATCH_SIZE) {
     // Check for cancellation every 10 batches
@@ -1094,7 +1094,7 @@ async function processClient(clientId: string, jobId?: string): Promise<Processi
   }
   log('INFO', `Phase 6.5 complete: Collected events for ${domainEvents.size.toLocaleString()} domains`);
   
-  // ============ PHASE 7: Save to database ============
+  // ============ PHASE 7: Save to database (BATCH OPTIMIZED) ============
   log('INFO', `Phase 7: Saving ${domainResults.size.toLocaleString()} attributed domains and their events...`);
   
   // Check for cancellation
@@ -1102,50 +1102,65 @@ async function processClient(clientId: string, jobId?: string): Promise<Processi
     log('WARN', 'Job cancelled during Phase 7');
     throw new Error('Job cancelled by user');
   }
-  let eventsSaved = 0;
-  let domainsSaved = 0;
-  const totalDomains = domainResults.size;
   
-  for (const result of domainResults.values()) {
-    // Progress logging every 500 domains
-    if (domainsSaved % 500 === 0 && totalDomains > 500) {
-      log('DEBUG', 'Phase 7: Saving domains progress', {
-        saved: domainsSaved,
-        total: totalDomains,
-        percent: Math.round((domainsSaved / totalDomains) * 100)
-      });
-    }
-    
-    // Check for cancellation every 1000 domains
-    if (jobId && domainsSaved % 1000 === 0 && cancelledJobs.has(jobId)) {
-      log('WARN', 'Job cancelled during Phase 7 (domain save)');
+  const DOMAIN_BATCH_SIZE = 500;
+  const EVENT_BATCH_SIZE = 1000;
+  const domainArray = Array.from(domainResults.values());
+  const domainToId = new Map<string, string>();
+  let domainsSaved = 0;
+  
+  // Phase 7a: Batch upsert domains
+  log('INFO', `Phase 7a: Batch upserting ${domainArray.length.toLocaleString()} domains...`);
+  
+  for (let i = 0; i < domainArray.length; i += DOMAIN_BATCH_SIZE) {
+    // Check for cancellation
+    if (jobId && cancelledJobs.has(jobId)) {
+      log('WARN', 'Job cancelled during Phase 7a (domain upsert)');
       throw new Error('Job cancelled by user');
     }
-    try {
-      // Determine status based on match type and window
+    
+    const batch = domainArray.slice(i, i + DOMAIN_BATCH_SIZE);
+    
+    // Build multi-value INSERT
+    const values: unknown[] = [];
+    const valuePlaceholders: string[] = [];
+    let paramIndex = 1;
+    
+    for (const result of batch) {
       const newCalculatedStatus = result.matchType === 'NO_MATCH' 
         ? 'UNATTRIBUTED' 
         : result.isWithinWindow 
           ? 'ATTRIBUTED' 
           : 'OUTSIDE_WINDOW';
       
-      // Fetch current status before upsert (for status change tracking)
-      const existingDomain = await attrQuery<{ id: string; status: string; has_paying_customer: boolean }>(`
-        SELECT id, status, has_paying_customer FROM attributed_domain 
-        WHERE client_config_id = $1 AND domain = $2
-      `, [clientConfig.id, result.domain]);
-      const previousStatus = existingDomain[0]?.status;
-      const previousId = existingDomain[0]?.id;
-      const hadPayingCustomer = existingDomain[0]?.has_paying_customer;
-      
-      // Upsert the attributed_domain and get its ID
-      const upsertResult = await attrQuery<{ id: string }>(`
+      valuePlaceholders.push(`($${paramIndex}, $${paramIndex+1}, $${paramIndex+2}, $${paramIndex+3}, $${paramIndex+4}, $${paramIndex+5}, $${paramIndex+6}, $${paramIndex+7}, $${paramIndex+8}, $${paramIndex+9}, $${paramIndex+10}, $${paramIndex+11}, $${paramIndex+12}, $${paramIndex+13})`);
+      values.push(
+        clientConfig.id,
+        result.domain,
+        result.firstEmailSent,
+        result.firstEvent,
+        result.lastEvent,
+        result.isWithinWindow,
+        result.matchType,
+        result.matchedEmails.length > 0 ? result.matchedEmails[0] : null,
+        result.matchedEmails.length > 0 ? result.matchedEmails : null,
+        newCalculatedStatus,
+        result.hasSignUp,
+        result.hasMeetingBooked,
+        result.hasPayingCustomer,
+        result.hasPositiveReply
+      );
+      paramIndex += 14;
+    }
+    
+    try {
+      const upsertResult = await attrQuery<{ id: string; domain: string }>(`
         INSERT INTO attributed_domain (
           client_config_id, domain, first_email_sent_at, first_event_at, last_event_at,
           is_within_window, match_type, matched_email, matched_emails, status,
           has_sign_up, has_meeting_booked, has_paying_customer, has_positive_reply
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        VALUES ${valuePlaceholders.join(', ')}
         ON CONFLICT (client_config_id, domain) DO UPDATE SET
           first_email_sent_at = COALESCE(EXCLUDED.first_email_sent_at, attributed_domain.first_email_sent_at),
           first_event_at = LEAST(COALESCE(EXCLUDED.first_event_at, attributed_domain.first_event_at), COALESCE(attributed_domain.first_event_at, EXCLUDED.first_event_at)),
@@ -1161,12 +1176,9 @@ async function processClient(clientId: string, jobId?: string): Promise<Processi
             ELSE attributed_domain.match_type 
           END,
           status = CASE
-            -- Always preserve MANUAL status (manually attributed by client)
             WHEN attributed_domain.status = 'MANUAL' THEN 'MANUAL'
             WHEN attributed_domain.status = 'CLIENT_PROMOTED' THEN 'CLIENT_PROMOTED'
-            -- Protect DISPUTED only if has paying customer (revenue at stake)
             WHEN attributed_domain.status = 'DISPUTED' AND attributed_domain.has_paying_customer THEN 'DISPUTED'
-            -- Re-evaluate DISPUTED without paying customer based on new evidence
             WHEN EXCLUDED.match_type = 'HARD_MATCH' AND EXCLUDED.is_within_window THEN 'ATTRIBUTED'
             WHEN attributed_domain.is_within_window OR EXCLUDED.is_within_window THEN 'ATTRIBUTED'
             WHEN attributed_domain.match_type != 'NO_MATCH' OR EXCLUDED.match_type != 'NO_MATCH' THEN 'OUTSIDE_WINDOW'
@@ -1184,88 +1196,105 @@ async function processClient(clientId: string, jobId?: string): Promise<Processi
             )
           ),
           updated_at = NOW()
-        RETURNING id
-      `, [
-        clientConfig.id,
-        result.domain,
-        result.firstEmailSent,
-        result.firstEvent,
-        result.lastEvent,
-        result.isWithinWindow,
-        result.matchType,
-        result.matchedEmails.length > 0 ? result.matchedEmails[0] : null, // Legacy field: first email
-        result.matchedEmails.length > 0 ? result.matchedEmails : null, // New array field
-        newCalculatedStatus,
-        result.hasSignUp,
-        result.hasMeetingBooked,
-        result.hasPayingCustomer,
-        result.hasPositiveReply,
-      ]);
+        RETURNING id, domain
+      `, values);
       
-      const attributedDomainId = upsertResult[0]?.id;
-      
-      // Log ALL status changes for audit trail
-      if (attributedDomainId && previousStatus) {
-        const updatedDomain = await attrQuery<{ status: string }>(`
-          SELECT status FROM attributed_domain WHERE id = $1
-        `, [attributedDomainId]);
-        const newStatus = updatedDomain[0]?.status;
-        
-        // If status changed, log it
-        if (newStatus && newStatus !== previousStatus) {
-          await attrQuery(`
-            INSERT INTO domain_event (
-              attributed_domain_id, event_source, event_time, email, source_id, source_table, metadata
-            )
-            VALUES ($1, 'STATUS_CHANGE', NOW(), NULL, NULL, 'system', $2)
-          `, [
-            attributedDomainId,
-            JSON.stringify({
-              from: previousStatus,
-              to: newStatus,
-            }),
-          ]);
-          eventsSaved++;
-        }
+      // Build domain -> id mapping
+      for (const row of upsertResult) {
+        domainToId.set(row.domain, row.id);
       }
       
-      // Store all events for this domain
-      if (attributedDomainId) {
-        const events = domainEvents.get(result.domain) || [];
-        for (const event of events) {
-          try {
-            await attrQuery(`
-              INSERT INTO domain_event (
-                attributed_domain_id, event_source, event_time, email, source_id, source_table, metadata
-              )
-              VALUES ($1, $2, $3, $4, $5, $6, $7)
-              ON CONFLICT (attributed_domain_id, event_source, source_id) DO NOTHING
-            `, [
-              attributedDomainId,
-              event.eventSource,
-              event.eventTime,
-              event.email,
-              event.sourceId,
-              event.sourceTable,
-              event.metadata ? JSON.stringify(event.metadata) : null,
-            ]);
-            eventsSaved++;
-          } catch (eventError) {
-            // Ignore duplicate errors silently
-            const errMsg = (eventError as Error).message;
-            if (!errMsg.includes('duplicate') && !errMsg.includes('unique')) {
-              console.error(`Error saving event for ${result.domain}:`, eventError);
-            }
-          }
-        }
-      }
+      domainsSaved += batch.length;
     } catch (error) {
-      console.error(`Error saving domain ${result.domain}:`, error);
-      stats.errors++;
+      console.error(`Error in batch domain upsert:`, error);
+      stats.errors += batch.length;
     }
-    domainsSaved++;
+    
+    // Progress logging
+    if (domainArray.length > DOMAIN_BATCH_SIZE) {
+      log('DEBUG', 'Phase 7a: Domain upsert progress', {
+        saved: domainsSaved,
+        total: domainArray.length,
+        percent: Math.round((domainsSaved / domainArray.length) * 100)
+      });
+    }
   }
-  log('INFO', `Phase 7 complete: Saved ${eventsSaved.toLocaleString()} events across ${domainResults.size.toLocaleString()} domains`);
+  
+  log('INFO', `Phase 7a complete: Upserted ${domainsSaved.toLocaleString()} domains`);
+  
+  // Phase 7b: Batch insert events
+  log('INFO', `Phase 7b: Batch inserting domain events...`);
+  
+  // Collect all events with their domain IDs
+  const allEvents: { domainId: string; event: typeof domainEvents extends Map<string, infer V> ? V[number] : never }[] = [];
+  for (const [domain, events] of domainEvents.entries()) {
+    const domainId = domainToId.get(domain);
+    if (domainId) {
+      for (const event of events) {
+        allEvents.push({ domainId, event });
+      }
+    }
+  }
+  
+  log('INFO', `Phase 7b: Inserting ${allEvents.length.toLocaleString()} events...`);
+  
+  let eventsSaved = 0;
+  for (let i = 0; i < allEvents.length; i += EVENT_BATCH_SIZE) {
+    // Check for cancellation
+    if (jobId && cancelledJobs.has(jobId)) {
+      log('WARN', 'Job cancelled during Phase 7b (event insert)');
+      throw new Error('Job cancelled by user');
+    }
+    
+    const batch = allEvents.slice(i, i + EVENT_BATCH_SIZE);
+    
+    // Build multi-value INSERT
+    const values: unknown[] = [];
+    const valuePlaceholders: string[] = [];
+    let paramIndex = 1;
+    
+    for (const { domainId, event } of batch) {
+      valuePlaceholders.push(`($${paramIndex}, $${paramIndex+1}, $${paramIndex+2}, $${paramIndex+3}, $${paramIndex+4}, $${paramIndex+5}, $${paramIndex+6})`);
+      values.push(
+        domainId,
+        event.eventSource,
+        event.eventTime,
+        event.email,
+        event.sourceId,
+        event.sourceTable,
+        event.metadata ? JSON.stringify(event.metadata) : null
+      );
+      paramIndex += 7;
+    }
+    
+    try {
+      await attrQuery(`
+        INSERT INTO domain_event (
+          attributed_domain_id, event_source, event_time, email, source_id, source_table, metadata
+        )
+        VALUES ${valuePlaceholders.join(', ')}
+        ON CONFLICT (attributed_domain_id, event_source, source_id) DO NOTHING
+      `, values);
+      eventsSaved += batch.length;
+    } catch (error) {
+      // Log but continue - some duplicates are expected
+      const errMsg = (error as Error).message;
+      if (!errMsg.includes('duplicate') && !errMsg.includes('unique')) {
+        console.error(`Error in batch event insert:`, error);
+      }
+    }
+    
+    // Progress logging
+    if (allEvents.length > EVENT_BATCH_SIZE && i % (EVENT_BATCH_SIZE * 5) === 0) {
+      log('DEBUG', 'Phase 7b: Event insert progress', {
+        saved: eventsSaved,
+        total: allEvents.length,
+        percent: Math.round((eventsSaved / allEvents.length) * 100)
+      });
+    }
+  }
+  
+  log('INFO', `Phase 7 complete: Saved ${eventsSaved.toLocaleString()} events across ${domainsSaved.toLocaleString()} domains`);
   
   // ============ PHASE 8: Update client stats ============
   log('INFO', 'Phase 8: Updating client stats...');
