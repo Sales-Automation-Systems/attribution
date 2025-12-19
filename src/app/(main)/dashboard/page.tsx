@@ -1,8 +1,9 @@
 import { getDashboardStats, getAllClientConfigs, getRecentLogs, getProcessingJobs } from '@/db/attribution/queries';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Target, Users, DollarSign, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
+import { Users, AlertTriangle, Clock } from 'lucide-react';
 import Link from 'next/link';
+import { AdminStatsSection } from '@/components/attribution/admin-stats-section';
 
 export default async function DashboardPage() {
   // Fetch data
@@ -23,60 +24,16 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Attributed</CardTitle>
-            <Target className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total_attributed_domains.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">
-              Domains with successful attribution
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Paying Customers</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total_paying_customers.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">
-              Attributed leads that became paying
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Direct Matches</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total_hard_matches.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">
-              Exact email matches
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Company Matches</CardTitle>
-            <Clock className="h-4 w-4 text-yellow-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total_soft_matches.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">
-              Domain-level matches
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Stats Section with Date Filter */}
+      <AdminStatsSection
+        initialStats={{
+          totalAttributedDomains: stats.total_attributed_domains,
+          totalPayingCustomers: stats.total_paying_customers,
+          totalHardMatches: stats.total_hard_matches,
+          totalSoftMatches: stats.total_soft_matches,
+          pendingDisputes: stats.pending_disputes,
+        }}
+      />
 
       {/* Main Content Grid */}
       <div className="grid gap-4 md:grid-cols-2">

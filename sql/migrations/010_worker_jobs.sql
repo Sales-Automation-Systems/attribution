@@ -22,3 +22,4 @@ CREATE INDEX IF NOT EXISTS idx_worker_job_type ON worker_job(type);
 COMMENT ON TABLE worker_job IS 'Persists worker job history across restarts';
 
 
+

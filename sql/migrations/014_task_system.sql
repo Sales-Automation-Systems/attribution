@@ -44,3 +44,4 @@ COMMENT ON COLUMN task.status IS 'OPEN (new), PENDING_INFO (awaiting client), AP
 COMMENT ON TABLE task_comment IS 'Correspondence thread for tasks between client and agency';
 
 
+

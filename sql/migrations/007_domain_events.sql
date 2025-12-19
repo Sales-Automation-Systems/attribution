@@ -24,3 +24,4 @@ CREATE INDEX IF NOT EXISTS idx_domain_event_date ON domain_event(event_date);
 COMMENT ON TABLE domain_event IS 'Timeline events for attributed domains, populated by the worker service';
 
 
+

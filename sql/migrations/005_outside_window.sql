@@ -8,3 +8,4 @@ ALTER TABLE client_config ADD COLUMN IF NOT EXISTS outside_window_meetings INT D
 ALTER TABLE client_config ADD COLUMN IF NOT EXISTS outside_window_paying INT DEFAULT 0;
 
 
+

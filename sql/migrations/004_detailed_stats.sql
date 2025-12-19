@@ -27,3 +27,4 @@ ALTER TABLE client_config ADD COLUMN IF NOT EXISTS domains_with_paying INT DEFAU
 ALTER TABLE client_config ADD COLUMN IF NOT EXISTS domains_with_multiple_events INT DEFAULT 0;
 
 
+

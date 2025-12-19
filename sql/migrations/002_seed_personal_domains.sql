@@ -139,3 +139,4 @@ INSERT INTO personal_email_domain (domain) VALUES
 ON CONFLICT (domain) DO NOTHING;
 
 
+

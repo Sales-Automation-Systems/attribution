@@ -18,3 +18,4 @@ ON attributed_domain(last_event_at DESC NULLS LAST);
 COMMENT ON COLUMN attributed_domain.last_event_at IS 'Timestamp of the most recent event (reply, sign-up, meeting, or paying) for this domain';
 
 
+
