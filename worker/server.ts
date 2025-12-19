@@ -1589,7 +1589,8 @@ app.post('/process-client', async (req, res) => {
   console.log(`Started job ${job.id} for client: ${clientName} (${clientId})`);
   res.json({ success: true, jobId: job.id, message: 'Processing started' });
   
-  processClient(clientId)
+  // Pass job.id so logs are recorded properly
+  processClient(clientId, job.id)
     .then(async stats => {
       job.status = 'completed';
       job.completedAt = new Date();
