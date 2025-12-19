@@ -1103,8 +1103,24 @@ async function processClient(clientId: string, jobId?: string): Promise<Processi
     throw new Error('Job cancelled by user');
   }
   let eventsSaved = 0;
+  let domainsSaved = 0;
+  const totalDomains = domainResults.size;
   
   for (const result of domainResults.values()) {
+    // Progress logging every 500 domains
+    if (domainsSaved % 500 === 0 && totalDomains > 500) {
+      log('DEBUG', 'Phase 7: Saving domains progress', {
+        saved: domainsSaved,
+        total: totalDomains,
+        percent: Math.round((domainsSaved / totalDomains) * 100)
+      });
+    }
+    
+    // Check for cancellation every 1000 domains
+    if (jobId && domainsSaved % 1000 === 0 && cancelledJobs.has(jobId)) {
+      log('WARN', 'Job cancelled during Phase 7 (domain save)');
+      throw new Error('Job cancelled by user');
+    }
     try {
       // Determine status based on match type and window
       const newCalculatedStatus = result.matchType === 'NO_MATCH' 
@@ -1247,6 +1263,7 @@ async function processClient(clientId: string, jobId?: string): Promise<Processi
       console.error(`Error saving domain ${result.domain}:`, error);
       stats.errors++;
     }
+    domainsSaved++;
   }
   log('INFO', `Phase 7 complete: Saved ${eventsSaved.toLocaleString()} events across ${domainResults.size.toLocaleString()} domains`);
   
