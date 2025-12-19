@@ -153,6 +153,13 @@ export async function POST(req: NextRequest) {
         // For OPEN periods (including active periods we're currently in), populate line items
         // UPCOMING periods that haven't started yet don't get line items yet
         if (period.status === 'OPEN' || period.status === 'OVERDUE') {
+          // First, clean up stale line items that are outside the 12-month window
+          await cleanupStaleLineItems(
+            upsertedPeriod.id,
+            period.start_date,
+            period.end_date
+          );
+
           const lineItems = await populateLineItems(
             upsertedPeriod.id,
             client.id,
@@ -299,6 +306,41 @@ async function populateLineItems(
   }
 
   return created;
+}
+
+/**
+ * Remove line items that are outside the 12-month billing window
+ * This cleans up stale data from before the 12-month logic was implemented
+ * Only removes PENDING items to preserve client-submitted data
+ */
+async function cleanupStaleLineItems(
+  periodId: string,
+  periodStartDate: Date,
+  periodEndDate: Date
+): Promise<number> {
+  const startDateStr = format(periodStartDate, 'yyyy-MM-dd');
+  const endDateStr = format(periodEndDate, 'yyyy-MM-dd') + ' 23:59:59';
+  
+  // Delete line items where:
+  // 1. paying_customer_date > period_end (became paying after this period)
+  // 2. OR paying_customer_date + 12 months <= period_start (beyond 12-month window)
+  // Only delete PENDING items to preserve submitted data
+  const result = await attrQuery<{ count: number }>(`
+    WITH deleted AS (
+      DELETE FROM reconciliation_line_item
+      WHERE reconciliation_period_id = $1
+        AND status = 'PENDING'
+        AND paying_customer_date IS NOT NULL
+        AND (
+          paying_customer_date > $2
+          OR paying_customer_date + INTERVAL '12 months' <= $3
+        )
+      RETURNING 1
+    )
+    SELECT COUNT(*)::int as count FROM deleted
+  `, [periodId, endDateStr, startDateStr]);
+  
+  return result[0]?.count || 0;
 }
 
 /**

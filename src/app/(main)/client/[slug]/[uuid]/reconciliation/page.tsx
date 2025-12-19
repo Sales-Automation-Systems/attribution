@@ -41,7 +41,7 @@ import {
   Loader2, Send, DollarSign,
   Calendar, Clock, FileCheck, AlertTriangle, Pencil
 } from 'lucide-react';
-import { format, differenceInDays, differenceInHours, differenceInMonths, isPast, addMonths, startOfMonth } from 'date-fns';
+import { format, differenceInDays, differenceInHours, isPast, addMonths, startOfMonth } from 'date-fns';
 
 type ReconciliationStatusType = 'UPCOMING' | 'OPEN' | 'PENDING_CLIENT' | 'CLIENT_SUBMITTED' | 'UNDER_REVIEW' | 'AUTO_BILLED' | 'FINALIZED';
 type LineStatusType = 'PENDING' | 'SUBMITTED' | 'DISPUTED' | 'CONFIRMED';
@@ -352,48 +352,6 @@ export default function ClientReconciliationPage() {
     return [format(startDate, 'MMM yyyy')];
   };
 
-  // Get billing window info for a line item
-  // Shows which month of the 12-month billing window this domain is in
-  const getBillingWindowInfo = (
-    payingCustomerDate: string | null, 
-    periodEndDate: string, 
-    billingCycle: BillingCycleType
-  ): { label: string; monthsElapsed: number; monthsRemaining: number; variant: 'default' | 'secondary' | 'outline' | 'destructive' } | null => {
-    if (!payingCustomerDate) return null;
-    
-    const payingDate = new Date(payingCustomerDate);
-    const periodEnd = new Date(periodEndDate);
-    
-    // Calculate months elapsed (1-indexed, so add 1)
-    const monthsElapsed = Math.min(12, Math.max(1, differenceInMonths(periodEnd, payingDate) + 1));
-    const monthsRemaining = Math.max(0, 12 - monthsElapsed);
-    
-    // Determine badge variant based on progress
-    let variant: 'default' | 'secondary' | 'outline' | 'destructive';
-    if (monthsElapsed <= 4) {
-      variant = 'default';      // green - early in window
-    } else if (monthsElapsed <= 8) {
-      variant = 'secondary';    // yellow - mid-window
-    } else if (monthsElapsed <= 11) {
-      variant = 'outline';      // orange - approaching end
-    } else {
-      variant = 'destructive';  // red - final month
-    }
-    
-    // Format label based on billing cycle
-    let label: string;
-    if (billingCycle === 'quarterly') {
-      // Show range for the quarter (e.g., "Mo 4-6")
-      const periodStart = Math.max(1, monthsElapsed - 2);
-      label = `Mo ${periodStart}-${monthsElapsed}`;
-    } else {
-      // Monthly: single month
-      label = `Mo ${monthsElapsed}`;
-    }
-    
-    return { label, monthsElapsed, monthsRemaining, variant };
-  };
-
   const isQuarterly = activePeriod?.billing_cycle === 'quarterly';
 
   // Split periods into current (OPEN) and upcoming (UPCOMING)
@@ -532,29 +490,19 @@ export default function ClientReconciliationPage() {
                         <Table>
                           <TableHeader>
                             <TableRow className="bg-muted/50">
-                              <TableHead className="w-[180px]">Domain</TableHead>
-                              <TableHead className="w-[110px]">Became Paying</TableHead>
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <TableHead className="w-[80px] cursor-help">Window</TableHead>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>Month range within 12-month billing period</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
+                              <TableHead className="w-[200px]">Domain</TableHead>
+                              <TableHead className="w-[120px]">Became Paying</TableHead>
                               {isQuarterly ? (
                                 <>
-                                  <TableHead className="text-center w-[120px]">{monthLabels[0]}</TableHead>
-                                  <TableHead className="text-center w-[120px]">{monthLabels[1]}</TableHead>
-                                  <TableHead className="text-center w-[120px]">{monthLabels[2]}</TableHead>
+                                  <TableHead className="text-center w-[130px]">{monthLabels[0]}</TableHead>
+                                  <TableHead className="text-center w-[130px]">{monthLabels[1]}</TableHead>
+                                  <TableHead className="text-center w-[130px]">{monthLabels[2]}</TableHead>
                                 </>
                               ) : (
-                                <TableHead className="text-center w-[140px]">{monthLabels[0]}</TableHead>
+                                <TableHead className="text-center w-[150px]">{monthLabels[0]}</TableHead>
                               )}
-                              <TableHead className="text-right w-[90px]">Total</TableHead>
-                              <TableHead className="w-[70px]"></TableHead>
+                              <TableHead className="text-right w-[100px]">Total</TableHead>
+                              <TableHead className="w-[80px]"></TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -563,7 +511,6 @@ export default function ClientReconciliationPage() {
                               const total = (parseFloat(input.month1) || 0) + 
                                            (parseFloat(input.month2) || 0) + 
                                            (parseFloat(input.month3) || 0);
-                              const windowInfo = getBillingWindowInfo(item.paying_customer_date, period.end_date, period.billing_cycle);
                               
                               return (
                                 <TableRow key={item.id}>
@@ -574,25 +521,6 @@ export default function ClientReconciliationPage() {
                                     {item.paying_customer_date 
                                       ? format(new Date(item.paying_customer_date), 'MMM d, yyyy')
                                       : '-'}
-                                  </TableCell>
-                                  <TableCell>
-                                    {windowInfo ? (
-                                      <TooltipProvider>
-                                        <Tooltip>
-                                          <TooltipTrigger asChild>
-                                            <Badge variant={windowInfo.variant} className="cursor-help text-xs">
-                                              {windowInfo.label}
-                                            </Badge>
-                                          </TooltipTrigger>
-                                          <TooltipContent>
-                                            <p>Billing month {windowInfo.monthsElapsed} of 12</p>
-                                            <p className="text-muted-foreground">{windowInfo.monthsRemaining} month{windowInfo.monthsRemaining !== 1 ? 's' : ''} remaining</p>
-                                          </TooltipContent>
-                                        </Tooltip>
-                                      </TooltipProvider>
-                                    ) : (
-                                      <span className="text-muted-foreground">-</span>
-                                    )}
                                   </TableCell>
                                   {/* Month 1 */}
                                   <TableCell>
@@ -757,60 +685,47 @@ export default function ClientReconciliationPage() {
                             <Table>
                               <TableHeader>
                                 <TableRow className="bg-muted/50">
-                                  <TableHead className="w-[180px]">Domain</TableHead>
-                                  <TableHead className="w-[100px]">Became Paying</TableHead>
-                                  <TableHead className="w-[70px]">Window</TableHead>
+                                  <TableHead className="w-[200px]">Domain</TableHead>
+                                  <TableHead className="w-[120px]">Became Paying</TableHead>
                                   {isPastQuarterly ? (
                                     <>
-                                      <TableHead className="text-center w-[90px]">{pastMonthLabels[0]}</TableHead>
-                                      <TableHead className="text-center w-[90px]">{pastMonthLabels[1]}</TableHead>
-                                      <TableHead className="text-center w-[90px]">{pastMonthLabels[2]}</TableHead>
+                                      <TableHead className="text-center w-[100px]">{pastMonthLabels[0]}</TableHead>
+                                      <TableHead className="text-center w-[100px]">{pastMonthLabels[1]}</TableHead>
+                                      <TableHead className="text-center w-[100px]">{pastMonthLabels[2]}</TableHead>
                                     </>
                                   ) : (
-                                    <TableHead className="text-center w-[110px]">{pastMonthLabels[0]}</TableHead>
+                                    <TableHead className="text-center w-[120px]">{pastMonthLabels[0]}</TableHead>
                                   )}
-                                  <TableHead className="text-right w-[90px]">Total</TableHead>
+                                  <TableHead className="text-right w-[100px]">Total</TableHead>
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
-                                {pastItems.map((item) => {
-                                  const pastWindowInfo = getBillingWindowInfo(item.paying_customer_date, period.end_date, period.billing_cycle);
-                                  return (
-                                    <TableRow key={item.id}>
-                                      <TableCell className="font-medium">{item.domain}</TableCell>
-                                      <TableCell className="text-sm text-muted-foreground">
-                                        {item.paying_customer_date 
-                                          ? format(new Date(item.paying_customer_date), 'MMM d, yyyy')
-                                          : '-'}
-                                      </TableCell>
-                                      <TableCell>
-                                        {pastWindowInfo ? (
-                                          <Badge variant={pastWindowInfo.variant} className="text-xs">
-                                            {pastWindowInfo.label}
-                                          </Badge>
-                                        ) : (
-                                          <span className="text-muted-foreground">-</span>
-                                        )}
-                                      </TableCell>
-                                      <TableCell className="text-center text-muted-foreground">
-                                        {item.revenue_month_1 !== null ? formatCurrency(item.revenue_month_1) : '-'}
-                                      </TableCell>
-                                      {isPastQuarterly && (
-                                        <>
-                                          <TableCell className="text-center text-muted-foreground">
-                                            {item.revenue_month_2 !== null ? formatCurrency(item.revenue_month_2) : '-'}
-                                          </TableCell>
-                                          <TableCell className="text-center text-muted-foreground">
-                                            {item.revenue_month_3 !== null ? formatCurrency(item.revenue_month_3) : '-'}
-                                          </TableCell>
-                                        </>
-                                      )}
-                                      <TableCell className="text-right font-medium">
-                                        {item.revenue_submitted !== null ? formatCurrency(item.revenue_submitted) : '-'}
-                                      </TableCell>
-                                    </TableRow>
-                                  );
-                                })}
+                                {pastItems.map((item) => (
+                                  <TableRow key={item.id}>
+                                    <TableCell className="font-medium">{item.domain}</TableCell>
+                                    <TableCell className="text-sm text-muted-foreground">
+                                      {item.paying_customer_date 
+                                        ? format(new Date(item.paying_customer_date), 'MMM d, yyyy')
+                                        : '-'}
+                                    </TableCell>
+                                    <TableCell className="text-center text-muted-foreground">
+                                      {item.revenue_month_1 !== null ? formatCurrency(item.revenue_month_1) : '-'}
+                                    </TableCell>
+                                    {isPastQuarterly && (
+                                      <>
+                                        <TableCell className="text-center text-muted-foreground">
+                                          {item.revenue_month_2 !== null ? formatCurrency(item.revenue_month_2) : '-'}
+                                        </TableCell>
+                                        <TableCell className="text-center text-muted-foreground">
+                                          {item.revenue_month_3 !== null ? formatCurrency(item.revenue_month_3) : '-'}
+                                        </TableCell>
+                                      </>
+                                    )}
+                                    <TableCell className="text-right font-medium">
+                                      {item.revenue_submitted !== null ? formatCurrency(item.revenue_submitted) : '-'}
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
                               </TableBody>
                             </Table>
                           </div>
