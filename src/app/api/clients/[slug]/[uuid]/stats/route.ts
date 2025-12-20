@@ -107,6 +107,22 @@ export async function GET(
     
     const dateWhereClause = dateFilter.length > 0 ? `AND ${dateFilter.join(' AND ')}` : '';
 
+    // #region agent log
+    const logDebug = async (location: string, message: string, data: Record<string, unknown>) => {
+      try {
+        await fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ location, message, data, timestamp: Date.now(), sessionId: 'debug-session', hypothesisId: 'B' })
+        });
+      } catch {}
+    };
+    // #endregion
+
+    // #region agent log
+    await logDebug('stats/route.ts:startQueries', 'Starting filtered queries', { dateWhereClause, queryParams });
+    // #endregion
+
     // Query for attributed events (within window)
     const attributedQuery = `
       SELECT 
@@ -123,11 +139,17 @@ export async function GET(
       GROUP BY de.event_source, ad.match_type
     `;
     
+    // #region agent log
+    const q1Start = Date.now();
+    // #endregion
     const attributedRows = await attrQuery<{
       event_source: string;
       match_type: string;
       count: string;
     }>(attributedQuery, queryParams);
+    // #region agent log
+    await logDebug('stats/route.ts:attributedQuery', 'Attributed query complete', { durationMs: Date.now() - q1Start, rowCount: attributedRows.length });
+    // #endregion
 
     // Query for outside window events
     const outsideWindowQuery = `
@@ -144,10 +166,16 @@ export async function GET(
       GROUP BY de.event_source
     `;
     
+    // #region agent log
+    const q2Start = Date.now();
+    // #endregion
     const outsideWindowRows = await attrQuery<{
       event_source: string;
       count: string;
     }>(outsideWindowQuery, queryParams);
+    // #region agent log
+    await logDebug('stats/route.ts:outsideWindowQuery', 'Outside window query complete', { durationMs: Date.now() - q2Start, rowCount: outsideWindowRows.length });
+    // #endregion
 
     // Query for unmatched events
     const unmatchedQuery = `
@@ -163,10 +191,16 @@ export async function GET(
       GROUP BY de.event_source
     `;
     
+    // #region agent log
+    const q3Start = Date.now();
+    // #endregion
     const unmatchedRows = await attrQuery<{
       event_source: string;
       count: string;
     }>(unmatchedQuery, queryParams);
+    // #region agent log
+    await logDebug('stats/route.ts:unmatchedQuery', 'Unmatched query complete', { durationMs: Date.now() - q3Start, rowCount: unmatchedRows.length });
+    // #endregion
 
     // Build stats object
     const stats: FilteredStats = {
