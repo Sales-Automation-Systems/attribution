@@ -109,15 +109,32 @@ export async function GET(
     const dateWhereClause = dateFilter.length > 0 ? `AND ${dateFilter.join(' AND ')}` : '';
 
     // Query production database for actual emails sent within date range
-    const endOfDay = endDate ? new Date(endDate) : undefined;
-    if (endOfDay) {
-      endOfDay.setHours(23, 59, 59, 999);
+    const emailEndOfDay = endDate ? new Date(endDate) : undefined;
+    if (emailEndOfDay) {
+      emailEndOfDay.setHours(23, 59, 59, 999);
     }
-    const filteredEmailCount = await countEmailsSentInRange(
-      client.client_id,
-      startDate || undefined,
-      endOfDay
-    );
+    
+    // #region agent log
+    console.log('[DEBUG] About to query email count', { clientId: client.client_id, startDate, emailEndOfDay });
+    // #endregion
+    
+    let filteredEmailCount = 0;
+    try {
+      filteredEmailCount = await countEmailsSentInRange(
+        client.client_id,
+        startDate || undefined,
+        emailEndOfDay
+      );
+      // #region agent log
+      console.log('[DEBUG] Email count result:', filteredEmailCount);
+      // #endregion
+    } catch (emailError) {
+      // #region agent log
+      console.error('[DEBUG] Email count query failed:', emailError);
+      // #endregion
+      // Fall back to total emails if production query fails
+      filteredEmailCount = Number(client.total_emails_sent || 0);
+    }
 
     // Query for attributed events (within window)
     const attributedQuery = `
