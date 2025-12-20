@@ -230,3 +230,35 @@ export async function getFirstEmailSentToDomain(
   return rows[0] || null;
 }
 
+// Count emails sent within a date range
+export async function countEmailsSentInRange(
+  clientId: string,
+  startDate?: Date,
+  endDate?: Date
+): Promise<number> {
+  let query = `
+    SELECT COUNT(*) as count
+    FROM email_conversation ec
+    JOIN client_integration ci ON ec.client_integration_id = ci.id
+    WHERE ec.type = 'Sent'
+      AND ci.client_id = $1
+  `;
+  
+  const params: unknown[] = [clientId];
+  let paramIndex = 2;
+  
+  if (startDate) {
+    query += ` AND ec.timestamp_email >= $${paramIndex}::timestamp`;
+    params.push(startDate.toISOString());
+    paramIndex++;
+  }
+  
+  if (endDate) {
+    query += ` AND ec.timestamp_email <= $${paramIndex}::timestamp`;
+    params.push(endDate.toISOString());
+  }
+  
+  const rows = await prodQuery<{ count: string }>(query, params);
+  return parseInt(rows[0]?.count || '0', 10);
+}
+
