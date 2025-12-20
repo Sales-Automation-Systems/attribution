@@ -116,12 +116,15 @@ export async function GET(
     
     let filteredEmailCount = 0;
     let emailQueryError: string | null = null;
+    let emailQueryDebug: unknown = null;
     try {
-      filteredEmailCount = await countEmailsSentInRange(
+      const result = await countEmailsSentInRange(
         client.client_id,
         startDate || undefined,
         emailEndOfDay
       );
+      filteredEmailCount = result.count;
+      emailQueryDebug = result.debug;
     } catch (emailError) {
       emailQueryError = (emailError as Error).message;
       console.error('[DEBUG] Email count query failed:', emailError);
@@ -284,7 +287,12 @@ export async function GET(
       _debug: {
         clientId: client.client_id,
         emailQueryError,
+        emailQueryDebug,
         usedFallback: emailQueryError !== null,
+        envCheck: {
+          hasProdDbUrl: !!process.env.PROD_DATABASE_URL,
+          prodDbUrlPrefix: process.env.PROD_DATABASE_URL?.substring(0, 30) + '...',
+        },
       },
     });
   } catch (error) {

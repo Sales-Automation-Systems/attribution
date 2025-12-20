@@ -235,7 +235,14 @@ export async function countEmailsSentInRange(
   clientId: string,
   startDate?: Date,
   endDate?: Date
-): Promise<number> {
+): Promise<{ count: number; debug: { query: string; params: unknown[]; clientId: string; hasConnection: boolean; error?: string } }> {
+  const debug: { query: string; params: unknown[]; clientId: string; hasConnection: boolean; error?: string } = {
+    query: '',
+    params: [],
+    clientId,
+    hasConnection: false,
+  };
+  
   let query = `
     SELECT COUNT(*) as count
     FROM email_conversation ec
@@ -258,7 +265,19 @@ export async function countEmailsSentInRange(
     params.push(endDate.toISOString());
   }
   
-  const rows = await prodQuery<{ count: string }>(query, params);
-  return parseInt(rows[0]?.count || '0', 10);
+  debug.query = query.replace(/\s+/g, ' ').trim();
+  debug.params = params;
+  
+  try {
+    // Test connection first
+    await prodQuery('SELECT 1');
+    debug.hasConnection = true;
+    
+    const rows = await prodQuery<{ count: string }>(query, params);
+    return { count: parseInt(rows[0]?.count || '0', 10), debug };
+  } catch (error) {
+    debug.error = (error as Error).message;
+    throw new Error(`Email count query failed: ${(error as Error).message}. Debug: ${JSON.stringify(debug)}`);
+  }
 }
 
