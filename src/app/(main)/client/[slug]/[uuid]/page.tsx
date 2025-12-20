@@ -22,9 +22,9 @@ export default async function ClientDashboardPage({
     notFound();
   }
 
-  // Fetch all domains for the unified view (no limit for now, paginate later if needed)
+  // Fetch domains with a limit to prevent timeout on large clients (RB2B has 30K+)
   const [domains, totalCount] = await Promise.all([
-    getAttributedDomains(client.id),
+    getAttributedDomains(client.id, { limit: 100 }),
     getAttributedDomainsCount(client.id),
   ]);
 
