@@ -114,24 +114,17 @@ export async function GET(
       emailEndOfDay.setHours(23, 59, 59, 999);
     }
     
-    // #region agent log
-    console.log('[DEBUG] About to query email count', { clientId: client.client_id, startDate, emailEndOfDay });
-    // #endregion
-    
     let filteredEmailCount = 0;
+    let emailQueryError: string | null = null;
     try {
       filteredEmailCount = await countEmailsSentInRange(
         client.client_id,
         startDate || undefined,
         emailEndOfDay
       );
-      // #region agent log
-      console.log('[DEBUG] Email count result:', filteredEmailCount);
-      // #endregion
     } catch (emailError) {
-      // #region agent log
+      emailQueryError = (emailError as Error).message;
       console.error('[DEBUG] Email count query failed:', emailError);
-      // #endregion
       // Fall back to total emails if production query fails
       filteredEmailCount = Number(client.total_emails_sent || 0);
     }
@@ -286,6 +279,12 @@ export async function GET(
       dateRange: {
         startDate: startDate?.toISOString() || null,
         endDate: endDate?.toISOString() || null,
+      },
+      // Debug info - remove after fixing
+      _debug: {
+        clientId: client.client_id,
+        emailQueryError,
+        usedFallback: emailQueryError !== null,
       },
     });
   } catch (error) {
