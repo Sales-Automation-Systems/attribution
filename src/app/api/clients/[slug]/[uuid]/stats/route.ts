@@ -107,6 +107,37 @@ export async function GET(
     
     const dateWhereClause = dateFilter.length > 0 ? `AND ${dateFilter.join(' AND ')}` : '';
 
+    // Query for emails sent within date range (based on first_email_sent_at per domain)
+    let filteredEmailCount = Number(client.total_emails_sent || 0);
+    if (startDate || endDate) {
+      const emailDateFilter = [];
+      const emailParams: unknown[] = [client.id];
+      let emailParamIndex = 2;
+      
+      if (startDate) {
+        emailDateFilter.push(`first_email_sent_at >= $${emailParamIndex}::timestamp`);
+        emailParams.push(startDate.toISOString());
+        emailParamIndex++;
+      }
+      if (endDate) {
+        const endOfDay = new Date(endDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        emailDateFilter.push(`first_email_sent_at <= $${emailParamIndex}::timestamp`);
+        emailParams.push(endOfDay.toISOString());
+      }
+      
+      const emailCountQuery = `
+        SELECT COUNT(*) as count
+        FROM attributed_domain
+        WHERE client_config_id = $1
+          AND first_email_sent_at IS NOT NULL
+          ${emailDateFilter.length > 0 ? `AND ${emailDateFilter.join(' AND ')}` : ''}
+      `;
+      
+      const emailCountRows = await attrQuery<{ count: string }>(emailCountQuery, emailParams);
+      filteredEmailCount = parseInt(emailCountRows[0]?.count || '0', 10);
+    }
+
     // Query for attributed events (within window)
     const attributedQuery = `
       SELECT 
@@ -170,7 +201,7 @@ export async function GET(
 
     // Build stats object
     const stats: FilteredStats = {
-      totalEmailsSent: Number(client.total_emails_sent || 0), // Emails sent is not filtered by event date
+      totalEmailsSent: filteredEmailCount,
       attributedPositiveReplies: 0,
       attributedSignUps: 0,
       attributedMeetings: 0,
