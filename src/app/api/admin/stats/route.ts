@@ -2,7 +2,7 @@
 // Returns aggregate attribution stats across all clients, filtered by event date range
 
 import { NextRequest, NextResponse } from 'next/server';
-import { attrQuery } from '@/db/attribution/client';
+import { attrQuery } from '@/db';
 
 interface AggregateStats {
   totalAttributedDomains: number;

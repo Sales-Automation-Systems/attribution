@@ -3,7 +3,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getClientConfigBySlugAndUuid } from '@/db/attribution/queries';
-import { attrQuery } from '@/db/attribution/client';
+import { attrQuery } from '@/db';
 
 interface FilteredStats {
   // Total events in the pipeline (unfiltered - these are client's overall numbers)
