@@ -291,7 +291,11 @@ export async function GET(
   } catch (error) {
     console.error('Error fetching filtered stats:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch stats', details: (error as Error).message },
+      { 
+        error: 'Failed to fetch stats', 
+        details: (error as Error).message,
+        stack: (error as Error).stack?.split('\n').slice(0, 5),
+      },
       { status: 500 }
     );
   }

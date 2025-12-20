@@ -82,7 +82,9 @@ export function ClientStatsSection({
       const res = await fetch(`/api/clients/${slug}/${uuid}/stats?${params}`);
       
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'client-stats-section.tsx:fetchStats:response',message:'Got response',data:{ok:res.ok,status:res.status},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+      const resClone = res.clone();
+      const errorBody = !res.ok ? await resClone.json().catch(() => null) : null;
+      fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'client-stats-section.tsx:fetchStats:response',message:'Got response',data:{ok:res.ok,status:res.status,errorBody},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
       // #endregion
       
       if (!res.ok) throw new Error('Failed to fetch stats');
