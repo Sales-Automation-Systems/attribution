@@ -56,10 +56,12 @@ export async function POST(
 
     const domain = domainResult.rows[0];
 
-    // Check if already disputed or pending dispute
-    if (domain.status === 'DISPUTED' || domain.status === 'DISPUTE_PENDING') {
+    // Only block if there's an active dispute in progress
+    // Allow re-disputes after rejection (status would be ATTRIBUTED) or even after approval (DISPUTED)
+    // The history is preserved in domain_event STATUS_CHANGE records
+    if (domain.status === 'DISPUTE_PENDING') {
       return NextResponse.json(
-        { error: 'This domain already has a dispute in progress' },
+        { error: 'This domain already has a dispute in progress. Please wait for review.' },
         { status: 400 }
       );
     }

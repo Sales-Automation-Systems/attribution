@@ -312,6 +312,14 @@ export async function POST(request: NextRequest) {
               AND t.status = 'OPEN'
           );
       `,
+      '027_fix_donorperfect_status.sql': `
+        -- Fix donorperfect.com status - it was rejected but still has old REJECTED status
+        -- Should be ATTRIBUTED since the dispute was rejected (attribution confirmed)
+        UPDATE attributed_domain
+        SET status = 'ATTRIBUTED', updated_at = NOW()
+        WHERE domain = 'donorperfect.com'
+          AND status IN ('REJECTED', 'DISPUTED');
+      `,
       '026_fix_missing_paying_events.sql': `
         -- Fix domains in reconciliation that are missing PAYING_CUSTOMER domain_event records
         -- These would have been added via "Add to Reconciliation" before the fix was implemented
