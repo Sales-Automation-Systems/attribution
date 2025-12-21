@@ -28,6 +28,7 @@ import {
   Eye,
   Flag,
   ArrowUpCircle,
+  Loader2,
 } from 'lucide-react';
 import { DefinitionTooltip, SimpleTooltip } from '@/components/ui/definition-tooltip';
 import { cn } from '@/lib/utils';
@@ -73,9 +74,19 @@ function getStatusFilterType(domain: AccountDomain): StatusFilterType {
   return 'attributed';
 }
 
+// Parse date strings from API response
+function parseDomainDates(domain: Record<string, unknown>): AccountDomain {
+  return {
+    ...domain,
+    first_email_sent_at: domain.first_email_sent_at ? new Date(domain.first_email_sent_at as string) : null,
+    first_event_at: domain.first_event_at ? new Date(domain.first_event_at as string) : null,
+    last_event_at: domain.last_event_at ? new Date(domain.last_event_at as string) : null,
+  } as AccountDomain;
+}
+
 export function AccountsTable({
-  domains,
-  totalCount,
+  domains: initialDomains,
+  totalCount: initialTotalCount,
   slug,
   uuid,
   attributionWindowDays,
@@ -85,6 +96,12 @@ export function AccountsTable({
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
+
+  // State for fetched domains (server-side filtered)
+  const [fetchedDomains, setFetchedDomains] = useState<AccountDomain[] | null>(null);
+  const [fetchedTotalCount, setFetchedTotalCount] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Initialize state from URL params
   const [searchQuery, setSearchQuery] = useState(() => searchParams.get('search') || '');
@@ -112,6 +129,75 @@ export function AccountsTable({
   
   // LOCK: Completely prevent dialog opens for 1 second after closing
   const dialogLockedUntilRef = useRef<number>(0);
+  
+  // Debounce timer for search
+  const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Check if any filters are active
+  const hasActiveFilters = searchQuery || eventTypeFilters.size > 0 || statusFilters.size > 0 || focusView;
+
+  // Use fetched domains when filters are active, otherwise use initial domains
+  const domains = hasActiveFilters && fetchedDomains !== null ? fetchedDomains : initialDomains;
+  const totalCount = hasActiveFilters && fetchedTotalCount !== null ? fetchedTotalCount : initialTotalCount;
+
+  // Fetch filtered domains from API
+  const fetchFilteredDomains = useCallback(async () => {
+    // Build query params
+    const params = new URLSearchParams();
+    if (searchQuery) params.set('search', searchQuery);
+    if (eventTypeFilters.size > 0) params.set('events', Array.from(eventTypeFilters).join(','));
+    if (statusFilters.size > 0) params.set('status', Array.from(statusFilters).join(','));
+    if (focusView) params.set('focus', 'true');
+    params.set('limit', '100');
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/clients/${slug}/${uuid}/domains?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch domains');
+      }
+      const data = await response.json();
+      setFetchedDomains(data.domains.map(parseDomainDates));
+      setFetchedTotalCount(data.totalCount);
+    } catch (err) {
+      setError((err as Error).message);
+      console.error('Error fetching filtered domains:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [slug, uuid, searchQuery, eventTypeFilters, statusFilters, focusView]);
+
+  // Fetch when filters change (with debounce for search)
+  useEffect(() => {
+    // If no filters, use initial data
+    if (!hasActiveFilters) {
+      setFetchedDomains(null);
+      setFetchedTotalCount(null);
+      return;
+    }
+
+    // Clear previous debounce
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
+
+    // Debounce search queries, immediate for other filters
+    if (searchQuery) {
+      searchDebounceRef.current = setTimeout(() => {
+        fetchFilteredDomains();
+      }, 300);
+    } else {
+      fetchFilteredDomains();
+    }
+
+    return () => {
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+      }
+    };
+  }, [hasActiveFilters, searchQuery, eventTypeFilters, statusFilters, focusView, fetchFilteredDomains]);
 
   // Update URL when filters change
   const updateURL = useCallback((params: Record<string, string | null>) => {
@@ -196,40 +282,10 @@ export function AccountsTable({
     });
   };
 
-  // Apply filters
-  const filteredDomains = useMemo(() => {
-    return domains.filter((domain) => {
-      // Search filter
-      if (searchQuery && !domain.domain.toLowerCase().includes(searchQuery.toLowerCase())) {
-        return false;
-      }
+  // No longer need client-side filtering - server does it now
+  const filteredDomains = domains;
 
-      // Focus View: Only show direct matches (exact email)
-      if (focusView && domain.match_type !== 'HARD_MATCH') {
-        return false;
-      }
-
-      // Event type filters (multi-select, OR logic)
-      if (eventTypeFilters.size > 0) {
-        const hasMatchingEvent =
-          (eventTypeFilters.has('reply') && domain.has_positive_reply) ||
-          (eventTypeFilters.has('signup') && domain.has_sign_up) ||
-          (eventTypeFilters.has('meeting') && domain.has_meeting_booked) ||
-          (eventTypeFilters.has('paying') && domain.has_paying_customer);
-        if (!hasMatchingEvent) return false;
-      }
-
-      // Status filters (multi-select, OR logic)
-      if (statusFilters.size > 0) {
-        const domainStatus = getStatusFilterType(domain);
-        if (!statusFilters.has(domainStatus)) return false;
-      }
-
-      return true;
-    });
-  }, [domains, searchQuery, eventTypeFilters, statusFilters, focusView]);
-
-  // Calculate stats
+  // Calculate stats from current domains
   const stats = useMemo(() => {
     const total = filteredDomains.length;
     const attributed = filteredDomains.filter((d) => getStatusFilterType(d) === 'attributed').length;
@@ -278,10 +334,10 @@ export function AccountsTable({
     setEventTypeFilters(new Set());
     setStatusFilters(new Set());
     setFocusView(false);
+    setFetchedDomains(null);
+    setFetchedTotalCount(null);
     // URL will be updated by the useEffect
   }, []);
-
-  const hasActiveFilters = searchQuery || eventTypeFilters.size > 0 || statusFilters.size > 0 || focusView;
 
   // Render status badge
   const renderStatusBadge = (domain: AccountDomain) => {
@@ -561,7 +617,21 @@ export function AccountsTable({
       </div>
 
       {/* Results */}
-      {filteredDomains.length === 0 ? (
+      {isLoading ? (
+        <Card className="p-8 text-center">
+          <Loader2 className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4 animate-spin" />
+          <h3 className="text-lg font-medium mb-2">Loading...</h3>
+          <p className="text-muted-foreground">
+            Fetching filtered accounts from database...
+          </p>
+        </Card>
+      ) : error ? (
+        <Card className="p-8 text-center">
+          <XCircle className="h-12 w-12 mx-auto text-red-500/50 mb-4" />
+          <h3 className="text-lg font-medium mb-2">Error Loading Data</h3>
+          <p className="text-muted-foreground">{error}</p>
+        </Card>
+      ) : filteredDomains.length === 0 ? (
         <Card className="p-8 text-center">
           <XCircle className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
           <h3 className="text-lg font-medium mb-2">No Results</h3>
@@ -681,21 +751,23 @@ export function AccountsTable({
       )}
 
       {/* Results count */}
-      <div className="text-sm text-muted-foreground text-center space-y-1">
-        <p>
-          Showing {filteredDomains.length} of {domains.length} matched accounts
-          {totalCount > domains.length && (
-            <span className="text-amber-600 dark:text-amber-400">
-              {' '}(database has {totalCount} total)
-            </span>
-          )}
-        </p>
-        {stats.unattributed === 0 && statusFilters.has('unattributed') && (
-          <p className="text-xs text-amber-600 dark:text-amber-400">
-            Note: Unattributed events (where we never sent an email) will appear after the next data sync.
+      {!isLoading && !error && (
+        <div className="text-sm text-muted-foreground text-center space-y-1">
+          <p>
+            Showing {filteredDomains.length} {hasActiveFilters ? 'filtered' : ''} accounts
+            {totalCount > filteredDomains.length && (
+              <span className="text-amber-600 dark:text-amber-400">
+                {' '}(database has {totalCount} total)
+              </span>
+            )}
           </p>
-        )}
-      </div>
+          {stats.unattributed === 0 && statusFilters.has('unattributed') && (
+            <p className="text-xs text-amber-600 dark:text-amber-400">
+              Note: Unattributed events (where we never sent an email) will appear after the next data sync.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Timeline Dialog */}
       <TimelineDialog

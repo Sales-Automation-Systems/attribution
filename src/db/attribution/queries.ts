@@ -104,8 +104,11 @@ export async function getAttributedDomainsCount(
 export async function getAttributedDomains(
   clientConfigId: string,
   options?: {
-    status?: string;
+    status?: string | string[];  // Can be single status or array for OR logic
     matchType?: string;
+    events?: string[];  // Array of event types: 'reply', 'signup', 'meeting', 'paying'
+    search?: string;    // Domain name search
+    focusView?: boolean; // Only HARD_MATCH
     limit?: number;
     offset?: number;
   }
@@ -114,16 +117,76 @@ export async function getAttributedDomains(
   const params: unknown[] = [clientConfigId];
   let paramIndex = 2;
 
+  // Status filter (can be single or array for OR logic)
   if (options?.status) {
-    query += ` AND status = $${paramIndex}`;
-    params.push(options.status);
-    paramIndex++;
+    if (Array.isArray(options.status) && options.status.length > 0) {
+      // Build OR conditions for multiple statuses
+      const statusConditions: string[] = [];
+      for (const s of options.status) {
+        // Map frontend status names to database conditions
+        if (s === 'attributed') {
+          statusConditions.push(`(status IN ('ATTRIBUTED', 'MANUAL') AND is_within_window = true AND match_type != 'NO_MATCH')`);
+        } else if (s === 'outside_window') {
+          statusConditions.push(`(status = 'OUTSIDE_WINDOW' OR (is_within_window = false AND match_type != 'NO_MATCH' AND match_type IS NOT NULL))`);
+        } else if (s === 'unattributed') {
+          statusConditions.push(`(status = 'UNATTRIBUTED' OR match_type = 'NO_MATCH' OR match_type IS NULL)`);
+        } else if (s === 'disputed') {
+          statusConditions.push(`status = 'DISPUTED'`);
+        } else if (s === 'client_attributed') {
+          statusConditions.push(`status = 'CLIENT_PROMOTED'`);
+        } else {
+          // Direct status match
+          statusConditions.push(`status = $${paramIndex}`);
+          params.push(s);
+          paramIndex++;
+        }
+      }
+      if (statusConditions.length > 0) {
+        query += ` AND (${statusConditions.join(' OR ')})`;
+      }
+    } else if (typeof options.status === 'string') {
+      query += ` AND status = $${paramIndex}`;
+      params.push(options.status);
+      paramIndex++;
+    }
   }
 
   if (options?.matchType) {
     query += ` AND match_type = $${paramIndex}`;
     params.push(options.matchType);
     paramIndex++;
+  }
+
+  // Event type filters (OR logic - has any of these events)
+  if (options?.events && options.events.length > 0) {
+    const eventConditions: string[] = [];
+    if (options.events.includes('reply')) {
+      eventConditions.push('has_positive_reply = true');
+    }
+    if (options.events.includes('signup')) {
+      eventConditions.push('has_sign_up = true');
+    }
+    if (options.events.includes('meeting')) {
+      eventConditions.push('has_meeting_booked = true');
+    }
+    if (options.events.includes('paying')) {
+      eventConditions.push('has_paying_customer = true');
+    }
+    if (eventConditions.length > 0) {
+      query += ` AND (${eventConditions.join(' OR ')})`;
+    }
+  }
+
+  // Search filter
+  if (options?.search) {
+    query += ` AND domain ILIKE $${paramIndex}`;
+    params.push(`%${options.search}%`);
+    paramIndex++;
+  }
+
+  // Focus view - only hard matches
+  if (options?.focusView) {
+    query += ` AND match_type = 'HARD_MATCH'`;
   }
 
   query += ' ORDER BY first_event_at DESC NULLS LAST';
