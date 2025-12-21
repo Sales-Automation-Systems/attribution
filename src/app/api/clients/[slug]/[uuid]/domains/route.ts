@@ -39,7 +39,7 @@ export async function GET(
     // Parse status filter (comma-separated)
     if (status) {
       options.status = status.split(',').filter(s => 
-        ['attributed', 'outside_window', 'unattributed', 'disputed', 'client_attributed'].includes(s)
+        ['attributed', 'outside_window', 'unattributed', 'disputed', 'dispute_pending', 'client_attributed'].includes(s)
       );
     }
 

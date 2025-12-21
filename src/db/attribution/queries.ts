@@ -132,6 +132,8 @@ export async function getAttributedDomains(
           statusConditions.push(`(status = 'UNATTRIBUTED' OR match_type = 'NO_MATCH' OR match_type IS NULL)`);
         } else if (s === 'disputed') {
           statusConditions.push(`status = 'DISPUTED'`);
+        } else if (s === 'dispute_pending') {
+          statusConditions.push(`status = 'DISPUTE_PENDING'`);
         } else if (s === 'client_attributed') {
           statusConditions.push(`status = 'CLIENT_PROMOTED'`);
         } else {
