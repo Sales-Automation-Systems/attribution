@@ -3,7 +3,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getClientConfigBySlugAndUuid } from '@/db/attribution/queries';
-import { countEmailsSentInRange } from '@/db/production/queries';
 import { attrQuery } from '@/db';
 
 interface FilteredStats {
@@ -108,29 +107,51 @@ export async function GET(
     
     const dateWhereClause = dateFilter.length > 0 ? `AND ${dateFilter.join(' AND ')}` : '';
 
-    // Query production database for actual emails sent within date range
+    // Query EMAIL_SENT events from attribution database (accessible from Vercel)
+    // This counts domains that received their first email in the date range
     const emailEndOfDay = endDate ? new Date(endDate) : undefined;
     if (emailEndOfDay) {
       emailEndOfDay.setHours(23, 59, 59, 999);
     }
     
     let filteredEmailCount = 0;
-    let emailQueryError: string | null = null;
-    let emailQueryDebug: unknown = null;
-    try {
-      const result = await countEmailsSentInRange(
-        client.client_id,
-        startDate || undefined,
-        emailEndOfDay
-      );
-      filteredEmailCount = result.count;
-      emailQueryDebug = result.debug;
-    } catch (emailError) {
-      emailQueryError = (emailError as Error).message;
-      console.error('[DEBUG] Email count query failed:', emailError);
-      // Fall back to total emails if production query fails
-      filteredEmailCount = Number(client.total_emails_sent || 0);
+    let emailQueryDebug: { query: string; params: unknown[]; rowCount: number } | null = null;
+    
+    // Build email count query using attribution DB's domain_event table
+    const emailDateFilter = [];
+    const emailParams: unknown[] = [client.id];
+    let emailParamIndex = 2;
+    
+    if (startDate) {
+      emailDateFilter.push(`de.event_time >= $${emailParamIndex}::timestamp`);
+      emailParams.push(startDate.toISOString());
+      emailParamIndex++;
     }
+    if (emailEndOfDay) {
+      emailDateFilter.push(`de.event_time <= $${emailParamIndex}::timestamp`);
+      emailParams.push(emailEndOfDay.toISOString());
+    }
+    
+    const emailDateWhereClause = emailDateFilter.length > 0 ? `AND ${emailDateFilter.join(' AND ')}` : '';
+    
+    // Count EMAIL_SENT events in the date range from attribution DB
+    const emailCountQuery = `
+      SELECT COUNT(*) as count
+      FROM domain_event de
+      JOIN attributed_domain ad ON ad.id = de.attributed_domain_id
+      WHERE ad.client_config_id = $1
+        AND de.event_source = 'EMAIL_SENT'
+        ${emailDateWhereClause}
+    `;
+    
+    const emailCountRows = await attrQuery<{ count: string }>(emailCountQuery, emailParams);
+    filteredEmailCount = parseInt(emailCountRows[0]?.count || '0', 10);
+    
+    emailQueryDebug = {
+      query: emailCountQuery.replace(/\s+/g, ' ').trim(),
+      params: emailParams,
+      rowCount: filteredEmailCount,
+    };
 
     // Query for attributed events (within window)
     const attributedQuery = `
@@ -285,15 +306,10 @@ export async function GET(
       },
       // Debug info - remove after fixing
       _debug: {
-        version: 'v2-ssl-fix',
+        version: 'v3-attr-db',
         clientId: client.client_id,
-        emailQueryError,
         emailQueryDebug,
-        usedFallback: emailQueryError !== null,
-        envCheck: {
-          hasProdDbUrl: !!process.env.PROD_DATABASE_URL,
-          prodDbUrlPrefix: process.env.PROD_DATABASE_URL?.substring(0, 30) + '...',
-        },
+        dataSource: 'attribution_db_domain_event',
       },
     });
   } catch (error) {
