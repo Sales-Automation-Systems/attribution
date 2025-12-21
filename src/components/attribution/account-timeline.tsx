@@ -17,11 +17,15 @@ interface TimelineEvent {
   metadata?: Record<string, unknown>;
 }
 
+// Event types that can be filtered from the dialog
+type FilterableEventType = 'POSITIVE_REPLY' | 'SIGN_UP' | 'MEETING_BOOKED' | 'PAYING_CUSTOMER';
+
 interface AccountTimelineProps {
   domainId: string;
   slug: string;
   uuid: string;
   isOpen: boolean;
+  eventTypeFilters?: Set<FilterableEventType>;
 }
 
 const EVENT_CONFIG: Record<string, { 
@@ -150,7 +154,7 @@ function renderField(label: string, value: unknown, className?: string): React.R
   );
 }
 
-export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelineProps) {
+export function AccountTimeline({ domainId, slug, uuid, isOpen, eventTypeFilters }: AccountTimelineProps) {
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -270,8 +274,26 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
     });
   };
 
-  // Group events by date (using all events, not filtered)
-  const eventsByDate = events.reduce((acc, event) => {
+  // Filter events based on eventTypeFilters
+  // When filters are active, show only matching event types
+  // EMAIL_SENT events are always shown when filtering for success events (to show context)
+  const filteredEvents = useMemo(() => {
+    if (!eventTypeFilters || eventTypeFilters.size === 0) return events;
+    
+    return events.filter(event => {
+      // Always include the filtered event types
+      if (eventTypeFilters.has(event.type as FilterableEventType)) return true;
+      // Also include EMAIL_SENT to provide context for the success events
+      if (event.type === 'EMAIL_SENT') return true;
+      return false;
+    });
+  }, [events, eventTypeFilters]);
+
+  // Count of hidden events when filter is active
+  const hiddenEventCount = events.length - filteredEvents.length;
+
+  // Group events by date (using filtered events when filters are active)
+  const eventsByDate = filteredEvents.reduce((acc, event) => {
     const dateKey = new Date(event.date).toDateString();
     if (!acc[dateKey]) {
       acc[dateKey] = [];
@@ -319,6 +341,17 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen }: AccountTimelin
               />
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Event Type Filter Message */}
+      {eventTypeFilters && eventTypeFilters.size > 0 && hiddenEventCount > 0 && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
+          <History className="h-3.5 w-3.5" />
+          <span>
+            Showing {filteredEvents.length} event{filteredEvents.length !== 1 ? 's' : ''} 
+            {' '}({hiddenEventCount} other event{hiddenEventCount !== 1 ? 's' : ''} hidden by filter)
+          </span>
         </div>
       )}
 

@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -19,10 +20,15 @@ import {
   CircleSlash,
   Flag,
   ArrowUpCircle,
+  X,
 } from 'lucide-react';
 import { AccountTimeline } from './account-timeline';
 import { DefinitionTooltip, SimpleTooltip } from '@/components/ui/definition-tooltip';
+import { cn } from '@/lib/utils';
 import type { DomainStatus, MatchType } from '@/db/attribution/types';
+
+// Event types that can be filtered
+type EventType = 'POSITIVE_REPLY' | 'SIGN_UP' | 'MEETING_BOOKED' | 'PAYING_CUSTOMER';
 
 export interface TimelineDomain {
   id: string;
@@ -56,9 +62,31 @@ function getStatusType(domain: TimelineDomain): 'attributed' | 'outside_window' 
 }
 
 export function TimelineDialog({ domain, isOpen, onClose, slug, uuid }: TimelineDialogProps) {
+  // Event type filter state - empty set means show all
+  const [eventTypeFilters, setEventTypeFilters] = useState<Set<EventType>>(new Set());
+
+  // Toggle an event type filter
+  const toggleEventFilter = useCallback((eventType: EventType) => {
+    setEventTypeFilters(prev => {
+      const next = new Set(prev);
+      if (next.has(eventType)) {
+        next.delete(eventType);
+      } else {
+        next.add(eventType);
+      }
+      return next;
+    });
+  }, []);
+
+  // Clear all filters
+  const clearFilters = useCallback(() => {
+    setEventTypeFilters(new Set());
+  }, []);
+
   if (!domain) return null;
 
   const statusType = getStatusType(domain);
+  const hasActiveFilters = eventTypeFilters.size > 0;
 
   const renderStatusBadge = () => {
     switch (statusType) {
@@ -149,40 +177,86 @@ export function TimelineDialog({ domain, isOpen, onClose, slug, uuid }: Timeline
             </div>
           </div>
 
-          {/* Event Type Icons */}
+          {/* Event Type Filter Badges - Click to filter timeline */}
           <div className="flex items-center gap-2 mt-3">
-            <span className="text-xs text-muted-foreground mr-1">Events:</span>
+            <span className="text-xs text-muted-foreground mr-1">
+              {hasActiveFilters ? 'Filtering:' : 'Events:'}
+            </span>
             {domain.has_positive_reply && (
-              <SimpleTooltip content="Positive Reply">
-                <Badge variant="outline" className="bg-purple-500/10 text-xs px-2 py-0.5">
+              <SimpleTooltip content={eventTypeFilters.has('POSITIVE_REPLY') ? 'Click to show all' : 'Click to filter to replies only'}>
+                <Badge 
+                  variant="outline" 
+                  className={cn(
+                    "text-xs px-2 py-0.5 cursor-pointer transition-all",
+                    eventTypeFilters.has('POSITIVE_REPLY')
+                      ? "bg-purple-500/30 ring-2 ring-purple-500 ring-offset-1"
+                      : "bg-purple-500/10 hover:bg-purple-500/20"
+                  )}
+                  onClick={() => toggleEventFilter('POSITIVE_REPLY')}
+                >
                   <MessageSquare className="h-3 w-3 mr-1" />
                   Reply
                 </Badge>
               </SimpleTooltip>
             )}
             {domain.has_sign_up && (
-              <SimpleTooltip content="Website Sign-Up">
-                <Badge variant="outline" className="bg-blue-500/10 text-xs px-2 py-0.5">
+              <SimpleTooltip content={eventTypeFilters.has('SIGN_UP') ? 'Click to show all' : 'Click to filter to sign-ups only'}>
+                <Badge 
+                  variant="outline" 
+                  className={cn(
+                    "text-xs px-2 py-0.5 cursor-pointer transition-all",
+                    eventTypeFilters.has('SIGN_UP')
+                      ? "bg-blue-500/30 ring-2 ring-blue-500 ring-offset-1"
+                      : "bg-blue-500/10 hover:bg-blue-500/20"
+                  )}
+                  onClick={() => toggleEventFilter('SIGN_UP')}
+                >
                   <UserPlus className="h-3 w-3 mr-1" />
                   Sign-Up
                 </Badge>
               </SimpleTooltip>
             )}
             {domain.has_meeting_booked && (
-              <SimpleTooltip content="Meeting Booked">
-                <Badge variant="outline" className="bg-yellow-500/10 text-xs px-2 py-0.5">
+              <SimpleTooltip content={eventTypeFilters.has('MEETING_BOOKED') ? 'Click to show all' : 'Click to filter to meetings only'}>
+                <Badge 
+                  variant="outline" 
+                  className={cn(
+                    "text-xs px-2 py-0.5 cursor-pointer transition-all",
+                    eventTypeFilters.has('MEETING_BOOKED')
+                      ? "bg-yellow-500/30 ring-2 ring-yellow-500 ring-offset-1"
+                      : "bg-yellow-500/10 hover:bg-yellow-500/20"
+                  )}
+                  onClick={() => toggleEventFilter('MEETING_BOOKED')}
+                >
                   <Calendar className="h-3 w-3 mr-1" />
                   Meeting
                 </Badge>
               </SimpleTooltip>
             )}
             {domain.has_paying_customer && (
-              <SimpleTooltip content="Paying Customer">
-                <Badge className="bg-green-500 text-xs px-2 py-0.5">
+              <SimpleTooltip content={eventTypeFilters.has('PAYING_CUSTOMER') ? 'Click to show all' : 'Click to filter to paying customers only'}>
+                <Badge 
+                  className={cn(
+                    "text-xs px-2 py-0.5 cursor-pointer transition-all",
+                    eventTypeFilters.has('PAYING_CUSTOMER')
+                      ? "bg-green-600 ring-2 ring-green-500 ring-offset-1"
+                      : "bg-green-500 hover:bg-green-600"
+                  )}
+                  onClick={() => toggleEventFilter('PAYING_CUSTOMER')}
+                >
                   <DollarSign className="h-3 w-3 mr-1" />
                   Paying
                 </Badge>
               </SimpleTooltip>
+            )}
+            {hasActiveFilters && (
+              <button
+                onClick={clearFilters}
+                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 ml-1"
+              >
+                <X className="h-3 w-3" />
+                Clear
+              </button>
             )}
             {!domain.has_positive_reply && !domain.has_sign_up && !domain.has_meeting_booked && !domain.has_paying_customer && (
               <span className="text-xs text-muted-foreground italic">No events recorded</span>
@@ -198,6 +272,7 @@ export function TimelineDialog({ domain, isOpen, onClose, slug, uuid }: Timeline
               slug={slug}
               uuid={uuid}
               isOpen={isOpen}
+              eventTypeFilters={eventTypeFilters}
             />
           </div>
         </div>
