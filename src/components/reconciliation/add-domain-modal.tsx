@@ -35,8 +35,6 @@ import { format } from 'date-fns';
 interface AddDomainModalProps {
   isOpen: boolean;
   onClose: () => void;
-  periodId: string;
-  periodName: string;
   slug: string;
   uuid: string;
   onSuccess?: () => void;
@@ -66,8 +64,6 @@ interface DomainEvent {
 export function AddDomainModal({
   isOpen,
   onClose,
-  periodId,
-  periodName,
   slug,
   uuid,
   onSuccess,
@@ -140,6 +136,8 @@ export function AddDomainModal({
     loadEvents();
   }, [selectedDomain, slug, uuid]);
 
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
   const handleSubmit = async () => {
     if (!selectedDomain) {
       setError('Please select a domain');
@@ -152,10 +150,11 @@ export function AddDomainModal({
 
     setIsSubmitting(true);
     setError(null);
+    setSuccessMessage(null);
 
     try {
       const response = await fetch(
-        `/api/clients/${slug}/${uuid}/reconciliation/${periodId}/add-domain`,
+        `/api/clients/${slug}/${uuid}/reconciliation/add-domain`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -166,16 +165,24 @@ export function AddDomainModal({
         }
       );
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const data = await response.json();
         throw new Error(data.error || 'Failed to add domain');
       }
 
-      onSuccess?.();
-      handleClose();
+      // Show success with details about which periods were added
+      const periodsAdded = data.periodsAdded?.length || 0;
+      const periodNames = data.periodsAdded?.map((p: { periodName: string }) => p.periodName).join(', ') || '';
+      setSuccessMessage(`Added to ${periodsAdded} period${periodsAdded !== 1 ? 's' : ''}: ${periodNames}`);
+      
+      // Call success callback after a short delay so user can see the message
+      setTimeout(() => {
+        onSuccess?.();
+        handleClose();
+      }, 1500);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
       setIsSubmitting(false);
     }
   };
@@ -187,6 +194,7 @@ export function AddDomainModal({
     setDomainEvents([]);
     setBillingStartDate(undefined);
     setError(null);
+    setSuccessMessage(null);
     onClose();
   };
 
@@ -252,10 +260,10 @@ export function AddDomainModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Plus className="h-5 w-5 text-primary" />
-            Add Domain to {periodName}
+            Add Domain to Reconciliation
           </DialogTitle>
           <DialogDescription>
-            Search for a domain and add it directly to this billing period.
+            Search for a domain and add it to all applicable billing periods based on the 12-month billing window.
           </DialogDescription>
         </DialogHeader>
 
@@ -416,10 +424,20 @@ export function AddDomainModal({
                   placeholder="Select when billing starts for this lead"
                 />
                 <p className="text-xs text-muted-foreground">
-                  This determines which billing period(s) this lead will appear in.
+                  The domain will be added to all billing periods within 12 months of this date.
                 </p>
               </div>
             </div>
+          )}
+
+          {/* Success */}
+          {successMessage && (
+            <Alert className="bg-green-500/10 border-green-500/20">
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              <AlertDescription className="text-green-700 dark:text-green-400">
+                {successMessage}
+              </AlertDescription>
+            </Alert>
           )}
 
           {/* Error */}
@@ -436,17 +454,22 @@ export function AddDomainModal({
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={isSubmitting || !selectedDomain || !billingStartDate}
+            disabled={isSubmitting || !selectedDomain || !billingStartDate || !!successMessage}
           >
             {isSubmitting ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 Adding...
               </>
+            ) : successMessage ? (
+              <>
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                Added!
+              </>
             ) : (
               <>
                 <Plus className="h-4 w-4 mr-2" />
-                Add to Period
+                Add to All Periods
               </>
             )}
           </Button>

@@ -387,14 +387,20 @@ export default function ClientReconciliationPage() {
       <ClientNav slug={slug} uuid={uuid} />
 
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <DollarSign className="h-8 w-8 text-primary" />
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Reconciliation</h1>
-          <p className="text-muted-foreground">
-            Enter the revenue collected from each paying customer
-          </p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <DollarSign className="h-8 w-8 text-primary" />
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Reconciliation</h1>
+            <p className="text-muted-foreground">
+              Enter the revenue collected from each paying customer
+            </p>
+          </div>
         </div>
+        <Button onClick={() => setAddDomainModalOpen(true)}>
+          <Plus className="h-4 w-4 mr-2" />
+          Add Domain
+        </Button>
       </div>
 
       {/* Upcoming Period (show only next one, at top) */}
@@ -449,22 +455,13 @@ export default function ClientReconciliationPage() {
                       )}
                     </div>
                     {isActive && (
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          onClick={(e) => { e.stopPropagation(); setAddDomainModalOpen(true); }}
-                        >
-                          <Plus className="h-4 w-4 mr-2" />
-                          Add Domain
-                        </Button>
-                        <Button 
-                          onClick={(e) => { e.stopPropagation(); setSubmitDialogOpen(true); }}
-                          disabled={getFilledCount() === 0}
-                        >
-                          <Send className="h-4 w-4 mr-2" />
-                          Submit ({getFilledCount()}/{lineItems.length})
-                        </Button>
-                      </div>
+                      <Button 
+                        onClick={(e) => { e.stopPropagation(); setSubmitDialogOpen(true); }}
+                        disabled={getFilledCount() === 0}
+                      >
+                        <Send className="h-4 w-4 mr-2" />
+                        Submit ({getFilledCount()}/{lineItems.length})
+                      </Button>
                     )}
                   </div>
                   <CardDescription>
@@ -812,20 +809,18 @@ export default function ClientReconciliationPage() {
       </Dialog>
 
       {/* Add Domain Modal */}
-      {activePeriod && (
-        <AddDomainModal
-          isOpen={addDomainModalOpen}
-          onClose={() => setAddDomainModalOpen(false)}
-          periodId={activePeriod.id}
-          periodName={activePeriod.period_name}
-          slug={slug}
-          uuid={uuid}
-          onSuccess={() => {
+      <AddDomainModal
+        isOpen={addDomainModalOpen}
+        onClose={() => setAddDomainModalOpen(false)}
+        slug={slug}
+        uuid={uuid}
+        onSuccess={() => {
+          if (activePeriod) {
             fetchLineItems(activePeriod.id);
-            fetchPeriods();
-          }}
-        />
-      )}
+          }
+          fetchPeriods();
+        }}
+      />
     </div>
   );
 }
