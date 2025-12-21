@@ -7,6 +7,15 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import {
   Table,
   TableBody,
   TableCell,
@@ -126,6 +135,9 @@ export function AccountsTable({
   
   // Dispute mode - hidden by default, unlocked with password for developer demos
   const [disputeModeUnlocked, setDisputeModeUnlocked] = useState(false);
+  const [disputePasswordDialog, setDisputePasswordDialog] = useState(false);
+  const [disputePassword, setDisputePassword] = useState('');
+  const [disputePasswordError, setDisputePasswordError] = useState(false);
   
   // Track if initial URL sync has been done
   const initialSyncDoneRef = useRef(false);
@@ -291,14 +303,22 @@ export function AccountsTable({
       // Already unlocked, just toggle off
       setDisputeModeUnlocked(false);
     } else {
-      // Prompt for password
-      const password = window.prompt('Enter password to enable dispute features:');
-      if (password === 'Dispute') {
-        setDisputeModeUnlocked(true);
-      } else if (password !== null) {
-        // User entered wrong password (not cancelled)
-        window.alert('Incorrect password');
-      }
+      // Open password dialog
+      setDisputePassword('');
+      setDisputePasswordError(false);
+      setDisputePasswordDialog(true);
+    }
+  };
+
+  // Handle dispute password submission
+  const handleDisputePasswordSubmit = () => {
+    if (disputePassword === 'Dispute') {
+      setDisputeModeUnlocked(true);
+      setDisputePasswordDialog(false);
+      setDisputePassword('');
+      setDisputePasswordError(false);
+    } else {
+      setDisputePasswordError(true);
     }
   };
 
@@ -807,6 +827,53 @@ export function AccountsTable({
         slug={slug}
         uuid={uuid}
       />
+
+      {/* Dispute Mode Password Dialog */}
+      <Dialog open={disputePasswordDialog} onOpenChange={setDisputePasswordDialog}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Lock className="h-5 w-5" />
+              Unlock Dispute Features
+            </DialogTitle>
+            <DialogDescription>
+              Enter the password to enable dispute functionality.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="dispute-password">Password</Label>
+            <Input
+              id="dispute-password"
+              type="password"
+              placeholder="Enter password..."
+              value={disputePassword}
+              onChange={(e) => {
+                setDisputePassword(e.target.value);
+                setDisputePasswordError(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleDisputePasswordSubmit();
+                }
+              }}
+              className={cn(disputePasswordError && 'border-red-500')}
+              autoFocus
+            />
+            {disputePasswordError && (
+              <p className="text-sm text-red-500 mt-1">Incorrect password</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDisputePasswordDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleDisputePasswordSubmit}>
+              <Unlock className="h-4 w-4 mr-2" />
+              Unlock
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
