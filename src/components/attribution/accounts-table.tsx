@@ -29,6 +29,8 @@ import {
   Flag,
   ArrowUpCircle,
   Loader2,
+  Lock,
+  Unlock,
 } from 'lucide-react';
 import { DefinitionTooltip, SimpleTooltip } from '@/components/ui/definition-tooltip';
 import { cn } from '@/lib/utils';
@@ -121,6 +123,9 @@ export function AccountsTable({
   });
   const [focusView, setFocusView] = useState(() => searchParams.get('focus') === 'true');
   const [selectedDomain, setSelectedDomain] = useState<AccountDomain | null>(null);
+  
+  // Dispute mode - hidden by default, unlocked with password for developer demos
+  const [disputeModeUnlocked, setDisputeModeUnlocked] = useState(false);
   
   // Track if initial URL sync has been done
   const initialSyncDoneRef = useRef(false);
@@ -280,6 +285,23 @@ export function AccountsTable({
     });
   };
 
+  // Handle dispute mode toggle - requires password to unlock
+  const handleDisputeModeToggle = () => {
+    if (disputeModeUnlocked) {
+      // Already unlocked, just toggle off
+      setDisputeModeUnlocked(false);
+    } else {
+      // Prompt for password
+      const password = window.prompt('Enter password to enable dispute features:');
+      if (password === 'Dispute') {
+        setDisputeModeUnlocked(true);
+      } else if (password !== null) {
+        // User entered wrong password (not cancelled)
+        window.alert('Incorrect password');
+      }
+    }
+  };
+
   // No longer need client-side filtering - server does it now
   const filteredDomains = domains;
 
@@ -370,7 +392,8 @@ export function AccountsTable({
           </DefinitionTooltip>
         );
       case 'disputed':
-        return (
+        // Only make the badge interactive when dispute mode is unlocked
+        return disputeModeUnlocked ? (
           <Badge 
             variant="outline" 
             className="bg-orange-500/10 text-orange-700 dark:text-orange-400 cursor-pointer hover:bg-orange-500/20 transition-colors"
@@ -379,6 +402,14 @@ export function AccountsTable({
               onOpenDisputePanel?.(domain);
             }}
             title="Click to view dispute details"
+          >
+            <Flag className="h-3 w-3 mr-1" />
+            Disputed
+          </Badge>
+        ) : (
+          <Badge 
+            variant="outline" 
+            className="bg-orange-500/10 text-orange-700 dark:text-orange-400"
           >
             <Flag className="h-3 w-3 mr-1" />
             Disputed
@@ -400,7 +431,8 @@ export function AccountsTable({
   const renderActionButton = (domain: AccountDomain) => {
     const statusType = getStatusFilterType(domain);
 
-    if (statusType === 'attributed') {
+    // Only show dispute-related buttons when dispute mode is unlocked
+    if (statusType === 'attributed' && disputeModeUnlocked) {
       return (
         <Button
           variant="ghost"
@@ -418,7 +450,7 @@ export function AccountsTable({
       );
     }
 
-    if (statusType === 'disputed') {
+    if (statusType === 'disputed' && disputeModeUnlocked) {
       return (
         <Button
           variant="ghost"
@@ -583,6 +615,21 @@ export function AccountsTable({
             Focus
           </button>
         </DefinitionTooltip>
+
+        {/* Dispute Mode Toggle (password protected) */}
+        <button
+          onClick={handleDisputeModeToggle}
+          className={cn(
+            'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors',
+            disputeModeUnlocked
+              ? 'bg-orange-500/20 text-orange-700 dark:text-orange-300'
+              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+          )}
+          title={disputeModeUnlocked ? 'Click to lock dispute features' : 'Click to unlock dispute features (requires password)'}
+        >
+          {disputeModeUnlocked ? <Unlock className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
+          Dispute
+        </button>
 
         {/* Clear Filters */}
         {hasActiveFilters && (
