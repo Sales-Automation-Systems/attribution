@@ -48,6 +48,10 @@ import type { DomainStatus, MatchType } from '@/db/attribution/types';
 // Timeline Dialog component
 import { TimelineDialog } from './timeline-dialog';
 
+// #region agent log
+fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:import',message:'accounts-table module loaded, TimelineDialog imported',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'F'})}).catch(()=>{});
+// #endregion
+
 export interface AccountDomain {
   id: string;
   domain: string;
@@ -262,6 +266,9 @@ export function AccountsTable({
   // Update URL when selecting/deselecting account
   // FIX: 1-second lock after closing prevents race conditions from reopening
   const handleSelectDomain = useCallback((domain: AccountDomain | null) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:handleSelectDomain',message:'handleSelectDomain called',data:{hasDomain:!!domain,domainId:domain?.id,domainName:domain?.domain},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'F'})}).catch(()=>{});
+    // #endregion
     const now = Date.now();
     
     // LOCK GUARD: If dialog is locked (within 1 second of closing), block opens
@@ -877,6 +884,9 @@ export function AccountsTable({
       )}
 
       {/* Timeline Dialog */}
+      {/* #region agent log */}
+      {(() => { fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:TimelineDialog-render',message:'About to render TimelineDialog',data:{hasSelectedDomain:!!selectedDomain,selectedDomainId:selectedDomain?.id},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'F'})}).catch(()=>{}); return null; })()}
+      {/* #endregion */}
       <TimelineDialog
         domain={selectedDomain}
         isOpen={!!selectedDomain}
