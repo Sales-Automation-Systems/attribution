@@ -173,13 +173,18 @@ export async function GET(
     }
 
     // Add synthetic "Attribution Determined" event for attributed domains
-    // This shows when the system first determined attribution (based on first success event)
+    // ONLY if the first email was sent BEFORE the first success event
+    // This prevents showing "Attribution Confirmed" for leads that were in funnel before outreach
     const isAttributed = ['ATTRIBUTED', 'CLIENT_PROMOTED', 'CONFIRMED'].includes(domain.status);
     const isDisputed = ['DISPUTED', 'DISPUTE_PENDING'].includes(domain.status);
     
-    if ((isAttributed || isDisputed) && !hasInitialAttributionEvent && domain.first_event_at) {
+    // Check if emails were sent before the first event (valid attribution)
+    const hasEmailBeforeEvent = domain.first_email_sent_at && domain.first_event_at && 
+      new Date(domain.first_email_sent_at) < new Date(domain.first_event_at);
+    
+    if ((isAttributed || isDisputed) && !hasInitialAttributionEvent && domain.first_event_at && hasEmailBeforeEvent) {
       // Add a synthetic status change showing when attribution was determined
-      // Use first_event_at as that's when the success event happened
+      // Use first_event_at as that's when the success event happened (after email)
       timeline.push({
         id: `synthetic-attribution-${domain.id}`,
         type: 'STATUS_CHANGE',
