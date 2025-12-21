@@ -42,21 +42,13 @@ export function ClientDashboardWrapper({
     domain: AccountDomain | null;
   }>({ isOpen: false, domain: null });
 
-  // Find domain by ID
-  const findDomain = useCallback(
-    (domainId: string) => domains.find((d) => d.id === domainId),
-    [domains]
-  );
-
   // Handle attribute (manually attribute an outside-window or unattributed domain)
+  // Note: We now receive the full domain object since filtered domains may not be in the initial prop
   const handleAttribute = useCallback(
-    (domainId: string) => {
-      const domain = findDomain(domainId);
-      if (domain) {
-        setAttributePanel({ isOpen: true, domain });
-      }
+    (domain: AccountDomain) => {
+      setAttributePanel({ isOpen: true, domain });
     },
-    [findDomain]
+    []
   );
 
   // Handle opening the dispute side panel

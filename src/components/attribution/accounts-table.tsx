@@ -58,7 +58,7 @@ interface AccountsTableProps {
   slug: string;
   uuid: string;
   attributionWindowDays: number;
-  onAttribute?: (domainId: string) => void;
+  onAttribute?: (domain: AccountDomain) => void;
   onOpenDisputePanel?: (domain: AccountDomain) => void;
 }
 
@@ -446,7 +446,7 @@ export function AccountsTable({
           className="h-7 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
           onClick={(e) => {
             e.stopPropagation();
-            onAttribute?.(domain.id);
+            onAttribute?.(domain);
           }}
           title="Add to your billable attribution"
         >
