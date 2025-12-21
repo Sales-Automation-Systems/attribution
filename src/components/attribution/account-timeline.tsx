@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Loader2, Mail, MessageSquare, UserPlus, Calendar, DollarSign, ChevronDown, ChevronUp, User, Briefcase, Focus, History } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface TimelineEvent {
   id: string;
@@ -312,8 +313,9 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen, eventTypeFilters
   return (
     <div className="space-y-4 bg-background">
       {/* Focus View Header - only show for direct matches with matched emails */}
+      {/* Sticky so it stays visible when scrolling through long timelines */}
       {canUseFocusView && (
-        <div className="bg-gradient-to-r from-emerald-50 to-cyan-50 dark:from-emerald-950/30 dark:to-cyan-950/30 rounded-lg p-3 border border-emerald-200 dark:border-emerald-800">
+        <div className="sticky top-0 z-20 bg-gradient-to-r from-emerald-50 to-cyan-50 dark:from-emerald-950/30 dark:to-cyan-950/30 rounded-lg p-3 border border-emerald-200 dark:border-emerald-800 shadow-sm">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Focus className="h-4 w-4 text-emerald-600" />
@@ -352,8 +354,12 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen, eventTypeFilters
       )}
 
       {/* Event Type Filter Message */}
+      {/* Also sticky, positioned below the Focus View Header if present */}
       {eventTypeFilters && eventTypeFilters.size > 0 && eventFilterDimmedCount > 0 && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
+        <div className={cn(
+          "sticky z-20 flex items-center gap-2 text-xs text-muted-foreground bg-muted rounded-md px-3 py-2 shadow-sm",
+          canUseFocusView ? "top-[60px]" : "top-0"
+        )}>
           <Focus className="h-3.5 w-3.5" />
           <span>
             Focused on {events.length - eventFilterDimmedCount} event{events.length - eventFilterDimmedCount !== 1 ? 's' : ''} 
