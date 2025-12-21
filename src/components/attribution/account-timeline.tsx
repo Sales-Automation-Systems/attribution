@@ -165,6 +165,7 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen, eventTypeFilters
   const [matchedEmails, setMatchedEmails] = useState<string[]>([]);
   const [focusView, setFocusView] = useState(false);
   const [domainStatus, setDomainStatus] = useState<string | null>(null);
+  const [domainName, setDomainName] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen && !loaded) {
@@ -185,6 +186,7 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen, eventTypeFilters
       setHasDetailedEvents(data.hasDetailedEvents || false);
       setMatchType(data.domain?.matchType || null);
       setDomainStatus(data.domain?.status || null);
+      setDomainName(data.domain?.name || null);
       // Use new array format, fall back to legacy single email
       const emails = data.domain?.matchedEmails || [];
       if (emails.length === 0 && data.domain?.matchedEmail) {
@@ -492,14 +494,15 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen, eventTypeFilters
                       <ContactInfo name={contactName} title={jobTitle} />
                     )}
 
-                    {/* Email address - or account-level indicator if no email */}
+                    {/* Email address - or domain indicator if no email */}
                     {event.email ? (
                       renderField('To', event.email, 'text-sm mt-1')
                     ) : (
                       // For events without a specific email (common for PAYING_CUSTOMER from CRM)
-                      ['PAYING_CUSTOMER', 'SIGN_UP', 'MEETING_BOOKED'].includes(event.type) && (
-                        <p className="text-sm text-muted-foreground mt-1 italic">
-                          Account-level event (no specific contact)
+                      ['PAYING_CUSTOMER', 'SIGN_UP', 'MEETING_BOOKED'].includes(event.type) && domainName && (
+                        <p className="text-sm mt-1">
+                          <span className="text-muted-foreground">Account:</span>{' '}
+                          <span className="font-medium">{domainName}</span>
                         </p>
                       )
                     )}
