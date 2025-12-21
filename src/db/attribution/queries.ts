@@ -698,7 +698,7 @@ export async function getDashboardStats(clientConfigId?: string): Promise<{
       COUNT(*) FILTER (WHERE has_paying_customer = true) as total_paying_customers,
       COUNT(*) FILTER (WHERE match_type = 'HARD_MATCH') as total_hard_matches,
       COUNT(*) FILTER (WHERE match_type = 'SOFT_MATCH') as total_soft_matches,
-      COUNT(*) FILTER (WHERE status = 'DISPUTED') as pending_disputes
+      COUNT(*) FILTER (WHERE status = 'DISPUTE_PENDING') as pending_disputes
     FROM attributed_domain
   `;
 

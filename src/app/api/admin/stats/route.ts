@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
           COUNT(*) FILTER (WHERE has_paying_customer = true) as total_paying_customers,
           COUNT(*) FILTER (WHERE match_type = 'HARD_MATCH') as total_hard_matches,
           COUNT(*) FILTER (WHERE match_type = 'SOFT_MATCH') as total_soft_matches,
-          COUNT(*) FILTER (WHERE status = 'DISPUTED') as pending_disputes
+          COUNT(*) FILTER (WHERE status = 'DISPUTE_PENDING') as pending_disputes
         FROM attributed_domain
       `, []);
 
@@ -122,7 +122,7 @@ export async function GET(req: NextRequest) {
 
     // Pending disputes (not filtered by date - disputes are a current state)
     const disputeRows = await attrQuery<{ count: string }>(`
-      SELECT COUNT(*) as count FROM attributed_domain WHERE status = 'DISPUTED'
+      SELECT COUNT(*) as count FROM attributed_domain WHERE status = 'DISPUTE_PENDING'
     `, []);
 
     return NextResponse.json({
