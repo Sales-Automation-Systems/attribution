@@ -4,7 +4,7 @@ import { attrQuery } from '@/db';
 
 interface TimelineEvent {
   id: string;
-  type: 'EMAIL_SENT' | 'POSITIVE_REPLY' | 'SIGN_UP' | 'MEETING_BOOKED' | 'PAYING_CUSTOMER';
+  type: 'EMAIL_SENT' | 'POSITIVE_REPLY' | 'SIGN_UP' | 'MEETING_BOOKED' | 'PAYING_CUSTOMER' | 'STATUS_CHANGE';
   date: string;
   email?: string;
   subject?: string;
@@ -43,10 +43,12 @@ export async function GET(
       match_type: string;
       matched_email: string | null;
       matched_emails: string[] | null;
+      status: string;
+      created_at: Date;
     }>(`
       SELECT id, domain, client_config_id, first_email_sent_at, first_event_at,
              has_positive_reply, has_sign_up, has_meeting_booked, has_paying_customer,
-             is_within_window, match_type, matched_email, matched_emails
+             is_within_window, match_type, matched_email, matched_emails, status, created_at
       FROM attributed_domain
       WHERE id = $1
     `, [domainId]);
@@ -72,6 +74,9 @@ export async function GET(
       ORDER BY event_time ASC
     `, [domainId]);
 
+    // Track if we found a STATUS_CHANGE for initial attribution
+    let hasInitialAttributionEvent = false;
+
     if (detailedEvents.length > 0) {
       // Use detailed events from domain_event table
       for (const event of detailedEvents) {
@@ -96,6 +101,14 @@ export async function GET(
           case 'PAYING_CUSTOMER':
           case 'PAYING':
             eventType = 'PAYING_CUSTOMER';
+            break;
+          case 'STATUS_CHANGE':
+            eventType = 'STATUS_CHANGE';
+            // Check if this is an attribution-related status change
+            const meta = event.metadata || {};
+            if (meta.newStatus === 'ATTRIBUTED' || meta.action === 'SYSTEM_UPDATE') {
+              hasInitialAttributionEvent = true;
+            }
             break;
           default:
             continue;
@@ -159,6 +172,29 @@ export async function GET(
       }
     }
 
+    // Add synthetic "Attribution Determined" event for attributed domains
+    // This shows when the system first determined attribution (based on first success event)
+    const isAttributed = ['ATTRIBUTED', 'CLIENT_PROMOTED', 'CONFIRMED'].includes(domain.status);
+    const isDisputed = ['DISPUTED', 'DISPUTE_PENDING'].includes(domain.status);
+    
+    if ((isAttributed || isDisputed) && !hasInitialAttributionEvent && domain.first_event_at) {
+      // Add a synthetic status change showing when attribution was determined
+      // Use first_event_at as that's when the success event happened
+      timeline.push({
+        id: `synthetic-attribution-${domain.id}`,
+        type: 'STATUS_CHANGE',
+        date: domain.first_event_at.toISOString(),
+        metadata: {
+          action: 'SYSTEM_UPDATE',
+          oldStatus: null,
+          newStatus: 'ATTRIBUTED',
+          reason: 'Attribution determined by system based on email match and success event',
+          changedBy: 'System',
+          synthetic: true, // Flag to indicate this was generated, not logged
+        },
+      });
+    }
+
     // Sort by date
     timeline.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
@@ -171,6 +207,7 @@ export async function GET(
         matchedEmail: domain.matched_email, // Legacy: first focused contact
         matchedEmails: domain.matched_emails || [], // All focused contacts
         isWithinWindow: domain.is_within_window,
+        status: domain.status,
       }
     });
   } catch (error) {

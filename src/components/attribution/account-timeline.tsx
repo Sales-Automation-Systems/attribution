@@ -547,30 +547,54 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen, eventTypeFilters
                     {/* Status change - detailed display */}
                     {event.type === 'STATUS_CHANGE' && (statusFrom || statusTo) && (
                       <div className="space-y-1">
-                        {/* Action label */}
+                        {/* Action label - format nicely based on action type */}
                         {statusAction && (
-                          <p className="text-xs font-medium text-orange-600 dark:text-orange-400">
-                            {statusAction.replace(/_/g, ' ')}
+                          <p className={cn(
+                            "text-xs font-medium",
+                            statusAction === 'SYSTEM_UPDATE' && statusTo === 'ATTRIBUTED'
+                              ? "text-green-600 dark:text-green-400"
+                              : statusAction === 'DISPUTE_SUBMITTED'
+                              ? "text-amber-600 dark:text-amber-400"
+                              : statusAction === 'DISPUTE_APPROVED'
+                              ? "text-red-600 dark:text-red-400"
+                              : statusAction === 'DISPUTE_REJECTED'
+                              ? "text-green-600 dark:text-green-400"
+                              : "text-orange-600 dark:text-orange-400"
+                          )}>
+                            {statusAction === 'SYSTEM_UPDATE' && statusTo === 'ATTRIBUTED'
+                              ? '✓ Attribution Confirmed'
+                              : statusAction === 'DISPUTE_SUBMITTED'
+                              ? '⚠ Dispute Submitted'
+                              : statusAction === 'DISPUTE_APPROVED'
+                              ? '✗ Dispute Approved (Removed)'
+                              : statusAction === 'DISPUTE_REJECTED'
+                              ? '✓ Dispute Rejected (Confirmed)'
+                              : statusAction === 'MANUAL_ATTRIBUTION'
+                              ? '↑ Manually Attributed'
+                              : statusAction.replace(/_/g, ' ')
+                            }
                           </p>
                         )}
-                        {/* Status transition */}
-                        <p className="text-xs text-muted-foreground">
-                          {statusFrom && (
-                            <>
-                              <span className="line-through opacity-60">{statusFrom}</span>
-                              <span className="mx-1">→</span>
-                            </>
-                          )}
-                          <span className="font-medium">{statusTo}</span>
-                        </p>
-                        {/* Reason */}
-                        {statusReason && (
+                        {/* Status transition - hide for system attribution where it's redundant */}
+                        {!(statusAction === 'SYSTEM_UPDATE' && statusTo === 'ATTRIBUTED' && !statusFrom) && (
+                          <p className="text-xs text-muted-foreground">
+                            {statusFrom && (
+                              <>
+                                <span className="line-through opacity-60">{statusFrom}</span>
+                                <span className="mx-1">→</span>
+                              </>
+                            )}
+                            <span className="font-medium">{statusTo}</span>
+                          </p>
+                        )}
+                        {/* Reason - hide for system attribution as it's verbose */}
+                        {statusReason && statusAction !== 'SYSTEM_UPDATE' && (
                           <p className="text-xs text-muted-foreground mt-1 italic">
                             &quot;{statusReason}&quot;
                           </p>
                         )}
                         {/* Changed by */}
-                        {statusChangedBy && statusChangedBy !== 'client-user@placeholder' && (
+                        {statusChangedBy && statusChangedBy !== 'client-user@placeholder' && statusChangedBy !== 'System' && (
                           <p className="text-xs text-muted-foreground opacity-70">
                             by {statusChangedBy}
                           </p>
