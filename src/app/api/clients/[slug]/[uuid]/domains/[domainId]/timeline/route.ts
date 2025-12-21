@@ -16,8 +16,11 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string; uuid: string; domainId: string }> }
 ) {
+  // Server-side log - write to console for Vercel logs
+  console.log('[DEBUG:timeline-api] Request received');
   try {
     const { slug, uuid, domainId } = await params;
+    console.log('[DEBUG:timeline-api] Params:', { slug, uuid, domainId });
 
     // Verify client access
     const client = await getClientConfigBySlugAndUuid(slug, uuid);

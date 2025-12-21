@@ -312,6 +312,10 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen, eventTypeFilters
     return acc;
   }, {} as Record<string, TimelineEvent[]>);
 
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'account-timeline.tsx:beforeJSX',message:'About to return JSX',data:{dateGroups:Object.keys(eventsByDate).length,canUseFocusView,focusView},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'I'})}).catch(()=>{});
+  // #endregion
+
   return (
     <div className="space-y-4 bg-background">
       {/* Focus View Header - only show for direct matches with matched emails */}

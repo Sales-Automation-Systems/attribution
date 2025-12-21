@@ -106,6 +106,10 @@ export function TimelineDialog({ domain, isOpen, onClose, slug, uuid }: Timeline
   const statusType = getStatusType(domain);
   const hasActiveFilters = eventTypeFilters.size > 0;
 
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'timeline-dialog.tsx:beforeRender',message:'About to render Dialog JSX',data:{domainId:domain.id,domainName:domain.domain,statusType,hasActiveFilters,filterCount:eventTypeFilters.size},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'I'})}).catch(()=>{});
+  // #endregion
+
   const renderStatusBadge = () => {
     switch (statusType) {
       case 'attributed':

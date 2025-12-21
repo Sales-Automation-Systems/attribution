@@ -1,12 +1,23 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { AccountsTable, type AccountDomain } from './accounts-table';
 import { AddEventModal } from './add-event-modal';
 import { DisputeSidePanel } from '@/components/tasks/dispute-side-panel';
 import { Button } from '@/components/ui/button';
 import { Plus, Download } from 'lucide-react';
+
+// #region agent log - GLOBAL ERROR HANDLER
+if (typeof window !== 'undefined') {
+  window.onerror = (msg, src, line, col, err) => {
+    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'GLOBAL:window.onerror',message:'UNCAUGHT ERROR',data:{msg:String(msg),src,line,col,stack:err?.stack},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'CRASH'})}).catch(()=>{});
+  };
+  window.onunhandledrejection = (e) => {
+    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'GLOBAL:unhandledrejection',message:'UNHANDLED PROMISE REJECTION',data:{reason:String(e.reason),stack:e.reason?.stack},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'CRASH'})}).catch(()=>{});
+  };
+}
+// #endregion
 
 interface ClientDashboardWrapperProps {
   domains: AccountDomain[];
@@ -25,6 +36,10 @@ export function ClientDashboardWrapper({
   attributionWindowDays,
   revShareRate,
 }: ClientDashboardWrapperProps) {
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'client-dashboard-wrapper.tsx:render',message:'ClientDashboardWrapper RENDER',data:{domainsCount:domains?.length,totalCount,slug,uuid},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'G'})}).catch(()=>{});
+  // #endregion
+
   const router = useRouter();
   
   const [addEventModal, setAddEventModal] = useState(false);
