@@ -285,6 +285,7 @@ export async function GET(
       },
       // Debug info - remove after fixing
       _debug: {
+        version: 'v2-ssl-fix',
         clientId: client.client_id,
         emailQueryError,
         emailQueryDebug,
