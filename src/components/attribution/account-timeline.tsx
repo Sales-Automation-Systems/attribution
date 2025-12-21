@@ -230,6 +230,52 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen, eventTypeFilters
   const isDirectMatch = matchType === 'HARD_MATCH';
   const canUseFocusView = isDirectMatch && matchedEmails.length > 0;
 
+  // IMPORTANT: All useMemo hooks MUST be called before any early returns (React Rules of Hooks)
+  // Filter events based on eventTypeFilters
+  const filteredEvents = useMemo(() => {
+    if (!eventTypeFilters || eventTypeFilters.size === 0) return events;
+    return events.filter(event => {
+      if (eventTypeFilters.has(event.type as FilterableEventType)) return true;
+      if (event.type === 'EMAIL_SENT') return true;
+      return false;
+    });
+  }, [events, eventTypeFilters]);
+
+  // Count of hidden events when filter is active
+  const hiddenEventCount = events.length - filteredEvents.length;
+
+  // Group events by date (must be before early returns)
+  const eventsByDate = useMemo(() => {
+    return filteredEvents.reduce((acc, event) => {
+      const dateKey = new Date(event.date).toDateString();
+      if (!acc[dateKey]) {
+        acc[dateKey] = [];
+      }
+      acc[dateKey].push(event);
+      return acc;
+    }, {} as Record<string, TimelineEvent[]>);
+  }, [filteredEvents]);
+
+  // Format functions (pure, no hooks)
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  };
+
+  const formatTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  };
+
+  // NOW safe to have early returns - all hooks have been called
   if (!isOpen) return null;
 
   if (loading) {
@@ -259,62 +305,6 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen, eventTypeFilters
       </div>
     );
   }
-
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
-
-  const formatTime = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-    });
-  };
-
-  // Filter events based on eventTypeFilters
-  // When filters are active, show only matching event types
-  // EMAIL_SENT events are always shown when filtering for success events (to show context)
-  const filteredEvents = useMemo(() => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'account-timeline.tsx:285',message:'useMemo filteredEvents',data:{hasFilters:!!eventTypeFilters,filterSize:eventTypeFilters?.size,eventsCount:events.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
-    if (!eventTypeFilters || eventTypeFilters.size === 0) return events;
-    
-    return events.filter(event => {
-      // Always include the filtered event types
-      if (eventTypeFilters.has(event.type as FilterableEventType)) return true;
-      // Also include EMAIL_SENT to provide context for the success events
-      if (event.type === 'EMAIL_SENT') return true;
-      return false;
-    });
-  }, [events, eventTypeFilters]);
-
-  // Count of hidden events when filter is active
-  const hiddenEventCount = events.length - filteredEvents.length;
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'account-timeline.tsx:300',message:'filteredEvents computed',data:{filteredCount:filteredEvents.length,hiddenCount:hiddenEventCount},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
-  // #endregion
-
-  // Group events by date (using filtered events when filters are active)
-  const eventsByDate = filteredEvents.reduce((acc, event) => {
-    const dateKey = new Date(event.date).toDateString();
-    if (!acc[dateKey]) {
-      acc[dateKey] = [];
-    }
-    acc[dateKey].push(event);
-    return acc;
-  }, {} as Record<string, TimelineEvent[]>);
-
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'account-timeline.tsx:beforeJSX',message:'About to return JSX',data:{dateGroups:Object.keys(eventsByDate).length,canUseFocusView,focusView},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'I'})}).catch(()=>{});
-  // #endregion
 
   return (
     <div className="space-y-4 bg-background">

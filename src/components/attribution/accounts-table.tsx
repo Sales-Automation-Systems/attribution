@@ -48,10 +48,6 @@ import type { DomainStatus, MatchType } from '@/db/attribution/types';
 // Timeline Dialog component
 import { TimelineDialog } from './timeline-dialog';
 
-// #region agent log
-fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:import',message:'accounts-table module loaded, TimelineDialog imported',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'F'})}).catch(()=>{});
-// #endregion
-
 export interface AccountDomain {
   id: string;
   domain: string;
