@@ -492,8 +492,17 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen, eventTypeFilters
                       <ContactInfo name={contactName} title={jobTitle} />
                     )}
 
-                    {/* Email address */}
-                    {renderField('To', event.email, 'text-sm mt-1')}
+                    {/* Email address - or account-level indicator if no email */}
+                    {event.email ? (
+                      renderField('To', event.email, 'text-sm mt-1')
+                    ) : (
+                      // For events without a specific email (common for PAYING_CUSTOMER from CRM)
+                      ['PAYING_CUSTOMER', 'SIGN_UP', 'MEETING_BOOKED'].includes(event.type) && (
+                        <p className="text-sm text-muted-foreground mt-1 italic">
+                          Account-level event (no specific contact)
+                        </p>
+                      )
+                    )}
 
                     {/* Sender email */}
                     {renderField('From', fromEmail, 'text-sm')}
