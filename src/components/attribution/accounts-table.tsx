@@ -58,7 +58,6 @@ interface AccountsTableProps {
   slug: string;
   uuid: string;
   attributionWindowDays: number;
-  onAttribute?: (domain: AccountDomain) => void;
   onOpenDisputePanel?: (domain: AccountDomain) => void;
 }
 
@@ -90,7 +89,6 @@ export function AccountsTable({
   slug,
   uuid,
   attributionWindowDays,
-  onAttribute,
   onOpenDisputePanel,
 }: AccountsTableProps) {
   const searchParams = useSearchParams();
@@ -438,24 +436,9 @@ export function AccountsTable({
       );
     }
 
-    if (statusType === 'outside_window' || statusType === 'unattributed') {
-      return (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-          onClick={(e) => {
-            e.stopPropagation();
-            onAttribute?.(domain);
-          }}
-          title="Add to your billable attribution"
-        >
-          <ArrowUpCircle className="h-3 w-3 mr-1" />
-          Attribute
-        </Button>
-      );
-    }
-
+    // For outside_window and unattributed, no action button
+    // Users should use "Add Event" modal to add missing events
+    // which will trigger attribution recalculation automatically
     return null;
   };
 

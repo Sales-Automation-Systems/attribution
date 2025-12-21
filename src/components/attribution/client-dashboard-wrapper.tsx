@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { AccountsTable, type AccountDomain } from './accounts-table';
 import { AddEventModal } from './add-event-modal';
 import { DisputeSidePanel } from '@/components/tasks/dispute-side-panel';
-import { AttributeSidePanel } from '@/components/tasks/attribute-side-panel';
 import { Button } from '@/components/ui/button';
 import { Plus, Download } from 'lucide-react';
 
@@ -35,21 +34,6 @@ export function ClientDashboardWrapper({
     isOpen: boolean;
     domain: AccountDomain | null;
   }>({ isOpen: false, domain: null });
-
-  // Side panel state for attribution
-  const [attributePanel, setAttributePanel] = useState<{
-    isOpen: boolean;
-    domain: AccountDomain | null;
-  }>({ isOpen: false, domain: null });
-
-  // Handle attribute (manually attribute an outside-window or unattributed domain)
-  // Note: We now receive the full domain object since filtered domains may not be in the initial prop
-  const handleAttribute = useCallback(
-    (domain: AccountDomain) => {
-      setAttributePanel({ isOpen: true, domain });
-    },
-    []
-  );
 
   // Handle opening the dispute side panel
   const handleOpenDisputePanel = useCallback(
@@ -130,18 +114,7 @@ export function ClientDashboardWrapper({
         slug={slug}
         uuid={uuid}
         attributionWindowDays={attributionWindowDays}
-        onAttribute={handleAttribute}
         onOpenDisputePanel={handleOpenDisputePanel}
-      />
-
-      {/* Attribute Side Panel */}
-      <AttributeSidePanel
-        isOpen={attributePanel.isOpen}
-        onClose={() => setAttributePanel({ isOpen: false, domain: null })}
-        domain={attributePanel.domain}
-        slug={slug}
-        uuid={uuid}
-        onSuccess={handleSuccess}
       />
 
       <AddEventModal

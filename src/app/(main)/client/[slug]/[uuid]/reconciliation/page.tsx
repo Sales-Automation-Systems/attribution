@@ -39,9 +39,10 @@ import {
 import { toast } from 'sonner';
 import { 
   Loader2, Send, DollarSign,
-  Calendar, Clock, FileCheck, AlertTriangle, Pencil
+  Calendar, Clock, FileCheck, AlertTriangle, Pencil, Plus
 } from 'lucide-react';
 import { format, differenceInDays, differenceInHours, isPast, addMonths, startOfMonth } from 'date-fns';
+import { AddDomainModal } from '@/components/reconciliation/add-domain-modal';
 
 type ReconciliationStatusType = 'UPCOMING' | 'OPEN' | 'PENDING_CLIENT' | 'CLIENT_SUBMITTED' | 'UNDER_REVIEW' | 'AUTO_BILLED' | 'FINALIZED';
 type LineStatusType = 'PENDING' | 'SUBMITTED' | 'DISPUTED' | 'CONFIRMED';
@@ -124,6 +125,9 @@ export default function ClientReconciliationPage() {
   // Past period line items (for read-only display)
   const [pastPeriodItems, setPastPeriodItems] = useState<Record<string, LineItem[]>>({});
   const [loadingPastPeriod, setLoadingPastPeriod] = useState<string | null>(null);
+  
+  // Add domain modal
+  const [addDomainModalOpen, setAddDomainModalOpen] = useState(false);
 
   const fetchPeriods = useCallback(async () => {
     try {
@@ -445,13 +449,22 @@ export default function ClientReconciliationPage() {
                       )}
                     </div>
                     {isActive && (
-                      <Button 
-                        onClick={(e) => { e.stopPropagation(); setSubmitDialogOpen(true); }}
-                        disabled={getFilledCount() === 0}
-                      >
-                        <Send className="h-4 w-4 mr-2" />
-                        Submit ({getFilledCount()}/{lineItems.length})
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={(e) => { e.stopPropagation(); setAddDomainModalOpen(true); }}
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Domain
+                        </Button>
+                        <Button 
+                          onClick={(e) => { e.stopPropagation(); setSubmitDialogOpen(true); }}
+                          disabled={getFilledCount() === 0}
+                        >
+                          <Send className="h-4 w-4 mr-2" />
+                          Submit ({getFilledCount()}/{lineItems.length})
+                        </Button>
+                      </div>
                     )}
                   </div>
                   <CardDescription>
@@ -797,6 +810,22 @@ export default function ClientReconciliationPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Add Domain Modal */}
+      {activePeriod && (
+        <AddDomainModal
+          isOpen={addDomainModalOpen}
+          onClose={() => setAddDomainModalOpen(false)}
+          periodId={activePeriod.id}
+          periodName={activePeriod.period_name}
+          slug={slug}
+          uuid={uuid}
+          onSuccess={() => {
+            fetchLineItems(activePeriod.id);
+            fetchPeriods();
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -14,6 +14,8 @@ interface ClientConfig {
   billing_model: string;
   revshare_plg: number | null;
   revshare_sales: number | null;
+  fee_per_signup: number | null;
+  fee_per_meeting: number | null;
 }
 
 /**
@@ -46,7 +48,8 @@ export async function POST(req: NextRequest) {
                COALESCE(estimated_acv, 10000) as estimated_acv,
                rev_share_rate,
                COALESCE(billing_model, 'flat_revshare') as billing_model,
-               revshare_plg, revshare_sales
+               revshare_plg, revshare_sales,
+               fee_per_signup, fee_per_meeting
         FROM client_config
         WHERE contract_start_date IS NOT NULL
         ORDER BY client_name
@@ -59,7 +62,8 @@ export async function POST(req: NextRequest) {
                COALESCE(estimated_acv, 10000) as estimated_acv,
                rev_share_rate,
                COALESCE(billing_model, 'flat_revshare') as billing_model,
-               revshare_plg, revshare_sales
+               revshare_plg, revshare_sales,
+               fee_per_signup, fee_per_meeting
         FROM client_config
         WHERE id = $1
       `, [clientId]);
@@ -204,8 +208,13 @@ export async function POST(req: NextRequest) {
 /**
  * Populate line items for a period from attributed domains
  * 
- * Uses a 12-month billing window from when the customer became paying.
- * A customer appears in every period within 12 months of their paying_customer_date.
+ * Supports flexible billing models:
+ * - Per-signup: Include domains with signups in this period
+ * - Per-meeting: Include domains with meetings in this period
+ * - Rev share: Include paying customers within 12-month billing window
+ * 
+ * Uses a 12-month billing window for paying customers.
+ * A paying customer appears in every period within 12 months of their paying_customer_date.
  * 
  * Example: Customer becomes paying July 15, 2025
  * - Appears in Q3 2025 (Jul-Sep) - months 1-3
@@ -224,82 +233,225 @@ async function populateLineItems(
   const startDateStr = format(startDate, 'yyyy-MM-dd');
   const endDateStr = format(endDate, 'yyyy-MM-dd') + ' 23:59:59';
   
-  // Get attributed domains with paying customers within their 12-month billing window
-  // A domain appears if:
-  // 1. They became paying by the end of this period (event_time <= period_end)
-  // 2. Their 12-month window extends into this period (event_time + 12 months > period_start)
-  const domains = await attrQuery<{
+  // Track which domains to include based on billing model
+  const domainsToInclude = new Map<string, {
     id: string;
     domain: string;
     has_sign_up: boolean;
     has_meeting_booked: boolean;
     has_paying_customer: boolean;
-    paying_customer_date: Date;
-  }>(`
-    SELECT ad.id, ad.domain, ad.has_sign_up, ad.has_meeting_booked, 
-           ad.has_paying_customer,
-           de.event_time as paying_customer_date
-    FROM attributed_domain ad
-    INNER JOIN domain_event de ON de.attributed_domain_id = ad.id 
-      AND de.event_source = 'PAYING_CUSTOMER'
-    WHERE ad.client_config_id = $1
-      AND ad.status IN ('ATTRIBUTED', 'MANUAL', 'CLIENT_PROMOTED')
-      AND ad.has_paying_customer = true
-      AND de.event_time <= $2
-      AND de.event_time + INTERVAL '12 months' > $3
-  `, [clientConfigId, endDateStr, startDateStr]);
+    paying_customer_date: Date | null;
+    signup_count: number;
+    meeting_count: number;
+    include_for_signup: boolean;
+    include_for_meeting: boolean;
+    include_for_revshare: boolean;
+  }>();
+
+  // 1. If client has per-signup billing, get domains with signups in this period
+  if (client.fee_per_signup && client.fee_per_signup > 0) {
+    const signupDomains = await attrQuery<{
+      id: string;
+      domain: string;
+      has_sign_up: boolean;
+      has_meeting_booked: boolean;
+      has_paying_customer: boolean;
+      signup_date: Date;
+      signup_count: number;
+    }>(`
+      SELECT ad.id, ad.domain, ad.has_sign_up, ad.has_meeting_booked, 
+             ad.has_paying_customer,
+             MIN(de.event_time) as signup_date,
+             COUNT(de.id)::int as signup_count
+      FROM attributed_domain ad
+      INNER JOIN domain_event de ON de.attributed_domain_id = ad.id 
+        AND de.event_source = 'SIGN_UP'
+      WHERE ad.client_config_id = $1
+        AND ad.status IN ('ATTRIBUTED', 'MANUAL', 'CLIENT_PROMOTED')
+        AND ad.has_sign_up = true
+        AND de.event_time >= $2
+        AND de.event_time <= $3
+      GROUP BY ad.id, ad.domain, ad.has_sign_up, ad.has_meeting_booked, ad.has_paying_customer
+    `, [clientConfigId, startDateStr, endDateStr]);
+
+    for (const d of signupDomains) {
+      if (!domainsToInclude.has(d.id)) {
+        domainsToInclude.set(d.id, {
+          id: d.id,
+          domain: d.domain,
+          has_sign_up: d.has_sign_up,
+          has_meeting_booked: d.has_meeting_booked,
+          has_paying_customer: d.has_paying_customer,
+          paying_customer_date: null,
+          signup_count: d.signup_count,
+          meeting_count: 0,
+          include_for_signup: true,
+          include_for_meeting: false,
+          include_for_revshare: false,
+        });
+      } else {
+        const existing = domainsToInclude.get(d.id)!;
+        existing.signup_count = d.signup_count;
+        existing.include_for_signup = true;
+      }
+    }
+  }
+
+  // 2. If client has per-meeting billing, get domains with meetings in this period
+  if (client.fee_per_meeting && client.fee_per_meeting > 0) {
+    const meetingDomains = await attrQuery<{
+      id: string;
+      domain: string;
+      has_sign_up: boolean;
+      has_meeting_booked: boolean;
+      has_paying_customer: boolean;
+      meeting_date: Date;
+      meeting_count: number;
+    }>(`
+      SELECT ad.id, ad.domain, ad.has_sign_up, ad.has_meeting_booked, 
+             ad.has_paying_customer,
+             MIN(de.event_time) as meeting_date,
+             COUNT(de.id)::int as meeting_count
+      FROM attributed_domain ad
+      INNER JOIN domain_event de ON de.attributed_domain_id = ad.id 
+        AND de.event_source = 'MEETING_BOOKED'
+      WHERE ad.client_config_id = $1
+        AND ad.status IN ('ATTRIBUTED', 'MANUAL', 'CLIENT_PROMOTED')
+        AND ad.has_meeting_booked = true
+        AND de.event_time >= $2
+        AND de.event_time <= $3
+      GROUP BY ad.id, ad.domain, ad.has_sign_up, ad.has_meeting_booked, ad.has_paying_customer
+    `, [clientConfigId, startDateStr, endDateStr]);
+
+    for (const d of meetingDomains) {
+      if (!domainsToInclude.has(d.id)) {
+        domainsToInclude.set(d.id, {
+          id: d.id,
+          domain: d.domain,
+          has_sign_up: d.has_sign_up,
+          has_meeting_booked: d.has_meeting_booked,
+          has_paying_customer: d.has_paying_customer,
+          paying_customer_date: null,
+          signup_count: 0,
+          meeting_count: d.meeting_count,
+          include_for_signup: false,
+          include_for_meeting: true,
+          include_for_revshare: false,
+        });
+      } else {
+        const existing = domainsToInclude.get(d.id)!;
+        existing.meeting_count = d.meeting_count;
+        existing.include_for_meeting = true;
+      }
+    }
+  }
+
+  // 3. If client has rev share billing, get paying customers within 12-month window
+  const hasRevShare = (client.rev_share_rate && client.rev_share_rate > 0) ||
+                     (client.revshare_plg && client.revshare_plg > 0) ||
+                     (client.revshare_sales && client.revshare_sales > 0);
+
+  if (hasRevShare) {
+    const payingDomains = await attrQuery<{
+      id: string;
+      domain: string;
+      has_sign_up: boolean;
+      has_meeting_booked: boolean;
+      has_paying_customer: boolean;
+      paying_customer_date: Date;
+    }>(`
+      SELECT ad.id, ad.domain, ad.has_sign_up, ad.has_meeting_booked, 
+             ad.has_paying_customer,
+             de.event_time as paying_customer_date
+      FROM attributed_domain ad
+      INNER JOIN domain_event de ON de.attributed_domain_id = ad.id 
+        AND de.event_source = 'PAYING_CUSTOMER'
+      WHERE ad.client_config_id = $1
+        AND ad.status IN ('ATTRIBUTED', 'MANUAL', 'CLIENT_PROMOTED')
+        AND ad.has_paying_customer = true
+        AND de.event_time <= $2
+        AND de.event_time + INTERVAL '12 months' > $3
+    `, [clientConfigId, endDateStr, startDateStr]);
+
+    for (const d of payingDomains) {
+      if (!domainsToInclude.has(d.id)) {
+        domainsToInclude.set(d.id, {
+          id: d.id,
+          domain: d.domain,
+          has_sign_up: d.has_sign_up,
+          has_meeting_booked: d.has_meeting_booked,
+          has_paying_customer: d.has_paying_customer,
+          paying_customer_date: d.paying_customer_date,
+          signup_count: 0,
+          meeting_count: 0,
+          include_for_signup: false,
+          include_for_meeting: false,
+          include_for_revshare: true,
+        });
+      } else {
+        const existing = domainsToInclude.get(d.id)!;
+        existing.paying_customer_date = d.paying_customer_date;
+        existing.include_for_revshare = true;
+      }
+    }
+  }
 
   let created = 0;
 
-  for (const domain of domains) {
+  // Process all domains that should be included
+  for (const domain of domainsToInclude.values()) {
     // Determine motion type: PLG (no meeting) or SALES (had meeting)
     const motionType = domain.has_meeting_booked ? 'SALES' : 'PLG';
 
-    // Determine revshare rate to apply
+    // Determine revshare rate to apply (only if included for revshare)
     let revshareRate: number | null = null;
-    if (client.billing_model === 'plg_sales_split') {
-      revshareRate = motionType === 'PLG' 
-        ? client.revshare_plg 
-        : client.revshare_sales;
-    } else {
-      revshareRate = client.rev_share_rate;
+    if (domain.include_for_revshare) {
+      if (client.billing_model === 'plg_sales_split') {
+        revshareRate = motionType === 'PLG' 
+          ? client.revshare_plg 
+          : client.revshare_sales;
+      } else {
+        revshareRate = client.rev_share_rate;
+      }
     }
 
-    // Count sign-ups and meetings for this domain in the period
-    const [counts] = await attrQuery<{ signup_count: number; meeting_count: number }>(`
-      SELECT 
-        COUNT(CASE WHEN event_source = 'SIGN_UP' THEN 1 END) as signup_count,
-        COUNT(CASE WHEN event_source = 'MEETING_BOOKED' THEN 1 END) as meeting_count
-      FROM domain_event
-      WHERE attributed_domain_id = $1
-        AND event_time >= $2
-        AND event_time <= $3
-    `, [domain.id, format(startDate, 'yyyy-MM-dd'), format(endDate, 'yyyy-MM-dd 23:59:59')]);
+    // Determine fees to apply
+    const signupFee = domain.include_for_signup && client.fee_per_signup 
+      ? client.fee_per_signup 
+      : null;
+    const meetingFee = domain.include_for_meeting && client.fee_per_meeting 
+      ? client.fee_per_meeting 
+      : null;
 
-    // Upsert line item with paying_customer_date
+    // Upsert line item
     await attrQuery(`
       INSERT INTO reconciliation_line_item (
         reconciliation_period_id, attributed_domain_id, domain,
-        motion_type, signup_count, meeting_count, revshare_rate_applied, 
+        motion_type, signup_count, meeting_count, 
+        revshare_rate_applied, signup_fee_applied, meeting_fee_applied,
         paying_customer_date, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'PENDING')
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'PENDING')
       ON CONFLICT (reconciliation_period_id, domain)
       DO UPDATE SET
         motion_type = EXCLUDED.motion_type,
-        signup_count = EXCLUDED.signup_count,
-        meeting_count = EXCLUDED.meeting_count,
-        revshare_rate_applied = EXCLUDED.revshare_rate_applied,
-        paying_customer_date = EXCLUDED.paying_customer_date,
+        signup_count = GREATEST(reconciliation_line_item.signup_count, EXCLUDED.signup_count),
+        meeting_count = GREATEST(reconciliation_line_item.meeting_count, EXCLUDED.meeting_count),
+        revshare_rate_applied = COALESCE(EXCLUDED.revshare_rate_applied, reconciliation_line_item.revshare_rate_applied),
+        signup_fee_applied = COALESCE(EXCLUDED.signup_fee_applied, reconciliation_line_item.signup_fee_applied),
+        meeting_fee_applied = COALESCE(EXCLUDED.meeting_fee_applied, reconciliation_line_item.meeting_fee_applied),
+        paying_customer_date = COALESCE(EXCLUDED.paying_customer_date, reconciliation_line_item.paying_customer_date),
         updated_at = NOW()
     `, [
       periodId,
       domain.id,
       domain.domain,
       motionType,
-      counts?.signup_count || 0,
-      counts?.meeting_count || 0,
+      domain.signup_count,
+      domain.meeting_count,
       revshareRate,
-      format(domain.paying_customer_date, 'yyyy-MM-dd'),
+      signupFee,
+      meetingFee,
+      domain.paying_customer_date ? format(domain.paying_customer_date, 'yyyy-MM-dd') : null,
     ]);
 
     created++;
@@ -361,35 +513,64 @@ async function backfillPayingCustomerDates(periodId: string): Promise<void> {
 }
 
 /**
- * Update the estimated total for a period based on line items and estimated ACV
+ * Update the estimated total for a period based on line items and client billing config
+ * Supports flexible billing: per-signup, per-meeting, and rev share
  */
 async function updateEstimatedTotal(periodId: string, client: ClientConfig): Promise<void> {
-  // Count paying customers in this period
-  const [result] = await attrQuery<{ count: number }>(`
-    SELECT COUNT(*) as count
+  // Get aggregated counts from line items
+  const [result] = await attrQuery<{ 
+    total_items: number;
+    total_signups: number;
+    total_meetings: number;
+    paying_customers: number;
+  }>(`
+    SELECT 
+      COUNT(*)::int as total_items,
+      COALESCE(SUM(signup_count), 0)::int as total_signups,
+      COALESCE(SUM(meeting_count), 0)::int as total_meetings,
+      COUNT(CASE WHEN revshare_rate_applied IS NOT NULL THEN 1 END)::int as paying_customers
     FROM reconciliation_line_item
     WHERE reconciliation_period_id = $1
   `, [periodId]);
 
-  const payingCount = result?.count || 0;
+  const totalItems = result?.total_items || 0;
+  const totalSignups = result?.total_signups || 0;
+  const totalMeetings = result?.total_meetings || 0;
+  const payingCustomers = result?.paying_customers || 0;
   
-  // Calculate estimated total
+  // Calculate estimated total from multiple sources
   let estimatedTotal = 0;
-  if (client.billing_model === 'plg_sales_split') {
-    // For split model, use average of the two rates
-    const avgRate = ((client.revshare_plg || 0) + (client.revshare_sales || 0)) / 2;
-    estimatedTotal = payingCount * client.estimated_acv * avgRate;
-  } else {
-    estimatedTotal = payingCount * client.estimated_acv * client.rev_share_rate;
+  
+  // 1. Per-signup fees
+  if (client.fee_per_signup && client.fee_per_signup > 0) {
+    estimatedTotal += totalSignups * client.fee_per_signup;
+  }
+  
+  // 2. Per-meeting fees
+  if (client.fee_per_meeting && client.fee_per_meeting > 0) {
+    estimatedTotal += totalMeetings * client.fee_per_meeting;
+  }
+  
+  // 3. Rev share (paying customers × estimated ACV × rate)
+  if (payingCustomers > 0) {
+    if (client.billing_model === 'plg_sales_split') {
+      // For split model, use average of the two rates
+      const avgRate = ((client.revshare_plg || 0) + (client.revshare_sales || 0)) / 2;
+      estimatedTotal += payingCustomers * client.estimated_acv * avgRate;
+    } else if (client.rev_share_rate && client.rev_share_rate > 0) {
+      estimatedTotal += payingCustomers * client.estimated_acv * client.rev_share_rate;
+    }
   }
 
   await attrQuery(`
     UPDATE reconciliation_period
     SET estimated_total = $1, 
         total_paying_customers = $2,
+        total_signups = $3,
+        total_meetings = $4,
         updated_at = NOW()
-    WHERE id = $3
-  `, [estimatedTotal, payingCount, periodId]);
+    WHERE id = $5
+  `, [estimatedTotal, payingCustomers, totalSignups, totalMeetings, periodId]);
 }
 
 // GET endpoint to get sync status

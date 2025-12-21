@@ -366,6 +366,19 @@ export async function populateLineItemsFromDomains(
 
 // ============ Calculation Helpers ============
 
+/**
+ * Calculate the fee for a line item based on the client's billing configuration.
+ * 
+ * Supports multiple billing models:
+ * 1. flat_revshare: Single rev share rate applied to all paying customers
+ * 2. plg_sales_split: Different rev share rates for PLG vs Sales motion types
+ * 
+ * Additionally supports per-event fees:
+ * - fee_per_signup: Multiplied by signup_count for each signup in the period
+ * - fee_per_meeting: Multiplied by meeting_count for each meeting in the period
+ * 
+ * Total fee = (revenue × revshare_rate) + (signup_count × fee_per_signup) + (meeting_count × fee_per_meeting)
+ */
 export async function calculateAndUpdateLineItemFee(
   lineItem: ReconciliationLineItem,
   billingConfig: ClientBillingConfig
@@ -373,31 +386,47 @@ export async function calculateAndUpdateLineItemFee(
   let calculatedFee = 0;
   let appliedRate: number | null = null;
 
+  // 1. Calculate RevShare fee (only for paying customers with submitted revenue)
   if (lineItem.has_paying_customer && lineItem.revenue_collected) {
-    // Calculate RevShare
     if (billingConfig.billing_model === 'flat_revshare' && billingConfig.flat_revshare_rate) {
       appliedRate = billingConfig.flat_revshare_rate;
-      calculatedFee = lineItem.revenue_collected * appliedRate;
+      calculatedFee += lineItem.revenue_collected * appliedRate;
     } else if (billingConfig.billing_model === 'plg_sales_split') {
       if (lineItem.motion_type === 'PLG' && billingConfig.plg_revshare_rate) {
         appliedRate = billingConfig.plg_revshare_rate;
-        calculatedFee = lineItem.revenue_collected * appliedRate;
+        calculatedFee += lineItem.revenue_collected * appliedRate;
       } else if (lineItem.motion_type === 'SALES' && billingConfig.sales_revshare_rate) {
         appliedRate = billingConfig.sales_revshare_rate;
-        calculatedFee = lineItem.revenue_collected * appliedRate;
+        calculatedFee += lineItem.revenue_collected * appliedRate;
       }
     }
   }
 
-  // Add per-event fees
-  if (lineItem.has_signup && billingConfig.fee_per_signup > 0) {
-    calculatedFee += billingConfig.fee_per_signup;
-  }
-  if (lineItem.has_meeting && billingConfig.fee_per_meeting > 0) {
-    calculatedFee += billingConfig.fee_per_meeting;
+  // 2. Add per-signup fees (multiply fee by signup count)
+  // Use signup_count if available, otherwise fall back to has_signup boolean
+  if (billingConfig.fee_per_signup > 0) {
+    const signupCount = (lineItem as { signup_count?: number }).signup_count;
+    if (signupCount && signupCount > 0) {
+      calculatedFee += billingConfig.fee_per_signup * signupCount;
+    } else if (lineItem.has_signup) {
+      // Fallback for legacy line items without signup_count
+      calculatedFee += billingConfig.fee_per_signup;
+    }
   }
 
-  // Update the line item
+  // 3. Add per-meeting fees (multiply fee by meeting count)
+  // Use meeting_count if available, otherwise fall back to has_meeting boolean
+  if (billingConfig.fee_per_meeting > 0) {
+    const meetingCount = (lineItem as { meeting_count?: number }).meeting_count;
+    if (meetingCount && meetingCount > 0) {
+      calculatedFee += billingConfig.fee_per_meeting * meetingCount;
+    } else if (lineItem.has_meeting) {
+      // Fallback for legacy line items without meeting_count
+      calculatedFee += billingConfig.fee_per_meeting;
+    }
+  }
+
+  // Update the line item with calculated values
   await updateLineItemCalculation(lineItem.id, calculatedFee, appliedRate);
 
   return calculatedFee;
@@ -418,10 +447,25 @@ export async function recalculatePeriodTotals(periodId: string): Promise<void> {
     if (item.revenue_collected) {
       totals.total_revenue_submitted += item.revenue_collected;
     }
-    totals.total_amount_owed += item.calculated_fee;
-    if (item.has_signup) totals.total_signups_billed++;
-    if (item.has_meeting) totals.total_meetings_billed++;
-    if (item.has_paying_customer) totals.total_paying_customers++;
+    totals.total_amount_owed += item.calculated_fee || 0;
+    
+    // Use count fields if available, otherwise fall back to boolean flags
+    const itemWithCounts = item as { signup_count?: number; meeting_count?: number };
+    if (itemWithCounts.signup_count && itemWithCounts.signup_count > 0) {
+      totals.total_signups_billed += itemWithCounts.signup_count;
+    } else if (item.has_signup) {
+      totals.total_signups_billed++;
+    }
+    
+    if (itemWithCounts.meeting_count && itemWithCounts.meeting_count > 0) {
+      totals.total_meetings_billed += itemWithCounts.meeting_count;
+    } else if (item.has_meeting) {
+      totals.total_meetings_billed++;
+    }
+    
+    if (item.has_paying_customer) {
+      totals.total_paying_customers++;
+    }
   }
 
   await updatePeriodTotals(periodId, totals);

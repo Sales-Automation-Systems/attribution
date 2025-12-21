@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Plus, Loader2, DollarSign, Calendar, UserPlus } from 'lucide-react';
+import { Plus, Loader2, DollarSign, Calendar, UserPlus, Mail, MessageSquare } from 'lucide-react';
 import { DefinitionTooltip } from '@/components/ui/definition-tooltip';
 import { DatePicker } from '@/components/ui/date-picker';
 import { format } from 'date-fns';
@@ -35,12 +35,14 @@ interface AddEventModalProps {
   onSuccess?: () => void;
 }
 
-type EventType = 'sign_up' | 'meeting_booked' | 'paying_customer';
+type EventType = 'email_sent' | 'positive_reply' | 'sign_up' | 'meeting_booked' | 'paying_customer';
 
-const EVENT_TYPE_INFO: Record<EventType, { label: string; icon: typeof UserPlus; color: string }> = {
-  sign_up: { label: 'Website Sign-Up', icon: UserPlus, color: 'text-blue-600' },
-  meeting_booked: { label: 'Meeting Booked', icon: Calendar, color: 'text-yellow-600' },
-  paying_customer: { label: 'Paying Customer', icon: DollarSign, color: 'text-green-600' },
+const EVENT_TYPE_INFO: Record<EventType, { label: string; icon: typeof UserPlus; color: string; description: string }> = {
+  email_sent: { label: 'Email Sent', icon: Mail, color: 'text-slate-600', description: 'Record that we sent an outreach email' },
+  positive_reply: { label: 'Positive Reply', icon: MessageSquare, color: 'text-purple-600', description: 'Prospect responded positively' },
+  sign_up: { label: 'Website Sign-Up', icon: UserPlus, color: 'text-blue-600', description: 'Prospect signed up on website' },
+  meeting_booked: { label: 'Meeting Booked', icon: Calendar, color: 'text-yellow-600', description: 'Sales meeting was booked' },
+  paying_customer: { label: 'Paying Customer', icon: DollarSign, color: 'text-green-600', description: 'Became a paying customer' },
 };
 
 export function AddEventModal({
@@ -167,28 +169,34 @@ export function AddEventModal({
                 <SelectValue placeholder="Select event type" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="email_sent">
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-slate-600" />
+                    <span>Email Sent</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="positive_reply">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4 text-purple-600" />
+                    <span>Positive Reply</span>
+                  </div>
+                </SelectItem>
                 <SelectItem value="sign_up">
                   <div className="flex items-center gap-2">
                     <UserPlus className="h-4 w-4 text-blue-600" />
-                    <DefinitionTooltip term="websiteSignUp" showUnderline={false}>
-                      Website Sign-Up
-                    </DefinitionTooltip>
+                    <span>Website Sign-Up</span>
                   </div>
                 </SelectItem>
                 <SelectItem value="meeting_booked">
                   <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4 text-yellow-600" />
-                    <DefinitionTooltip term="meetingBooked" showUnderline={false}>
-                      Meeting Booked
-                    </DefinitionTooltip>
+                    <span>Meeting Booked</span>
                   </div>
                 </SelectItem>
                 <SelectItem value="paying_customer">
                   <div className="flex items-center gap-2">
                     <DollarSign className="h-4 w-4 text-green-600" />
-                    <DefinitionTooltip term="payingCustomer" showUnderline={false}>
-                      Paying Customer
-                    </DefinitionTooltip>
+                    <span>Paying Customer</span>
                   </div>
                 </SelectItem>
               </SelectContent>
