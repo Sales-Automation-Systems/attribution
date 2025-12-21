@@ -107,51 +107,10 @@ export async function GET(
     
     const dateWhereClause = dateFilter.length > 0 ? `AND ${dateFilter.join(' AND ')}` : '';
 
-    // Query EMAIL_SENT events from attribution database (accessible from Vercel)
-    // This counts domains that received their first email in the date range
-    const emailEndOfDay = endDate ? new Date(endDate) : undefined;
-    if (emailEndOfDay) {
-      emailEndOfDay.setHours(23, 59, 59, 999);
-    }
-    
-    let filteredEmailCount = 0;
-    let emailQueryDebug: { query: string; params: unknown[]; rowCount: number } | null = null;
-    
-    // Build email count query using attribution DB's domain_event table
-    const emailDateFilter = [];
-    const emailParams: unknown[] = [client.id];
-    let emailParamIndex = 2;
-    
-    if (startDate) {
-      emailDateFilter.push(`de.event_time >= $${emailParamIndex}::timestamp`);
-      emailParams.push(startDate.toISOString());
-      emailParamIndex++;
-    }
-    if (emailEndOfDay) {
-      emailDateFilter.push(`de.event_time <= $${emailParamIndex}::timestamp`);
-      emailParams.push(emailEndOfDay.toISOString());
-    }
-    
-    const emailDateWhereClause = emailDateFilter.length > 0 ? `AND ${emailDateFilter.join(' AND ')}` : '';
-    
-    // Count EMAIL_SENT events in the date range from attribution DB
-    const emailCountQuery = `
-      SELECT COUNT(*) as count
-      FROM domain_event de
-      JOIN attributed_domain ad ON ad.id = de.attributed_domain_id
-      WHERE ad.client_config_id = $1
-        AND de.event_source = 'EMAIL_SENT'
-        ${emailDateWhereClause}
-    `;
-    
-    const emailCountRows = await attrQuery<{ count: string }>(emailCountQuery, emailParams);
-    filteredEmailCount = parseInt(emailCountRows[0]?.count || '0', 10);
-    
-    emailQueryDebug = {
-      query: emailCountQuery.replace(/\s+/g, ' ').trim(),
-      params: emailParams,
-      rowCount: filteredEmailCount,
-    };
+    // Email count: Always show total (unfiltered) from client_config
+    // Date filtering for emails requires production DB access which isn't available from Vercel
+    // The attribution DB only stores one EMAIL_SENT event per domain (first email), not individual emails
+    const totalEmailsSent = Number(client.total_emails_sent || 0);
 
     // Query for attributed events (within window)
     const attributedQuery = `
@@ -216,7 +175,7 @@ export async function GET(
 
     // Build stats object
     const stats: FilteredStats = {
-      totalEmailsSent: filteredEmailCount,
+      totalEmailsSent: totalEmailsSent,
       attributedPositiveReplies: 0,
       attributedSignUps: 0,
       attributedMeetings: 0,
@@ -306,10 +265,8 @@ export async function GET(
       },
       // Debug info - remove after fixing
       _debug: {
-        version: 'v3-attr-db',
-        clientId: client.client_id,
-        emailQueryDebug,
-        dataSource: 'attribution_db_domain_event',
+        version: 'v4-email-unfiltered',
+        note: 'Emails always show total; other metrics are date-filtered',
       },
     });
   } catch (error) {
