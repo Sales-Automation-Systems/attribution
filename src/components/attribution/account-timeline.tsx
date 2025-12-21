@@ -213,6 +213,15 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen, eventTypeFilters
 
   // Determine which events should be dimmed (not hidden) in Focus View
   const getDimmedStatus = (event: TimelineEvent): boolean => {
+    // First check: event type filter dimming (like Focus View but for event types)
+    if (eventTypeFilters && eventTypeFilters.size > 0) {
+      // If filters are active, dim events that don't match the selected types
+      if (!eventTypeFilters.has(event.type as FilterableEventType)) {
+        return true;
+      }
+    }
+    
+    // Second check: Focus View email dimming
     if (!focusView || matchedEmails.length === 0) return false;
     if (event.type !== 'EMAIL_SENT') return false;
     // Dim EMAIL_SENT events that aren't to ANY of the matched contacts
@@ -231,18 +240,16 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen, eventTypeFilters
   const canUseFocusView = isDirectMatch && matchedEmails.length > 0;
 
   // IMPORTANT: All useMemo hooks MUST be called before any early returns (React Rules of Hooks)
-  // Filter events based on eventTypeFilters
-  // When filters are active, show ONLY the selected event types (not all emails)
+  // Show all events - dimming is handled by getDimmedStatus instead of filtering
   const filteredEvents = useMemo(() => {
-    if (!eventTypeFilters || eventTypeFilters.size === 0) return events;
-    return events.filter(event => {
-      // Only show events that match the selected filters
-      return eventTypeFilters.has(event.type as FilterableEventType);
-    });
-  }, [events, eventTypeFilters]);
+    return events; // Always show all events, dimming handles the "focus" effect
+  }, [events]);
 
-  // Count of hidden events when filter is active
-  const hiddenEventCount = events.length - filteredEvents.length;
+  // Count of dimmed events when event type filter is active
+  const eventFilterDimmedCount = useMemo(() => {
+    if (!eventTypeFilters || eventTypeFilters.size === 0) return 0;
+    return events.filter(event => !eventTypeFilters.has(event.type as FilterableEventType)).length;
+  }, [events, eventTypeFilters]);
 
   // Group events by date (must be before early returns)
   const eventsByDate = useMemo(() => {
@@ -349,12 +356,12 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen, eventTypeFilters
       )}
 
       {/* Event Type Filter Message */}
-      {eventTypeFilters && eventTypeFilters.size > 0 && hiddenEventCount > 0 && (
+      {eventTypeFilters && eventTypeFilters.size > 0 && eventFilterDimmedCount > 0 && (
         <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
-          <History className="h-3.5 w-3.5" />
+          <Focus className="h-3.5 w-3.5" />
           <span>
-            Showing {filteredEvents.length} event{filteredEvents.length !== 1 ? 's' : ''} 
-            {' '}({hiddenEventCount} other event{hiddenEventCount !== 1 ? 's' : ''} hidden by filter)
+            Focused on {events.length - eventFilterDimmedCount} event{events.length - eventFilterDimmedCount !== 1 ? 's' : ''} 
+            {' '}({eventFilterDimmedCount} other{eventFilterDimmedCount !== 1 ? 's' : ''} dimmed)
           </span>
         </div>
       )}
