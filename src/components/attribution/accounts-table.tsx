@@ -108,7 +108,7 @@ export function AccountsTable({
   onOpenDisputePanel,
 }: AccountsTableProps) {
   // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:AccountsTable:entry',message:'AccountsTable RENDER START',data:{initialDomainsCount:initialDomains?.length,initialTotalCount,slug,uuid},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'G'})}).catch(()=>{});
+  fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:AccountsTable:entry',message:'AccountsTable RENDER v2',data:{initialDomainsCount:initialDomains?.length,initialTotalCount,slug,uuid,version:'v2-error-boundary'},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'G'})}).catch(()=>{});
   // #endregion
   
   const searchParams = useSearchParams();
