@@ -24,3 +24,4 @@ ALTER TABLE client_config ADD CONSTRAINT check_paying_mode CHECK (paying_mode IN
 
 
 
+

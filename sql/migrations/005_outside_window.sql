@@ -9,3 +9,4 @@ ALTER TABLE client_config ADD COLUMN IF NOT EXISTS outside_window_paying INT DEF
 
 
 
+

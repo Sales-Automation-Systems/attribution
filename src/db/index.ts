@@ -9,8 +9,12 @@ const basePoolConfig = {
 };
 
 // Helper to determine SSL config based on connection string
-function getSslConfig(connectionString?: string) {
+function getSslConfig(connectionString?: string, forceSSL = false) {
   if (!connectionString) return false;
+  // Force SSL for DigitalOcean databases (doadmin user or AVNS_ prefix)
+  if (forceSSL || connectionString.includes('doadmin') || connectionString.includes('AVNS_')) {
+    return { rejectUnauthorized: false };
+  }
   // Railway and some local DBs don't support SSL
   // Only enable SSL if explicitly required via sslmode=require
   if (connectionString.includes('sslmode=require')) {

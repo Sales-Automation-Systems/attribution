@@ -19,3 +19,4 @@ COMMENT ON COLUMN attributed_domain.last_event_at IS 'Timestamp of the most rece
 
 
 
+

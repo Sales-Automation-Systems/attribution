@@ -12,3 +12,4 @@ COMMENT ON CONSTRAINT unique_domain_event ON domain_event IS 'Prevents duplicate
 
 
 
+

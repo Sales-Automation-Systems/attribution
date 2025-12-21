@@ -28,3 +28,4 @@ ALTER TABLE client_config ADD COLUMN IF NOT EXISTS domains_with_multiple_events 
 
 
 
+

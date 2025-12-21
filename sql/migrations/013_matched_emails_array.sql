@@ -18,3 +18,4 @@ COMMENT ON COLUMN attributed_domain.matched_emails IS 'Array of email addresses 
 
 
 
+
