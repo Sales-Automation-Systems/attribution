@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { attrPool } from '@/db';
+import { logStatusChange } from '@/db/attribution/queries';
 
 /**
  * POST /api/clients/[slug]/[uuid]/domains/[domainId]/attribute
@@ -76,6 +77,9 @@ export async function POST(
     // Use user from auth session (placeholder for now)
     const attributedBy = submittedBy;
 
+    // Store the old status for logging
+    const oldStatus = domain.status;
+
     // Update the domain status to CLIENT_PROMOTED
     // Note: We keep the database column names as promoted_* for backward compatibility
     await attrPool.query(
@@ -88,6 +92,15 @@ export async function POST(
        WHERE id = $3`,
       [attributedBy, notes?.trim() || null, domainId]
     );
+
+    // Log the status change for timeline audit trail
+    await logStatusChange(domainId, {
+      oldStatus: oldStatus,
+      newStatus: 'CLIENT_PROMOTED',
+      action: 'MANUAL_ATTRIBUTION',
+      reason: notes?.trim() || 'Manually attributed by client',
+      changedBy: attributedBy,
+    });
 
     return NextResponse.json({
       success: true,

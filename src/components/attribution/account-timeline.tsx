@@ -439,8 +439,11 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen, eventTypeFilters
               const addedBy = meta.addedBy as string | undefined;
               
               // Status change metadata (supports both old and new format)
-              const statusFrom = (meta.from || meta.previousStatus) as string | undefined;
-              const statusTo = (meta.to || meta.newStatus) as string | undefined;
+              const statusFrom = (meta.oldStatus || meta.from || meta.previousStatus) as string | undefined;
+              const statusTo = (meta.newStatus || meta.to) as string | undefined;
+              const statusAction = meta.action as string | undefined;
+              const statusReason = meta.reason as string | undefined;
+              const statusChangedBy = meta.changedBy as string | undefined;
               
               return (
                 <div
@@ -539,13 +542,38 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen, eventTypeFilters
                       </div>
                     )}
 
-                    {/* Status change - minimal display */}
-                    {event.type === 'STATUS_CHANGE' && statusFrom && statusTo && (
-                      <p className="text-xs text-muted-foreground">
-                        <span className="line-through opacity-60">{statusFrom}</span>
-                        <span className="mx-1">→</span>
-                        <span className="font-medium">{statusTo}</span>
-                      </p>
+                    {/* Status change - detailed display */}
+                    {event.type === 'STATUS_CHANGE' && (statusFrom || statusTo) && (
+                      <div className="space-y-1">
+                        {/* Action label */}
+                        {statusAction && (
+                          <p className="text-xs font-medium text-orange-600 dark:text-orange-400">
+                            {statusAction.replace(/_/g, ' ')}
+                          </p>
+                        )}
+                        {/* Status transition */}
+                        <p className="text-xs text-muted-foreground">
+                          {statusFrom && (
+                            <>
+                              <span className="line-through opacity-60">{statusFrom}</span>
+                              <span className="mx-1">→</span>
+                            </>
+                          )}
+                          <span className="font-medium">{statusTo}</span>
+                        </p>
+                        {/* Reason */}
+                        {statusReason && (
+                          <p className="text-xs text-muted-foreground mt-1 italic">
+                            &quot;{statusReason}&quot;
+                          </p>
+                        )}
+                        {/* Changed by */}
+                        {statusChangedBy && statusChangedBy !== 'client-user@placeholder' && (
+                          <p className="text-xs text-muted-foreground opacity-70">
+                            by {statusChangedBy}
+                          </p>
+                        )}
+                      </div>
                     )}
 
                     {/* Email body for sent emails */}

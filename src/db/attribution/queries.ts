@@ -795,3 +795,44 @@ export async function getClientStats(clientConfigId: string): Promise<ClientStat
   };
 }
 
+// ============ Status Change Logging ============
+
+export type StatusChangeAction = 
+  | 'DISPUTE_SUBMITTED'
+  | 'DISPUTE_APPROVED'
+  | 'DISPUTE_REJECTED'
+  | 'MANUAL_ATTRIBUTION'
+  | 'STATUS_UPDATE'
+  | 'SYSTEM_UPDATE';
+
+export interface StatusChangeMetadata {
+  oldStatus: string;
+  newStatus: string;
+  action: StatusChangeAction;
+  reason?: string;
+  changedBy?: string;
+}
+
+/**
+ * Log a status change event to the domain_event table.
+ * This creates a full audit trail of all status changes on a domain.
+ */
+export async function logStatusChange(
+  attributedDomainId: string,
+  metadata: StatusChangeMetadata
+): Promise<DomainEvent> {
+  const rows = await attrQuery<DomainEvent>(`
+    INSERT INTO domain_event (
+      attributed_domain_id,
+      event_source,
+      event_time,
+      metadata
+    ) VALUES ($1, 'STATUS_CHANGE', NOW(), $2)
+    RETURNING *
+  `, [
+    attributedDomainId,
+    JSON.stringify(metadata),
+  ]);
+  return rows[0];
+}
+

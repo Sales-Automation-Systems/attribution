@@ -1,5 +1,6 @@
 // Task/Dispute System Queries
 import { attrQuery } from '../index';
+import { logStatusChange } from './queries';
 import type { Task, TaskComment, TaskWithDetails, TaskType, TaskStatus, TaskAuthorType } from './types';
 
 // ============ Task Queries ============
@@ -256,23 +257,41 @@ export async function resolveDispute(
     // Dispute approved = remove from billable
     await attrQuery(`
       UPDATE attributed_domain
-      SET status = 'CONFIRMED',
+      SET status = 'DISPUTED',
           dispute_resolved_at = NOW(),
           dispute_resolution_notes = $2,
           is_within_window = false,
           updated_at = NOW()
       WHERE id = $1
     `, [task.attributed_domain_id, notes || 'Dispute approved']);
+
+    // Log status change for timeline audit trail
+    await logStatusChange(task.attributed_domain_id, {
+      oldStatus: 'DISPUTE_PENDING',
+      newStatus: 'DISPUTED',
+      action: 'DISPUTE_APPROVED',
+      reason: notes || 'Dispute approved - attribution removed',
+      changedBy: resolvedBy,
+    });
   } else {
-    // Dispute rejected = keep as billable
+    // Dispute rejected = keep as billable, restore to ATTRIBUTED status
     await attrQuery(`
       UPDATE attributed_domain
-      SET status = 'REJECTED',
+      SET status = 'ATTRIBUTED',
           dispute_resolved_at = NOW(),
           dispute_resolution_notes = $2,
           updated_at = NOW()
       WHERE id = $1
-    `, [task.attributed_domain_id, notes || 'Dispute rejected']);
+    `, [task.attributed_domain_id, notes || 'Dispute rejected - attribution confirmed']);
+
+    // Log status change for timeline audit trail
+    await logStatusChange(task.attributed_domain_id, {
+      oldStatus: 'DISPUTE_PENDING',
+      newStatus: 'ATTRIBUTED',
+      action: 'DISPUTE_REJECTED',
+      reason: notes || 'Dispute rejected - attribution confirmed',
+      changedBy: resolvedBy,
+    });
   }
   
   return updatedTask;

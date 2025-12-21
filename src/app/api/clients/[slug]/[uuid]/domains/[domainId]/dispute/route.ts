@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { attrPool } from '@/db';
+import { logStatusChange } from '@/db/attribution/queries';
 
 export async function POST(
   request: NextRequest,
@@ -72,6 +73,9 @@ export async function POST(
       fullReason = `${fullReason}\n\nEvidence: ${evidenceLink.trim()}`;
     }
 
+    // Store the old status for logging
+    const oldStatus = domain.status;
+
     // Update the domain status to DISPUTE_PENDING (awaiting agency review)
     // Status changes to DISPUTED after agency approves, or back to original if rejected
     await attrPool.query(
@@ -83,6 +87,15 @@ export async function POST(
        WHERE id = $2`,
       [fullReason, domainId]
     );
+
+    // Log the status change for timeline audit trail
+    await logStatusChange(domainId, {
+      oldStatus: oldStatus,
+      newStatus: 'DISPUTE_PENDING',
+      action: 'DISPUTE_SUBMITTED',
+      reason: fullReason,
+      changedBy: submittedBy,
+    });
 
     // Create a task for the dispute
     const taskResult = await attrPool.query(
