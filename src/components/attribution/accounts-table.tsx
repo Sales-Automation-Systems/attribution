@@ -250,7 +250,7 @@ export function AccountsTable({
   // FIX: Only run once to prevent URL changes from reopening the dialog after close
   useEffect(() => {
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:useEffect:urlSync',message:'URL sync effect running',data:{initialSyncDone:initialSyncDoneRef.current,accountParam:searchParams.get('account'),domainsCount:domains.length,loadedDomainsCount:loadedDomains.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:useEffect:urlSync',message:'URL sync effect running',data:{initialSyncDone:initialSyncDoneRef.current,accountParam:searchParams.get('account'),domainsCount:domains.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H'})}).catch(()=>{});
     // #endregion
     if (initialSyncDoneRef.current) return;
     
