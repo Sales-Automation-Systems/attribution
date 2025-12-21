@@ -232,12 +232,12 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen, eventTypeFilters
 
   // IMPORTANT: All useMemo hooks MUST be called before any early returns (React Rules of Hooks)
   // Filter events based on eventTypeFilters
+  // When filters are active, show ONLY the selected event types (not all emails)
   const filteredEvents = useMemo(() => {
     if (!eventTypeFilters || eventTypeFilters.size === 0) return events;
     return events.filter(event => {
-      if (eventTypeFilters.has(event.type as FilterableEventType)) return true;
-      if (event.type === 'EMAIL_SENT') return true;
-      return false;
+      // Only show events that match the selected filters
+      return eventTypeFilters.has(event.type as FilterableEventType);
     });
   }, [events, eventTypeFilters]);
 
