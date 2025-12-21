@@ -74,13 +74,14 @@ export interface ClientConfig {
 
 // Domain status types
 export type DomainStatus =
-  | 'ATTRIBUTED'      // Within 31-day window, billable
-  | 'OUTSIDE_WINDOW'  // Matched but outside window, not billable unless manually attributed
-  | 'UNATTRIBUTED'    // No email match, not billable unless manually attributed
-  | 'CLIENT_PROMOTED' // Manually attributed by client, billable (UI shows as "Manually Attributed")
-  | 'DISPUTED'        // Client disputed, pending review
-  | 'REJECTED'        // Dispute rejected, still billable
-  | 'CONFIRMED';      // Manually confirmed attribution
+  | 'ATTRIBUTED'       // Within 31-day window, billable
+  | 'OUTSIDE_WINDOW'   // Matched but outside window, not billable unless manually attributed
+  | 'UNATTRIBUTED'     // No email match, not billable unless manually attributed
+  | 'CLIENT_PROMOTED'  // Manually attributed by client, billable (UI shows as "Manually Attributed")
+  | 'DISPUTE_PENDING'  // Client submitted dispute, awaiting agency review (UI shows "In Review")
+  | 'DISPUTED'         // Dispute approved by agency, not billable
+  | 'REJECTED'         // Dispute rejected, still billable
+  | 'CONFIRMED';       // Manually confirmed attribution
 
 // Match type including manual entries
 export type MatchType = 'HARD_MATCH' | 'SOFT_MATCH' | 'NO_MATCH' | 'MANUAL' | null;

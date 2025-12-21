@@ -55,10 +55,10 @@ export async function POST(
 
     const domain = domainResult.rows[0];
 
-    // Check if already disputed
-    if (domain.status === 'DISPUTED') {
+    // Check if already disputed or pending dispute
+    if (domain.status === 'DISPUTED' || domain.status === 'DISPUTE_PENDING') {
       return NextResponse.json(
-        { error: 'This domain has already been disputed' },
+        { error: 'This domain already has a dispute in progress' },
         { status: 400 }
       );
     }
@@ -72,10 +72,11 @@ export async function POST(
       fullReason = `${fullReason}\n\nEvidence: ${evidenceLink.trim()}`;
     }
 
-    // Update the domain status to DISPUTED
+    // Update the domain status to DISPUTE_PENDING (awaiting agency review)
+    // Status changes to DISPUTED after agency approves, or back to original if rejected
     await attrPool.query(
       `UPDATE attributed_domain 
-       SET status = 'DISPUTED',
+       SET status = 'DISPUTE_PENDING',
            dispute_reason = $1,
            dispute_submitted_at = NOW(),
            updated_at = NOW()

@@ -73,11 +73,12 @@ interface AccountsTableProps {
 }
 
 type EventTypeFilter = 'reply' | 'signup' | 'meeting' | 'paying';
-type StatusFilterType = 'attributed' | 'outside_window' | 'unattributed' | 'disputed' | 'client_attributed';
+type StatusFilterType = 'attributed' | 'outside_window' | 'unattributed' | 'disputed' | 'dispute_pending' | 'client_attributed';
 
 // Map domain status to our filter types
 function getStatusFilterType(domain: AccountDomain): StatusFilterType {
   if (domain.status === 'CLIENT_PROMOTED') return 'client_attributed';
+  if (domain.status === 'DISPUTE_PENDING') return 'dispute_pending';
   if (domain.status === 'DISPUTED') return 'disputed';
   if (domain.status === 'OUTSIDE_WINDOW' || (!domain.is_within_window && domain.match_type !== 'NO_MATCH' && domain.match_type !== null)) return 'outside_window';
   if (domain.status === 'UNATTRIBUTED' || domain.match_type === 'NO_MATCH' || domain.match_type === null) return 'unattributed';
@@ -125,7 +126,7 @@ export function AccountsTable({
     const status = searchParams.get('status');
     if (status) {
       return new Set(status.split(',').filter(s => 
-        ['attributed', 'outside_window', 'unattributed', 'disputed', 'client_attributed'].includes(s)
+        ['attributed', 'outside_window', 'unattributed', 'disputed', 'dispute_pending', 'client_attributed'].includes(s)
       ) as StatusFilterType[]);
     }
     return new Set();
@@ -331,6 +332,7 @@ export function AccountsTable({
     const attributed = filteredDomains.filter((d) => getStatusFilterType(d) === 'attributed').length;
     const outsideWindow = filteredDomains.filter((d) => getStatusFilterType(d) === 'outside_window').length;
     const unattributed = filteredDomains.filter((d) => getStatusFilterType(d) === 'unattributed').length;
+    const disputePending = filteredDomains.filter((d) => d.status === 'DISPUTE_PENDING').length;
     const disputed = filteredDomains.filter((d) => d.status === 'DISPUTED').length;
     const manuallyAttributed = filteredDomains.filter((d) => d.status === 'CLIENT_PROMOTED').length;
     const withReplies = filteredDomains.filter((d) => d.has_positive_reply).length;
@@ -343,6 +345,7 @@ export function AccountsTable({
       attributed,
       outsideWindow,
       unattributed,
+      disputePending,
       disputed,
       manuallyAttributed,
       withReplies,
@@ -411,8 +414,32 @@ export function AccountsTable({
             </Badge>
           </DefinitionTooltip>
         );
+      case 'dispute_pending':
+        // Show "In Review" badge - dispute submitted, awaiting agency review
+        return disputeModeUnlocked ? (
+          <Badge 
+            variant="outline" 
+            className="bg-amber-500/10 text-amber-700 dark:text-amber-400 cursor-pointer hover:bg-amber-500/20 transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenDisputePanel?.(domain);
+            }}
+            title="Dispute submitted - click to view details"
+          >
+            <Clock className="h-3 w-3 mr-1" />
+            In Review
+          </Badge>
+        ) : (
+          <Badge 
+            variant="outline" 
+            className="bg-amber-500/10 text-amber-700 dark:text-amber-400"
+          >
+            <Clock className="h-3 w-3 mr-1" />
+            In Review
+          </Badge>
+        );
       case 'disputed':
-        // Only make the badge interactive when dispute mode is unlocked
+        // Dispute has been approved by agency
         return disputeModeUnlocked ? (
           <Badge 
             variant="outline" 
@@ -466,6 +493,24 @@ export function AccountsTable({
         >
           <Flag className="h-3 w-3 mr-1" />
           Dispute
+        </Button>
+      );
+    }
+
+    if (statusType === 'dispute_pending' && disputeModeUnlocked) {
+      return (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenDisputePanel?.(domain);
+          }}
+          title="View dispute in review"
+        >
+          <Eye className="h-3 w-3 mr-1" />
+          View
         </Button>
       );
     }
@@ -602,6 +647,18 @@ export function AccountsTable({
           >
             <CircleSlash className="h-3 w-3" />
             Unattributed
+          </button>
+          <button
+            onClick={() => toggleStatusFilter('dispute_pending')}
+            className={cn(
+              'inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors',
+              statusFilters.has('dispute_pending')
+                ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            )}
+          >
+            <Clock className="h-3 w-3" />
+            In Review
           </button>
           <button
             onClick={() => toggleStatusFilter('disputed')}
