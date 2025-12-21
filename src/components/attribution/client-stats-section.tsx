@@ -59,10 +59,6 @@ export function ClientStatsSection({
   const [loading, setLoading] = useState(false);
 
   const fetchStats = useCallback(async () => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'client-stats-section.tsx:fetchStats:entry',message:'fetchStats called',data:{startDate:dateRange.startDate?.toISOString(),endDate:dateRange.endDate?.toISOString()},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
-    
     // If no date filter, use initial stats
     if (!dateRange.startDate && !dateRange.endDate) {
       setStats(initialStats);
@@ -81,25 +77,12 @@ export function ClientStatsSection({
 
       const res = await fetch(`/api/clients/${slug}/${uuid}/stats?${params}`);
       
-      // #region agent log
-      const resClone = res.clone();
-      const errorBody = !res.ok ? await resClone.json().catch(() => null) : null;
-      fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'client-stats-section.tsx:fetchStats:response',message:'Got response',data:{ok:res.ok,status:res.status,errorBody},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-      
       if (!res.ok) throw new Error('Failed to fetch stats');
       
       const data = await res.json();
       
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'client-stats-section.tsx:fetchStats:data',message:'Parsed data',data:{hasStats:!!data.stats,emailCount:data.stats?.totalEmailsSent,signups:data.stats?.attributedSignUps,_debug:data._debug},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B,D'})}).catch(()=>{});
-      // #endregion
-      
       setStats(data.stats);
     } catch (error) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'client-stats-section.tsx:fetchStats:error',message:'Fetch error',data:{error:String(error)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       console.error('Error fetching stats:', error);
       // Keep current stats on error
     } finally {

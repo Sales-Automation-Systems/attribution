@@ -103,10 +103,6 @@ export function AccountsTable({
   attributionWindowDays,
   onOpenDisputePanel,
 }: AccountsTableProps) {
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:AccountsTable:entry',message:'AccountsTable RENDER v2',data:{initialDomainsCount:initialDomains?.length,initialTotalCount,slug,uuid,version:'v2-error-boundary'},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'G'})}).catch(()=>{});
-  // #endregion
-  
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -249,17 +245,11 @@ export function AccountsTable({
   // Open account from URL on INITIAL MOUNT only (for deep linking / page refresh)
   // FIX: Only run once to prevent URL changes from reopening the dialog after close
   useEffect(() => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:useEffect:urlSync',message:'URL sync effect running',data:{initialSyncDone:initialSyncDoneRef.current,accountParam:searchParams.get('account'),domainsCount:domains.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H'})}).catch(()=>{});
-    // #endregion
     if (initialSyncDoneRef.current) return;
     
     const accountParam = searchParams.get('account');
     if (accountParam && domains.length > 0) {
       const domain = domains.find(d => d.domain === accountParam);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:useEffect:urlSync:found',message:'Looking for domain from URL',data:{accountParam,foundDomain:!!domain,domainId:domain?.id},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H'})}).catch(()=>{});
-      // #endregion
       if (domain) {
         setSelectedDomain(domain);
       }
@@ -272,9 +262,6 @@ export function AccountsTable({
   // Update URL when selecting/deselecting account
   // FIX: 1-second lock after closing prevents race conditions from reopening
   const handleSelectDomain = useCallback((domain: AccountDomain | null) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:handleSelectDomain',message:'handleSelectDomain called',data:{hasDomain:!!domain,domainId:domain?.id,domainName:domain?.domain},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'F'})}).catch(()=>{});
-    // #endregion
     const now = Date.now();
     
     // LOCK GUARD: If dialog is locked (within 1 second of closing), block opens
@@ -890,9 +877,6 @@ export function AccountsTable({
       )}
 
       {/* Timeline Dialog */}
-      {/* #region agent log */}
-      {(() => { fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'accounts-table.tsx:TimelineDialog-render',message:'About to render TimelineDialog',data:{hasSelectedDomain:!!selectedDomain,selectedDomainId:selectedDomain?.id},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'F'})}).catch(()=>{}); return null; })()}
-      {/* #endregion */}
       <TimelineDialog
         domain={selectedDomain}
         isOpen={!!selectedDomain}

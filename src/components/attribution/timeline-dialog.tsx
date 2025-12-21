@@ -62,16 +62,8 @@ function getStatusType(domain: TimelineDomain): 'attributed' | 'outside_window' 
 }
 
 export function TimelineDialog({ domain, isOpen, onClose, slug, uuid }: TimelineDialogProps) {
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'timeline-dialog.tsx:64',message:'TimelineDialog render start',data:{isOpen,hasDomain:!!domain,domainId:domain?.id},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,E'})}).catch(()=>{});
-  // #endregion
-
   // Event type filter state - empty set means show all
   const [eventTypeFilters, setEventTypeFilters] = useState<Set<EventType>>(new Set());
-
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'timeline-dialog.tsx:70',message:'useState initialized',data:{filterSize:eventTypeFilters?.size,filterType:typeof eventTypeFilters,isSet:eventTypeFilters instanceof Set},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,C'})}).catch(()=>{});
-  // #endregion
 
   // Toggle an event type filter
   const toggleEventFilter = useCallback((eventType: EventType) => {
@@ -93,22 +85,8 @@ export function TimelineDialog({ domain, isOpen, onClose, slug, uuid }: Timeline
 
   if (!domain) return null;
 
-  // #region agent log
-  try {
-    const statusType = getStatusType(domain);
-    const hasActiveFilters = eventTypeFilters.size > 0;
-    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'timeline-dialog.tsx:95',message:'statusType and hasActiveFilters computed',data:{statusType,hasActiveFilters,domainStatus:domain.status},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
-  } catch (e) {
-    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'timeline-dialog.tsx:97',message:'ERROR in statusType/hasActiveFilters',data:{error:String(e)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
-  }
-  // #endregion
-
   const statusType = getStatusType(domain);
   const hasActiveFilters = eventTypeFilters.size > 0;
-
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'timeline-dialog.tsx:beforeRender',message:'About to render Dialog JSX',data:{domainId:domain.id,domainName:domain.domain,statusType,hasActiveFilters,filterCount:eventTypeFilters.size},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'I'})}).catch(()=>{});
-  // #endregion
 
   const renderStatusBadge = () => {
     switch (statusType) {

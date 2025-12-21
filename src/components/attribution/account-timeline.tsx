@@ -155,10 +155,6 @@ function renderField(label: string, value: unknown, className?: string): React.R
 }
 
 export function AccountTimeline({ domainId, slug, uuid, isOpen, eventTypeFilters }: AccountTimelineProps) {
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'account-timeline.tsx:157',message:'AccountTimeline render start',data:{domainId,isOpen,hasFilters:!!eventTypeFilters,filterType:typeof eventTypeFilters,filterSize:eventTypeFilters?.size},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,C,E'})}).catch(()=>{});
-  // #endregion
-
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
