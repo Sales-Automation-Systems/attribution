@@ -285,6 +285,24 @@ export function DisputeSidePanel({
                   </Alert>
                 )}
 
+                {/* Allow re-submitting a dispute after rejection */}
+                {task.status === 'REJECTED' && (
+                  <Button
+                    variant="outline"
+                    className="w-full border-orange-300 text-orange-700 hover:bg-orange-50"
+                    onClick={() => {
+                      setMode('submit');
+                      setReason('');
+                      setEvidenceLink('');
+                      setSelectedEvents(new Set());
+                      setError(null);
+                    }}
+                  >
+                    <Flag className="h-4 w-4 mr-2" />
+                    Submit New Dispute
+                  </Button>
+                )}
+
                 <Separator />
 
                 {/* Comments */}
