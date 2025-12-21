@@ -155,6 +155,10 @@ function renderField(label: string, value: unknown, className?: string): React.R
 }
 
 export function AccountTimeline({ domainId, slug, uuid, isOpen, eventTypeFilters }: AccountTimelineProps) {
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'account-timeline.tsx:157',message:'AccountTimeline render start',data:{domainId,isOpen,hasFilters:!!eventTypeFilters,filterType:typeof eventTypeFilters,filterSize:eventTypeFilters?.size},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,C,E'})}).catch(()=>{});
+  // #endregion
+
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -278,6 +282,9 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen, eventTypeFilters
   // When filters are active, show only matching event types
   // EMAIL_SENT events are always shown when filtering for success events (to show context)
   const filteredEvents = useMemo(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'account-timeline.tsx:285',message:'useMemo filteredEvents',data:{hasFilters:!!eventTypeFilters,filterSize:eventTypeFilters?.size,eventsCount:events.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
     if (!eventTypeFilters || eventTypeFilters.size === 0) return events;
     
     return events.filter(event => {
@@ -291,6 +298,9 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen, eventTypeFilters
 
   // Count of hidden events when filter is active
   const hiddenEventCount = events.length - filteredEvents.length;
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/4c8e4cfe-b36f-441c-80e6-a427a219d766',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'account-timeline.tsx:300',message:'filteredEvents computed',data:{filteredCount:filteredEvents.length,hiddenCount:hiddenEventCount},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
+  // #endregion
 
   // Group events by date (using filtered events when filters are active)
   const eventsByDate = filteredEvents.reduce((acc, event) => {
