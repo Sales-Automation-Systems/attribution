@@ -312,6 +312,46 @@ export async function POST(request: NextRequest) {
               AND t.status = 'OPEN'
           );
       `,
+      '026_fix_missing_paying_events.sql': `
+        -- Fix domains in reconciliation that are missing PAYING_CUSTOMER domain_event records
+        -- These would have been added via "Add to Reconciliation" before the fix was implemented
+        INSERT INTO domain_event (
+          id, attributed_domain_id, event_source, event_time, email,
+          source_id, source_table, metadata, created_at
+        )
+        SELECT 
+          gen_random_uuid(),
+          rli.attributed_domain_id,
+          'PAYING_CUSTOMER',
+          rli.paying_customer_date,
+          NULL,
+          NULL,
+          'manual_entry',
+          jsonb_build_object(
+            'manual', true,
+            'addedBy', 'migration-026',
+            'note', 'Created by migration to fix domains added to reconciliation before PAYING_CUSTOMER event was auto-created'
+          ),
+          NOW()
+        FROM reconciliation_line_item rli
+        WHERE rli.attributed_domain_id IS NOT NULL
+          AND rli.paying_customer_date IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM domain_event de
+            WHERE de.attributed_domain_id = rli.attributed_domain_id
+              AND de.event_source = 'PAYING_CUSTOMER'
+          )
+        GROUP BY rli.attributed_domain_id, rli.paying_customer_date;
+
+        UPDATE attributed_domain ad
+        SET has_paying_customer = true, updated_at = NOW()
+        WHERE ad.id IN (
+          SELECT DISTINCT attributed_domain_id 
+          FROM reconciliation_line_item 
+          WHERE attributed_domain_id IS NOT NULL
+        )
+        AND has_paying_customer = false;
+      `,
     };
 
     const sql = migrations[migrationFile];

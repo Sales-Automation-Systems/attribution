@@ -183,6 +183,47 @@ export async function POST(
       );
     }
 
+    // Ensure has_paying_customer flag is set
+    await attrPool.query(
+      `UPDATE attributed_domain
+       SET has_paying_customer = true,
+           updated_at = NOW()
+       WHERE id = $1 AND has_paying_customer = false`,
+      [domainId]
+    );
+
+    // Create a PAYING_CUSTOMER domain_event if one doesn't exist
+    // This is critical for reconciliation sync to find this domain
+    // Uses source_table = 'manual_entry' to survive worker reprocessing
+    const existingEvent = await attrPool.query(
+      `SELECT id FROM domain_event 
+       WHERE attributed_domain_id = $1 AND event_source = 'PAYING_CUSTOMER'`,
+      [domainId]
+    );
+
+    if (existingEvent.rows.length === 0) {
+      const eventId = randomUUID();
+      await attrPool.query(
+        `INSERT INTO domain_event (
+          id, attributed_domain_id, event_source, event_time, email,
+          source_id, source_table, metadata, created_at
+        ) VALUES (
+          $1, $2, 'PAYING_CUSTOMER', $3, NULL,
+          NULL, 'manual_entry', $4, NOW()
+        )`,
+        [
+          eventId,
+          domainId,
+          billingDate,
+          JSON.stringify({ 
+            manual: true, 
+            addedBy: 'manual-reconciliation-add',
+            note: 'Created when domain was manually added to reconciliation'
+          }),
+        ]
+      );
+    }
+
     return NextResponse.json({
       success: true,
       message: `Domain added to ${createdLineItems.length} billing period(s)`,
