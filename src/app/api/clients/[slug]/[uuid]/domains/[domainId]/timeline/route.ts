@@ -173,31 +173,38 @@ export async function GET(
     }
 
     // Add synthetic "Attribution Determined" event for attributed domains
-    // ONLY if the first email was sent BEFORE the first success event
-    // This prevents showing "Attribution Confirmed" for leads that were in funnel before outreach
+    // Find the FIRST success event that happened AFTER emails were sent
+    // This handles cases where some events happened before outreach (not attributable)
+    // but later events happened after outreach (attributable)
     const isAttributed = ['ATTRIBUTED', 'CLIENT_PROMOTED', 'CONFIRMED'].includes(domain.status);
     const isDisputed = ['DISPUTED', 'DISPUTE_PENDING'].includes(domain.status);
     
-    // Check if emails were sent before the first event (valid attribution)
-    const hasEmailBeforeEvent = domain.first_email_sent_at && domain.first_event_at && 
-      new Date(domain.first_email_sent_at) < new Date(domain.first_event_at);
-    
-    if ((isAttributed || isDisputed) && !hasInitialAttributionEvent && domain.first_event_at && hasEmailBeforeEvent) {
-      // Add a synthetic status change showing when attribution was determined
-      // Use first_event_at as that's when the success event happened (after email)
-      timeline.push({
-        id: `synthetic-attribution-${domain.id}`,
-        type: 'STATUS_CHANGE',
-        date: domain.first_event_at.toISOString(),
-        metadata: {
-          action: 'SYSTEM_UPDATE',
-          oldStatus: null,
-          newStatus: 'ATTRIBUTED',
-          reason: 'Attribution determined by system based on email match and success event',
-          changedBy: 'System',
-          synthetic: true, // Flag to indicate this was generated, not logged
-        },
-      });
+    if ((isAttributed || isDisputed) && !hasInitialAttributionEvent && domain.first_email_sent_at) {
+      // Find the first success event that occurred AFTER the first email was sent
+      const successEventTypes: TimelineEvent['type'][] = ['SIGN_UP', 'MEETING_BOOKED', 'PAYING_CUSTOMER', 'POSITIVE_REPLY'];
+      const firstEmailDate = new Date(domain.first_email_sent_at);
+      
+      // Look through timeline for first success event after email
+      const firstAttributableEvent = timeline
+        .filter(e => successEventTypes.includes(e.type) && new Date(e.date) >= firstEmailDate)
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
+      
+      if (firstAttributableEvent) {
+        // Add synthetic status change at the time of the first attributable event
+        timeline.push({
+          id: `synthetic-attribution-${domain.id}`,
+          type: 'STATUS_CHANGE',
+          date: firstAttributableEvent.date,
+          metadata: {
+            action: 'SYSTEM_UPDATE',
+            oldStatus: null,
+            newStatus: 'ATTRIBUTED',
+            reason: 'Attribution determined by system based on email match and success event',
+            changedBy: 'System',
+            synthetic: true, // Flag to indicate this was generated, not logged
+          },
+        });
+      }
     }
 
     // Sort by date
