@@ -80,7 +80,7 @@ export function ClientStatsSection({
   const [stats, setStats] = useState<Stats>(initialStats);
   const [accountStats, setAccountStats] = useState<AccountStats | null>(null);
   const [loading, setLoading] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>('accounts');
+  const [viewMode, setViewMode] = useState<ViewMode>('events');
   const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   const fetchStats = useCallback(async () => {
@@ -131,17 +131,64 @@ export function ClientStatsSection({
     ? accountStats.attributedAccountsWithPaying + accountStats.outsideWindowAccountsWithPaying + accountStats.unattributedAccountsWithPaying
     : 0;
 
+  // Calculate displayed values based on viewMode
+  const displayedReplies = viewMode === 'events' 
+    ? stats.attributedPositiveReplies 
+    : (accountStats?.attributedAccountsWithReplies ?? stats.attributedPositiveReplies);
+  const displayedSignUps = viewMode === 'events' 
+    ? stats.attributedSignUps 
+    : (accountStats?.attributedAccountsWithSignUps ?? stats.attributedSignUps);
+  const displayedMeetings = viewMode === 'events' 
+    ? stats.attributedMeetings 
+    : (accountStats?.attributedAccountsWithMeetings ?? stats.attributedMeetings);
+  const displayedPaying = viewMode === 'events' 
+    ? stats.attributedPaying 
+    : (accountStats?.attributedAccountsWithPaying ?? stats.attributedPaying);
+
+  const pipelineLabel = viewMode === 'events' ? 'events' : 'accounts';
+
   return (
     <>
-      {/* Date Filter */}
+      {/* Filter Row: Date Filter + View Mode Toggle */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <DateRangeFilter value={dateRange} onChange={setDateRange} />
-        {loading && (
-          <div className="flex items-center gap-2 text-muted-foreground text-sm">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Loading...
+        <div className="flex items-center gap-3">
+          {loading && (
+            <div className="flex items-center gap-2 text-muted-foreground text-sm">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading...
+            </div>
+          )}
+          {/* View Mode Toggle */}
+          <div className="flex items-center gap-1 p-1 bg-muted rounded-lg">
+            <button
+              onClick={() => setViewMode('events')}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
+                viewMode === 'events'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <BarChart3 className="h-4 w-4" />
+              Events
+            </button>
+            <button
+              onClick={() => setViewMode('accounts')}
+              disabled={!accountStats && initialLoadDone}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
+                viewMode === 'accounts'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground',
+                !accountStats && initialLoadDone && 'opacity-50 cursor-not-allowed'
+              )}
+            >
+              <Users className="h-4 w-4" />
+              Accounts
+            </button>
           </div>
-        )}
+        </div>
       </div>
 
       {/* Section 1: Client's Pipeline */}
@@ -150,7 +197,7 @@ export function ClientStatsSection({
         <p className="text-sm text-muted-foreground mb-4">
           {dateRange.startDate || dateRange.endDate ? (
             <>
-              Events from {clientName}&apos;s outreach
+              Attributed {pipelineLabel} from {clientName}&apos;s outreach
               {dateRange.startDate && dateRange.endDate && (
                 <span className="font-medium">
                   {' '}({format(dateRange.startDate, 'MMM d, yyyy')} - {format(dateRange.endDate, 'MMM d, yyyy')})
@@ -164,7 +211,7 @@ export function ClientStatsSection({
               )}
             </>
           ) : (
-            <>Total events from {clientName}&apos;s outreach</>
+            <>Total attributed {pipelineLabel} from {clientName}&apos;s outreach</>
           )}
         </p>
         <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
@@ -190,12 +237,12 @@ export function ClientStatsSection({
                 </DefinitionTooltip>
               </div>
               <div className="text-2xl font-bold text-purple-700 dark:text-purple-400">
-                {stats.attributedPositiveReplies.toLocaleString('en-US')}
+                {displayedReplies.toLocaleString('en-US')}
               </div>
               <div className="text-xs text-purple-600 dark:text-purple-400 mt-1">
-                {stats.attributedPositiveReplies > 0 && stats.totalEmailsSent > 0 ? (
+                {displayedReplies > 0 && stats.totalEmailsSent > 0 ? (
                   <span>
-                    {Math.round(stats.totalEmailsSent / stats.attributedPositiveReplies).toLocaleString('en-US')}:1 email-to-attributed-reply ratio
+                    {Math.round(stats.totalEmailsSent / displayedReplies).toLocaleString('en-US')}:1 email-to-{pipelineLabel === 'events' ? 'reply' : 'account'} ratio
                   </span>
                 ) : (
                   <span>—</span>
@@ -212,12 +259,12 @@ export function ClientStatsSection({
                 </DefinitionTooltip>
               </div>
               <div className="text-2xl font-bold text-blue-700 dark:text-blue-400">
-                {stats.attributedSignUps.toLocaleString('en-US')}
+                {displayedSignUps.toLocaleString('en-US')}
               </div>
               <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                {stats.attributedSignUps > 0 && stats.totalEmailsSent > 0 ? (
+                {displayedSignUps > 0 && stats.totalEmailsSent > 0 ? (
                   <span>
-                    {Math.round(stats.totalEmailsSent / stats.attributedSignUps).toLocaleString('en-US')}:1 email-to-attributed-signup ratio
+                    {Math.round(stats.totalEmailsSent / displayedSignUps).toLocaleString('en-US')}:1 email-to-{pipelineLabel === 'events' ? 'signup' : 'account'} ratio
                   </span>
                 ) : (
                   <span>—</span>
@@ -234,12 +281,12 @@ export function ClientStatsSection({
                 </DefinitionTooltip>
               </div>
               <div className="text-2xl font-bold text-amber-700 dark:text-amber-400">
-                {stats.attributedMeetings.toLocaleString('en-US')}
+                {displayedMeetings.toLocaleString('en-US')}
               </div>
               <div className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                {stats.attributedMeetings > 0 && stats.totalEmailsSent > 0 ? (
+                {displayedMeetings > 0 && stats.totalEmailsSent > 0 ? (
                   <span>
-                    {Math.round(stats.totalEmailsSent / stats.attributedMeetings).toLocaleString('en-US')}:1 email-to-attributed-meeting ratio
+                    {Math.round(stats.totalEmailsSent / displayedMeetings).toLocaleString('en-US')}:1 email-to-{pipelineLabel === 'events' ? 'meeting' : 'account'} ratio
                   </span>
                 ) : (
                   <span>—</span>
@@ -256,12 +303,12 @@ export function ClientStatsSection({
                 </DefinitionTooltip>
               </div>
               <div className="text-2xl font-bold text-green-700 dark:text-green-400">
-                {stats.attributedPaying.toLocaleString('en-US')}
+                {displayedPaying.toLocaleString('en-US')}
               </div>
               <div className="text-xs text-green-600 dark:text-green-400 mt-1">
-                {stats.attributedPaying > 0 && stats.totalEmailsSent > 0 ? (
+                {displayedPaying > 0 && stats.totalEmailsSent > 0 ? (
                   <span>
-                    {Math.round(stats.totalEmailsSent / stats.attributedPaying).toLocaleString('en-US')}:1 email-to-attributed-customer ratio
+                    {Math.round(stats.totalEmailsSent / displayedPaying).toLocaleString('en-US')}:1 email-to-{pipelineLabel === 'events' ? 'customer' : 'account'} ratio
                   </span>
                 ) : (
                   <span>—</span>
@@ -274,43 +321,11 @@ export function ClientStatsSection({
 
       {/* Section 2: Attribution Breakdown by Status */}
       <div>
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h2 className="text-lg font-semibold">Attribution Breakdown</h2>
-            <p className="text-sm text-muted-foreground">
-              {viewMode === 'events' ? 'Events' : 'Accounts'} by attribution status
-            </p>
-          </div>
-          
-          {/* View Mode Toggle */}
-          <div className="flex items-center gap-1 p-1 bg-muted rounded-lg">
-            <button
-              onClick={() => setViewMode('events')}
-              className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
-                viewMode === 'events'
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              <BarChart3 className="h-4 w-4" />
-              Events
-            </button>
-            <button
-              onClick={() => setViewMode('accounts')}
-              disabled={!accountStats}
-              className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
-                viewMode === 'accounts'
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground',
-                !accountStats && 'opacity-50 cursor-not-allowed'
-              )}
-            >
-              <Users className="h-4 w-4" />
-              Accounts
-            </button>
-          </div>
+        <div className="mb-3">
+          <h2 className="text-lg font-semibold">Attribution Breakdown</h2>
+          <p className="text-sm text-muted-foreground">
+            {viewMode === 'events' ? 'Events' : 'Accounts'} by attribution status
+          </p>
         </div>
         
         {viewMode === 'events' ? (
