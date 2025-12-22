@@ -9,11 +9,14 @@ import {
   Calendar,
   DollarSign,
   Loader2,
+  Users,
+  BarChart3,
 } from 'lucide-react';
 import { DateRangeFilter, type DateRange } from '@/components/ui/date-range-filter';
 import { DefinitionTooltip } from '@/components/ui/definition-tooltip';
 import { AttributionBreakdown } from '@/components/attribution/attribution-breakdown';
 import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 interface Stats {
   totalEmailsSent: number;
@@ -37,6 +40,25 @@ interface Stats {
   notMatchedPaying: number;
 }
 
+interface AccountStats {
+  totalAccountsWithReplies: number;
+  totalAccountsWithSignUps: number;
+  totalAccountsWithMeetings: number;
+  totalAccountsWithPaying: number;
+  attributedAccountsWithReplies: number;
+  attributedAccountsWithSignUps: number;
+  attributedAccountsWithMeetings: number;
+  attributedAccountsWithPaying: number;
+  outsideWindowAccountsWithSignUps: number;
+  outsideWindowAccountsWithMeetings: number;
+  outsideWindowAccountsWithPaying: number;
+  unattributedAccountsWithSignUps: number;
+  unattributedAccountsWithMeetings: number;
+  unattributedAccountsWithPaying: number;
+}
+
+type ViewMode = 'events' | 'accounts';
+
 interface ClientStatsSectionProps {
   slug: string;
   uuid: string;
@@ -56,15 +78,12 @@ export function ClientStatsSection({
     endDate: null,
   });
   const [stats, setStats] = useState<Stats>(initialStats);
+  const [accountStats, setAccountStats] = useState<AccountStats | null>(null);
   const [loading, setLoading] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('events');
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   const fetchStats = useCallback(async () => {
-    // If no date filter, use initial stats
-    if (!dateRange.startDate && !dateRange.endDate) {
-      setStats(initialStats);
-      return;
-    }
-
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -82,22 +101,35 @@ export function ClientStatsSection({
       const data = await res.json();
       
       setStats(data.stats);
+      setAccountStats(data.accountStats || null);
+      setInitialLoadDone(true);
     } catch (error) {
       console.error('Error fetching stats:', error);
       // Keep current stats on error
     } finally {
       setLoading(false);
     }
-  }, [slug, uuid, dateRange, initialStats]);
+  }, [slug, uuid, dateRange]);
 
   useEffect(() => {
     fetchStats();
   }, [fetchStats]);
 
-  // Calculate totals for attribution breakdown
+  // Calculate totals for attribution breakdown - EVENT level
   const totalSignUps = stats.attributedSignUps + stats.outsideWindowSignUps + stats.notMatchedSignUps;
   const totalMeetings = stats.attributedMeetings + stats.outsideWindowMeetings + stats.notMatchedMeetings;
   const totalPaying = stats.attributedPaying + stats.outsideWindowPaying + stats.notMatchedPaying;
+
+  // Calculate totals for attribution breakdown - ACCOUNT level
+  const totalAccountSignUps = accountStats 
+    ? accountStats.attributedAccountsWithSignUps + accountStats.outsideWindowAccountsWithSignUps + accountStats.unattributedAccountsWithSignUps
+    : 0;
+  const totalAccountMeetings = accountStats 
+    ? accountStats.attributedAccountsWithMeetings + accountStats.outsideWindowAccountsWithMeetings + accountStats.unattributedAccountsWithMeetings
+    : 0;
+  const totalAccountPaying = accountStats 
+    ? accountStats.attributedAccountsWithPaying + accountStats.outsideWindowAccountsWithPaying + accountStats.unattributedAccountsWithPaying
+    : 0;
 
   return (
     <>
@@ -242,30 +274,95 @@ export function ClientStatsSection({
 
       {/* Section 2: Attribution Breakdown by Status */}
       <div>
-        <h2 className="text-lg font-semibold mb-3">Attribution Breakdown</h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          Events by attribution status
-        </p>
-        <AttributionBreakdown
-          signUps={{
-            total: totalSignUps,
-            attributed: stats.attributedSignUps,
-            outsideWindow: stats.outsideWindowSignUps,
-            unattributed: stats.notMatchedSignUps,
-          }}
-          meetings={{
-            total: totalMeetings,
-            attributed: stats.attributedMeetings,
-            outsideWindow: stats.outsideWindowMeetings,
-            unattributed: stats.notMatchedMeetings,
-          }}
-          paying={{
-            total: totalPaying,
-            attributed: stats.attributedPaying,
-            outsideWindow: stats.outsideWindowPaying,
-            unattributed: stats.notMatchedPaying,
-          }}
-        />
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h2 className="text-lg font-semibold">Attribution Breakdown</h2>
+            <p className="text-sm text-muted-foreground">
+              {viewMode === 'events' ? 'Events' : 'Accounts'} by attribution status
+            </p>
+          </div>
+          
+          {/* View Mode Toggle */}
+          <div className="flex items-center gap-1 p-1 bg-muted rounded-lg">
+            <button
+              onClick={() => setViewMode('events')}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
+                viewMode === 'events'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <BarChart3 className="h-4 w-4" />
+              Events
+            </button>
+            <button
+              onClick={() => setViewMode('accounts')}
+              disabled={!accountStats}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
+                viewMode === 'accounts'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground',
+                !accountStats && 'opacity-50 cursor-not-allowed'
+              )}
+            >
+              <Users className="h-4 w-4" />
+              Accounts
+            </button>
+          </div>
+        </div>
+        
+        {viewMode === 'events' ? (
+          <AttributionBreakdown
+            signUps={{
+              total: totalSignUps,
+              attributed: stats.attributedSignUps,
+              outsideWindow: stats.outsideWindowSignUps,
+              unattributed: stats.notMatchedSignUps,
+            }}
+            meetings={{
+              total: totalMeetings,
+              attributed: stats.attributedMeetings,
+              outsideWindow: stats.outsideWindowMeetings,
+              unattributed: stats.notMatchedMeetings,
+            }}
+            paying={{
+              total: totalPaying,
+              attributed: stats.attributedPaying,
+              outsideWindow: stats.outsideWindowPaying,
+              unattributed: stats.notMatchedPaying,
+            }}
+            labelSuffix="total from client"
+          />
+        ) : accountStats ? (
+          <AttributionBreakdown
+            signUps={{
+              total: totalAccountSignUps,
+              attributed: accountStats.attributedAccountsWithSignUps,
+              outsideWindow: accountStats.outsideWindowAccountsWithSignUps,
+              unattributed: accountStats.unattributedAccountsWithSignUps,
+            }}
+            meetings={{
+              total: totalAccountMeetings,
+              attributed: accountStats.attributedAccountsWithMeetings,
+              outsideWindow: accountStats.outsideWindowAccountsWithMeetings,
+              unattributed: accountStats.unattributedAccountsWithMeetings,
+            }}
+            paying={{
+              total: totalAccountPaying,
+              attributed: accountStats.attributedAccountsWithPaying,
+              outsideWindow: accountStats.outsideWindowAccountsWithPaying,
+              unattributed: accountStats.unattributedAccountsWithPaying,
+            }}
+            labelSuffix="accounts"
+          />
+        ) : (
+          <div className="flex items-center justify-center py-8 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin mr-2" />
+            Loading account stats...
+          </div>
+        )}
       </div>
     </>
   );

@@ -28,6 +28,7 @@ interface AttributionBreakdownProps {
   signUps: EventBreakdown;
   meetings: EventBreakdown;
   paying: EventBreakdown;
+  labelSuffix?: string; // e.g., "total from client" or "accounts"
 }
 
 function EventCard({
@@ -36,12 +37,14 @@ function EventCard({
   icon: Icon,
   iconColor,
   data,
+  labelSuffix = 'total from client',
 }: {
   title: string;
   tooltipTerm: 'websiteSignUp' | 'meetingBooked' | 'payingCustomer';
   icon: typeof UserPlus;
   iconColor: string;
   data: EventBreakdown;
+  labelSuffix?: string;
 }) {
   const attributedPercent = data.total > 0 ? Math.round((data.attributed / data.total) * 100) : 0;
   const outsidePercent = data.total > 0 ? Math.round((data.outsideWindow / data.total) * 100) : 0;
@@ -62,7 +65,7 @@ function EventCard({
                 </DefinitionTooltip>
               </CardTitle>
               <CardDescription className="text-xs">
-                {data.total.toLocaleString('en-US')} total from client
+                {data.total.toLocaleString('en-US')} {labelSuffix}
               </CardDescription>
             </div>
           </div>
@@ -123,12 +126,11 @@ function EventCard({
   );
 }
 
-export function AttributionBreakdown({ signUps, meetings, paying }: AttributionBreakdownProps) {
+export function AttributionBreakdown({ signUps, meetings, paying, labelSuffix = 'total from client' }: AttributionBreakdownProps) {
   // Calculate totals
   const totalAttributed = signUps.attributed + meetings.attributed + paying.attributed;
   const totalOutsideWindow = signUps.outsideWindow + meetings.outsideWindow + paying.outsideWindow;
   const totalUnattributed = signUps.unattributed + meetings.unattributed + paying.unattributed;
-  const grandTotal = totalAttributed + totalOutsideWindow + totalUnattributed;
 
   return (
     <div className="space-y-6">
@@ -181,6 +183,7 @@ export function AttributionBreakdown({ signUps, meetings, paying }: AttributionB
           icon={UserPlus}
           iconColor="bg-blue-500/10 text-blue-600"
           data={signUps}
+          labelSuffix={labelSuffix}
         />
         <EventCard
           title="Meetings"
@@ -188,6 +191,7 @@ export function AttributionBreakdown({ signUps, meetings, paying }: AttributionB
           icon={Calendar}
           iconColor="bg-purple-500/10 text-purple-600"
           data={meetings}
+          labelSuffix={labelSuffix}
         />
         <EventCard
           title="Paying Customers"
@@ -195,6 +199,7 @@ export function AttributionBreakdown({ signUps, meetings, paying }: AttributionB
           icon={DollarSign}
           iconColor="bg-green-500/10 text-green-600"
           data={paying}
+          labelSuffix={labelSuffix}
         />
       </div>
     </div>

@@ -38,6 +38,31 @@ interface FilteredStats {
   notMatchedPaying: number;
 }
 
+// Domain/Account level stats (counts unique domains, not individual events)
+interface AccountStats {
+  // Total accounts with each event type
+  totalAccountsWithReplies: number;
+  totalAccountsWithSignUps: number;
+  totalAccountsWithMeetings: number;
+  totalAccountsWithPaying: number;
+  
+  // Attributed accounts
+  attributedAccountsWithReplies: number;
+  attributedAccountsWithSignUps: number;
+  attributedAccountsWithMeetings: number;
+  attributedAccountsWithPaying: number;
+  
+  // Outside window accounts
+  outsideWindowAccountsWithSignUps: number;
+  outsideWindowAccountsWithMeetings: number;
+  outsideWindowAccountsWithPaying: number;
+  
+  // Unattributed accounts
+  unattributedAccountsWithSignUps: number;
+  unattributedAccountsWithMeetings: number;
+  unattributedAccountsWithPaying: number;
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string; uuid: string }> }
@@ -59,7 +84,48 @@ export async function GET(
     }
 
     // If no date filter, return the pre-computed stats from client_config
+    // But still need to query account-level stats
     if (!startDate && !endDate) {
+      // Query account-level stats even for unfiltered view
+      const accountCountsQuery = `
+        SELECT 
+          COUNT(DISTINCT CASE WHEN has_positive_reply THEN id END) as accounts_with_replies,
+          COUNT(DISTINCT CASE WHEN has_sign_up THEN id END) as accounts_with_signups,
+          COUNT(DISTINCT CASE WHEN has_meeting_booked THEN id END) as accounts_with_meetings,
+          COUNT(DISTINCT CASE WHEN has_paying_customer THEN id END) as accounts_with_paying,
+          COUNT(DISTINCT CASE WHEN has_positive_reply AND is_within_window AND status IN ('ATTRIBUTED', 'MANUAL', 'CLIENT_PROMOTED') THEN id END) as attributed_accounts_replies,
+          COUNT(DISTINCT CASE WHEN has_sign_up AND is_within_window AND status IN ('ATTRIBUTED', 'MANUAL', 'CLIENT_PROMOTED') THEN id END) as attributed_accounts_signups,
+          COUNT(DISTINCT CASE WHEN has_meeting_booked AND is_within_window AND status IN ('ATTRIBUTED', 'MANUAL', 'CLIENT_PROMOTED') THEN id END) as attributed_accounts_meetings,
+          COUNT(DISTINCT CASE WHEN has_paying_customer AND is_within_window AND status IN ('ATTRIBUTED', 'MANUAL', 'CLIENT_PROMOTED') THEN id END) as attributed_accounts_paying,
+          COUNT(DISTINCT CASE WHEN has_sign_up AND NOT is_within_window AND match_type != 'NO_MATCH' THEN id END) as outside_accounts_signups,
+          COUNT(DISTINCT CASE WHEN has_meeting_booked AND NOT is_within_window AND match_type != 'NO_MATCH' THEN id END) as outside_accounts_meetings,
+          COUNT(DISTINCT CASE WHEN has_paying_customer AND NOT is_within_window AND match_type != 'NO_MATCH' THEN id END) as outside_accounts_paying,
+          COUNT(DISTINCT CASE WHEN has_sign_up AND match_type = 'NO_MATCH' THEN id END) as unattributed_accounts_signups,
+          COUNT(DISTINCT CASE WHEN has_meeting_booked AND match_type = 'NO_MATCH' THEN id END) as unattributed_accounts_meetings,
+          COUNT(DISTINCT CASE WHEN has_paying_customer AND match_type = 'NO_MATCH' THEN id END) as unattributed_accounts_paying
+        FROM attributed_domain
+        WHERE client_config_id = $1
+      `;
+      
+      const accountCountsRows = await attrQuery<{
+        accounts_with_replies: string;
+        accounts_with_signups: string;
+        accounts_with_meetings: string;
+        accounts_with_paying: string;
+        attributed_accounts_replies: string;
+        attributed_accounts_signups: string;
+        attributed_accounts_meetings: string;
+        attributed_accounts_paying: string;
+        outside_accounts_signups: string;
+        outside_accounts_meetings: string;
+        outside_accounts_paying: string;
+        unattributed_accounts_signups: string;
+        unattributed_accounts_meetings: string;
+        unattributed_accounts_paying: string;
+      }>(accountCountsQuery, [client.id]);
+      
+      const accountRow = accountCountsRows[0];
+      
       return NextResponse.json({
         stats: {
           totalEmailsSent: Number(client.total_emails_sent || 0),
@@ -82,6 +148,22 @@ export async function GET(
           notMatchedMeetings: Number(client.not_matched_meetings || 0),
           notMatchedPaying: Number(client.not_matched_paying || 0),
         } as FilteredStats,
+        accountStats: {
+          totalAccountsWithReplies: parseInt(accountRow?.accounts_with_replies || '0', 10),
+          totalAccountsWithSignUps: parseInt(accountRow?.accounts_with_signups || '0', 10),
+          totalAccountsWithMeetings: parseInt(accountRow?.accounts_with_meetings || '0', 10),
+          totalAccountsWithPaying: parseInt(accountRow?.accounts_with_paying || '0', 10),
+          attributedAccountsWithReplies: parseInt(accountRow?.attributed_accounts_replies || '0', 10),
+          attributedAccountsWithSignUps: parseInt(accountRow?.attributed_accounts_signups || '0', 10),
+          attributedAccountsWithMeetings: parseInt(accountRow?.attributed_accounts_meetings || '0', 10),
+          attributedAccountsWithPaying: parseInt(accountRow?.attributed_accounts_paying || '0', 10),
+          outsideWindowAccountsWithSignUps: parseInt(accountRow?.outside_accounts_signups || '0', 10),
+          outsideWindowAccountsWithMeetings: parseInt(accountRow?.outside_accounts_meetings || '0', 10),
+          outsideWindowAccountsWithPaying: parseInt(accountRow?.outside_accounts_paying || '0', 10),
+          unattributedAccountsWithSignUps: parseInt(accountRow?.unattributed_accounts_signups || '0', 10),
+          unattributedAccountsWithMeetings: parseInt(accountRow?.unattributed_accounts_meetings || '0', 10),
+          unattributedAccountsWithPaying: parseInt(accountRow?.unattributed_accounts_paying || '0', 10),
+        } as AccountStats,
         dateRange: null,
       });
     }
@@ -173,6 +255,83 @@ export async function GET(
       count: string;
     }>(unmatchedQuery, queryParams);
 
+    // ========== ACCOUNT-LEVEL QUERIES ==========
+    // Count unique domains instead of individual events
+    
+    // Total accounts with each event type (regardless of attribution status)
+    const totalAccountsQuery = `
+      SELECT 
+        CASE 
+          WHEN ad.has_positive_reply THEN 'POSITIVE_REPLY'
+          WHEN ad.has_sign_up THEN 'SIGN_UP'
+          WHEN ad.has_meeting_booked THEN 'MEETING_BOOKED'
+          WHEN ad.has_paying_customer THEN 'PAYING_CUSTOMER'
+        END as event_type,
+        COUNT(DISTINCT ad.id) as count
+      FROM attributed_domain ad
+      WHERE ad.client_config_id = $1
+      GROUP BY event_type
+    `;
+    
+    // Actually, we need separate counts for each boolean flag
+    const accountCountsQuery = `
+      SELECT 
+        COUNT(DISTINCT CASE WHEN has_positive_reply THEN id END) as accounts_with_replies,
+        COUNT(DISTINCT CASE WHEN has_sign_up THEN id END) as accounts_with_signups,
+        COUNT(DISTINCT CASE WHEN has_meeting_booked THEN id END) as accounts_with_meetings,
+        COUNT(DISTINCT CASE WHEN has_paying_customer THEN id END) as accounts_with_paying,
+        -- Attributed accounts (within window, matched)
+        COUNT(DISTINCT CASE WHEN has_positive_reply AND is_within_window AND status IN ('ATTRIBUTED', 'MANUAL', 'CLIENT_PROMOTED') THEN id END) as attributed_accounts_replies,
+        COUNT(DISTINCT CASE WHEN has_sign_up AND is_within_window AND status IN ('ATTRIBUTED', 'MANUAL', 'CLIENT_PROMOTED') THEN id END) as attributed_accounts_signups,
+        COUNT(DISTINCT CASE WHEN has_meeting_booked AND is_within_window AND status IN ('ATTRIBUTED', 'MANUAL', 'CLIENT_PROMOTED') THEN id END) as attributed_accounts_meetings,
+        COUNT(DISTINCT CASE WHEN has_paying_customer AND is_within_window AND status IN ('ATTRIBUTED', 'MANUAL', 'CLIENT_PROMOTED') THEN id END) as attributed_accounts_paying,
+        -- Outside window accounts
+        COUNT(DISTINCT CASE WHEN has_sign_up AND NOT is_within_window AND match_type != 'NO_MATCH' THEN id END) as outside_accounts_signups,
+        COUNT(DISTINCT CASE WHEN has_meeting_booked AND NOT is_within_window AND match_type != 'NO_MATCH' THEN id END) as outside_accounts_meetings,
+        COUNT(DISTINCT CASE WHEN has_paying_customer AND NOT is_within_window AND match_type != 'NO_MATCH' THEN id END) as outside_accounts_paying,
+        -- Unattributed accounts (no match)
+        COUNT(DISTINCT CASE WHEN has_sign_up AND match_type = 'NO_MATCH' THEN id END) as unattributed_accounts_signups,
+        COUNT(DISTINCT CASE WHEN has_meeting_booked AND match_type = 'NO_MATCH' THEN id END) as unattributed_accounts_meetings,
+        COUNT(DISTINCT CASE WHEN has_paying_customer AND match_type = 'NO_MATCH' THEN id END) as unattributed_accounts_paying
+      FROM attributed_domain
+      WHERE client_config_id = $1
+    `;
+    
+    const accountCountsRows = await attrQuery<{
+      accounts_with_replies: string;
+      accounts_with_signups: string;
+      accounts_with_meetings: string;
+      accounts_with_paying: string;
+      attributed_accounts_replies: string;
+      attributed_accounts_signups: string;
+      attributed_accounts_meetings: string;
+      attributed_accounts_paying: string;
+      outside_accounts_signups: string;
+      outside_accounts_meetings: string;
+      outside_accounts_paying: string;
+      unattributed_accounts_signups: string;
+      unattributed_accounts_meetings: string;
+      unattributed_accounts_paying: string;
+    }>(accountCountsQuery, [client.id]);
+    
+    const accountRow = accountCountsRows[0];
+    const accountStats: AccountStats = {
+      totalAccountsWithReplies: parseInt(accountRow?.accounts_with_replies || '0', 10),
+      totalAccountsWithSignUps: parseInt(accountRow?.accounts_with_signups || '0', 10),
+      totalAccountsWithMeetings: parseInt(accountRow?.accounts_with_meetings || '0', 10),
+      totalAccountsWithPaying: parseInt(accountRow?.accounts_with_paying || '0', 10),
+      attributedAccountsWithReplies: parseInt(accountRow?.attributed_accounts_replies || '0', 10),
+      attributedAccountsWithSignUps: parseInt(accountRow?.attributed_accounts_signups || '0', 10),
+      attributedAccountsWithMeetings: parseInt(accountRow?.attributed_accounts_meetings || '0', 10),
+      attributedAccountsWithPaying: parseInt(accountRow?.attributed_accounts_paying || '0', 10),
+      outsideWindowAccountsWithSignUps: parseInt(accountRow?.outside_accounts_signups || '0', 10),
+      outsideWindowAccountsWithMeetings: parseInt(accountRow?.outside_accounts_meetings || '0', 10),
+      outsideWindowAccountsWithPaying: parseInt(accountRow?.outside_accounts_paying || '0', 10),
+      unattributedAccountsWithSignUps: parseInt(accountRow?.unattributed_accounts_signups || '0', 10),
+      unattributedAccountsWithMeetings: parseInt(accountRow?.unattributed_accounts_meetings || '0', 10),
+      unattributedAccountsWithPaying: parseInt(accountRow?.unattributed_accounts_paying || '0', 10),
+    };
+
     // Build stats object
     const stats: FilteredStats = {
       totalEmailsSent: totalEmailsSent,
@@ -259,14 +418,10 @@ export async function GET(
 
     return NextResponse.json({
       stats,
+      accountStats,
       dateRange: {
         startDate: startDate?.toISOString() || null,
         endDate: endDate?.toISOString() || null,
-      },
-      // Debug info - remove after fixing
-      _debug: {
-        version: 'v4-email-unfiltered',
-        note: 'Emails always show total; other metrics are date-filtered',
       },
     });
   } catch (error) {
