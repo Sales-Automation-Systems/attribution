@@ -80,7 +80,7 @@ export function ClientStatsSection({
   const [stats, setStats] = useState<Stats>(initialStats);
   const [accountStats, setAccountStats] = useState<AccountStats | null>(null);
   const [loading, setLoading] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>('events');
+  const [viewMode, setViewMode] = useState<ViewMode>('accounts');
   const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   const fetchStats = useCallback(async () => {
