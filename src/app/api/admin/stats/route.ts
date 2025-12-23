@@ -9,7 +9,7 @@ interface AggregateStats {
   totalPayingCustomers: number;
   totalHardMatches: number;
   totalSoftMatches: number;
-  pendingDisputes: number;
+  pendingReviews: number;
 }
 
 export async function GET(req: NextRequest) {
@@ -30,14 +30,14 @@ export async function GET(req: NextRequest) {
         total_paying_customers: string;
         total_hard_matches: string;
         total_soft_matches: string;
-        pending_disputes: string;
+        pending_reviews: string;
       }>(`
         SELECT 
           COUNT(*) FILTER (WHERE is_within_window = true) as total_attributed_domains,
           COUNT(*) FILTER (WHERE has_paying_customer = true) as total_paying_customers,
           COUNT(*) FILTER (WHERE match_type = 'HARD_MATCH') as total_hard_matches,
           COUNT(*) FILTER (WHERE match_type = 'SOFT_MATCH') as total_soft_matches,
-          COUNT(*) FILTER (WHERE status = 'DISPUTE_PENDING') as pending_disputes
+          COUNT(*) FILTER (WHERE status IN ('DISPUTE_PENDING', 'PENDING_CLIENT_REVIEW')) as pending_reviews
         FROM attributed_domain
       `, []);
 
@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
           totalPayingCustomers: parseInt(rows[0]?.total_paying_customers || '0', 10),
           totalHardMatches: parseInt(rows[0]?.total_hard_matches || '0', 10),
           totalSoftMatches: parseInt(rows[0]?.total_soft_matches || '0', 10),
-          pendingDisputes: parseInt(rows[0]?.pending_disputes || '0', 10),
+          pendingReviews: parseInt(rows[0]?.pending_reviews || '0', 10),
         } as AggregateStats,
         dateRange: null,
       });
@@ -120,9 +120,10 @@ export async function GET(req: NextRequest) {
     
     const softMatchRows = await attrQuery<{ count: string }>(softMatchQuery, queryParams);
 
-    // Pending disputes (not filtered by date - disputes are a current state)
-    const disputeRows = await attrQuery<{ count: string }>(`
-      SELECT COUNT(*) as count FROM attributed_domain WHERE status = 'DISPUTE_PENDING'
+    // Pending reviews (not filtered by date - reviews are a current state)
+    const reviewRows = await attrQuery<{ count: string }>(`
+      SELECT COUNT(*) as count FROM attributed_domain 
+      WHERE status IN ('DISPUTE_PENDING', 'PENDING_CLIENT_REVIEW')
     `, []);
 
     return NextResponse.json({
@@ -131,7 +132,7 @@ export async function GET(req: NextRequest) {
         totalPayingCustomers: parseInt(payingRows[0]?.count || '0', 10),
         totalHardMatches: parseInt(hardMatchRows[0]?.count || '0', 10),
         totalSoftMatches: parseInt(softMatchRows[0]?.count || '0', 10),
-        pendingDisputes: parseInt(disputeRows[0]?.count || '0', 10),
+        pendingReviews: parseInt(reviewRows[0]?.count || '0', 10),
       } as AggregateStats,
       dateRange: {
         startDate: startDate?.toISOString() || null,
@@ -146,4 +147,3 @@ export async function GET(req: NextRequest) {
     );
   }
 }
-

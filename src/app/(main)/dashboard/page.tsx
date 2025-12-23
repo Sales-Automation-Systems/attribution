@@ -31,7 +31,7 @@ export default async function DashboardPage() {
           totalPayingCustomers: stats.total_paying_customers,
           totalHardMatches: stats.total_hard_matches,
           totalSoftMatches: stats.total_soft_matches,
-          pendingDisputes: stats.pending_disputes,
+          pendingReviews: stats.pending_reviews,
         }}
       />
 

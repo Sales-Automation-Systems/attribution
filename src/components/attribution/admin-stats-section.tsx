@@ -11,7 +11,7 @@ interface Stats {
   totalPayingCustomers: number;
   totalHardMatches: number;
   totalSoftMatches: number;
-  pendingDisputes: number;
+  pendingReviews: number;
 }
 
 interface AdminStatsSectionProps {
