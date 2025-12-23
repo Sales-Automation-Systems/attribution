@@ -563,27 +563,49 @@ export function AccountTimeline({ domainId, slug, uuid, isOpen, eventTypeFilters
                         {statusAction && (
                           <p className={cn(
                             "text-xs font-medium",
-                            statusAction === 'SYSTEM_UPDATE' && statusTo === 'ATTRIBUTED'
+                            // System attribution confirmed
+                            (statusAction === 'SYSTEM_UPDATE' && statusTo === 'ATTRIBUTED')
                               ? "text-green-600 dark:text-green-400"
-                              : statusAction === 'DISPUTE_SUBMITTED'
-                              ? "text-amber-600 dark:text-amber-400"
-                              : statusAction === 'DISPUTE_APPROVED'
+                            // New review workflow actions
+                            : statusAction === 'SENT_FOR_REVIEW'
+                              ? "text-blue-600 dark:text-blue-400"
+                            : statusAction === 'REVIEW_CONFIRMED' || statusAction === 'AUTO_CONFIRMED'
+                              ? "text-green-600 dark:text-green-400"
+                            : statusAction === 'REVIEW_REJECTED'
                               ? "text-red-600 dark:text-red-400"
-                              : statusAction === 'DISPUTE_REJECTED'
+                            // Legacy dispute actions (for backward compatibility)
+                            : statusAction === 'DISPUTE_SUBMITTED'
+                              ? "text-amber-600 dark:text-amber-400"
+                            : statusAction === 'DISPUTE_APPROVED'
+                              ? "text-red-600 dark:text-red-400"
+                            : statusAction === 'DISPUTE_REJECTED'
                               ? "text-green-600 dark:text-green-400"
-                              : "text-orange-600 dark:text-orange-400"
+                            : statusAction === 'MANUAL_ATTRIBUTION'
+                              ? "text-purple-600 dark:text-purple-400"
+                            : "text-orange-600 dark:text-orange-400"
                           )}>
+                            {/* System attribution */}
                             {statusAction === 'SYSTEM_UPDATE' && statusTo === 'ATTRIBUTED'
                               ? '✓ Attribution Confirmed'
-                              : statusAction === 'DISPUTE_SUBMITTED'
+                            /* New review workflow actions */
+                            : statusAction === 'SENT_FOR_REVIEW'
+                              ? '📤 Sent for Client Review'
+                            : statusAction === 'REVIEW_CONFIRMED'
+                              ? '✓ Client Confirmed Attribution'
+                            : statusAction === 'AUTO_CONFIRMED'
+                              ? '⏱ Auto-Confirmed (7 days)'
+                            : statusAction === 'REVIEW_REJECTED'
+                              ? '✗ Client Rejected Attribution'
+                            /* Legacy dispute actions */
+                            : statusAction === 'DISPUTE_SUBMITTED'
                               ? '⚠ Dispute Submitted'
-                              : statusAction === 'DISPUTE_APPROVED'
+                            : statusAction === 'DISPUTE_APPROVED'
                               ? '✗ Dispute Approved (Removed)'
-                              : statusAction === 'DISPUTE_REJECTED'
+                            : statusAction === 'DISPUTE_REJECTED'
                               ? '✓ Dispute Rejected (Confirmed)'
-                              : statusAction === 'MANUAL_ATTRIBUTION'
+                            : statusAction === 'MANUAL_ATTRIBUTION'
                               ? '↑ Manually Attributed'
-                              : statusAction.replace(/_/g, ' ')
+                            : statusAction.replace(/_/g, ' ')
                             }
                           </p>
                         )}

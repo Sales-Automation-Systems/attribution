@@ -80,10 +80,16 @@ export default async function ClientsPage() {
                 </div>
               </div>
 
-              {/* Disputes Badge */}
-              {stats.pending_disputes > 0 && (
+              {/* Pending Reviews Badge */}
+              {stats.pending_reviews > 0 && (
+                <Badge variant="secondary" className="w-full justify-center bg-amber-100 text-amber-800 hover:bg-amber-100">
+                  {stats.pending_reviews} pending review{stats.pending_reviews > 1 ? 's' : ''}
+                </Badge>
+              )}
+              {/* Client Rejected Badge */}
+              {stats.client_rejected > 0 && (
                 <Badge variant="destructive" className="w-full justify-center">
-                  {stats.pending_disputes} pending dispute{stats.pending_disputes > 1 ? 's' : ''}
+                  {stats.client_rejected} client rejected
                 </Badge>
               )}
 

@@ -165,7 +165,7 @@ export async function POST(req: NextRequest) {
           );
 
           // Clean up line items for disputed domains (dispute was approved)
-          await cleanupDisputedLineItems(upsertedPeriod.id);
+          await cleanupRejectedLineItems(upsertedPeriod.id);
 
           const lineItems = await populateLineItems(
             upsertedPeriod.id,
@@ -499,11 +499,12 @@ async function cleanupStaleLineItems(
 }
 
 /**
- * Remove line items for domains where the dispute was approved (status = DISPUTED)
+ * Remove line items for domains that have been rejected
+ * Handles both old DISPUTED status and new CLIENT_REJECTED status
  * These domains are no longer billable and should not appear in reconciliation
  * Only removes PENDING items to preserve client-submitted data
  */
-async function cleanupDisputedLineItems(periodId: string): Promise<number> {
+async function cleanupRejectedLineItems(periodId: string): Promise<number> {
   const result = await attrQuery<{ count: number }>(`
     WITH deleted AS (
       DELETE FROM reconciliation_line_item rli
@@ -511,7 +512,7 @@ async function cleanupDisputedLineItems(periodId: string): Promise<number> {
       WHERE rli.reconciliation_period_id = $1
         AND rli.attributed_domain_id = ad.id
         AND rli.status = 'PENDING'
-        AND ad.status = 'DISPUTED'
+        AND ad.status IN ('DISPUTED', 'CLIENT_REJECTED')
       RETURNING 1
     )
     SELECT COUNT(*)::int as count FROM deleted

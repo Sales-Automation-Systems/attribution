@@ -74,14 +74,17 @@ export interface ClientConfig {
 
 // Domain status types
 export type DomainStatus =
-  | 'ATTRIBUTED'       // Within 31-day window, billable
-  | 'OUTSIDE_WINDOW'   // Matched but outside window, not billable unless manually attributed
-  | 'UNATTRIBUTED'     // No email match, not billable unless manually attributed
-  | 'CLIENT_PROMOTED'  // Manually attributed by client, billable (UI shows as "Manually Attributed")
-  | 'DISPUTE_PENDING'  // Client submitted dispute, awaiting agency review (UI shows "In Review")
-  | 'DISPUTED'         // Dispute approved by agency, not billable
-  | 'REJECTED'         // Dispute rejected, still billable
-  | 'CONFIRMED';       // Manually confirmed attribution
+  | 'ATTRIBUTED'              // Within 31-day window, billable
+  | 'OUTSIDE_WINDOW'          // Matched but outside window, not billable unless manually attributed
+  | 'UNATTRIBUTED'            // No email match, not billable unless manually attributed
+  | 'CLIENT_PROMOTED'         // Manually attributed by client, billable (UI shows as "Manually Attributed")
+  | 'PENDING_CLIENT_REVIEW'   // Agency sent for client review, awaiting response
+  | 'CLIENT_REJECTED'         // Client rejected attribution, not billable
+  | 'CONFIRMED'               // Manually confirmed attribution
+  // Legacy statuses (for backward compatibility with existing data)
+  | 'DISPUTE_PENDING'         // [DEPRECATED] Use PENDING_CLIENT_REVIEW
+  | 'DISPUTED'                // [DEPRECATED] Use CLIENT_REJECTED
+  | 'REJECTED';               // [DEPRECATED] Old dispute rejection status
 
 // Match type including manual entries
 export type MatchType = 'HARD_MATCH' | 'SOFT_MATCH' | 'NO_MATCH' | 'MANUAL' | null;
@@ -104,7 +107,14 @@ export interface AttributedDomain {
   // Focused contact(s) - emails that had success events (hard match)
   matched_email: string | null; // Legacy single email (deprecated)
   matched_emails: string[] | null; // Array of all hard-matched emails
-  // Dispute fields
+  // Review fields (agency-initiated client review workflow)
+  review_sent_at: Date | null;
+  review_sent_by: string | null;
+  review_responded_at: Date | null;
+  review_response: 'CONFIRMED' | 'REJECTED' | null;
+  review_response_by: string | null;
+  review_notes: string | null;
+  // Legacy dispute fields (kept for backward compatibility)
   dispute_reason: string | null;
   dispute_submitted_at: Date | null;
   dispute_resolved_at: Date | null;
@@ -217,7 +227,7 @@ export interface WorkerHeartbeat {
 
 // ============ Task/Dispute System ============
 
-export type TaskType = 'DISPUTE' | 'RECONCILIATION' | 'MANUAL_ATTRIBUTION';
+export type TaskType = 'REVIEW' | 'DISPUTE' | 'RECONCILIATION' | 'MANUAL_ATTRIBUTION';
 export type TaskStatus = 'OPEN' | 'PENDING_INFO' | 'APPROVED' | 'REJECTED';
 export type TaskAuthorType = 'CLIENT' | 'AGENCY';
 

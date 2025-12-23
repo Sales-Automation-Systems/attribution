@@ -130,10 +130,12 @@ export async function getAttributedDomains(
           statusConditions.push(`(status = 'OUTSIDE_WINDOW' OR (is_within_window = false AND match_type != 'NO_MATCH' AND match_type IS NOT NULL))`);
         } else if (s === 'unattributed') {
           statusConditions.push(`(status = 'UNATTRIBUTED' OR match_type = 'NO_MATCH' OR match_type IS NULL)`);
-        } else if (s === 'disputed') {
-          statusConditions.push(`status = 'DISPUTED'`);
-        } else if (s === 'dispute_pending') {
-          statusConditions.push(`status = 'DISPUTE_PENDING'`);
+        } else if (s === 'disputed' || s === 'client_rejected') {
+          // Both old DISPUTED and new CLIENT_REJECTED mean client rejected attribution
+          statusConditions.push(`status IN ('DISPUTED', 'CLIENT_REJECTED')`);
+        } else if (s === 'dispute_pending' || s === 'pending_review') {
+          // Both old DISPUTE_PENDING and new PENDING_CLIENT_REVIEW
+          statusConditions.push(`status IN ('DISPUTE_PENDING', 'PENDING_CLIENT_REVIEW')`);
         } else if (s === 'client_attributed') {
           statusConditions.push(`status = 'CLIENT_PROMOTED'`);
         } else {
@@ -690,7 +692,8 @@ export async function getDashboardStats(clientConfigId?: string): Promise<{
   total_paying_customers: number;
   total_hard_matches: number;
   total_soft_matches: number;
-  pending_disputes: number;
+  pending_reviews: number;
+  client_rejected: number;
 }> {
   let query = `
     SELECT 
@@ -698,7 +701,8 @@ export async function getDashboardStats(clientConfigId?: string): Promise<{
       COUNT(*) FILTER (WHERE has_paying_customer = true) as total_paying_customers,
       COUNT(*) FILTER (WHERE match_type = 'HARD_MATCH') as total_hard_matches,
       COUNT(*) FILTER (WHERE match_type = 'SOFT_MATCH') as total_soft_matches,
-      COUNT(*) FILTER (WHERE status = 'DISPUTE_PENDING') as pending_disputes
+      COUNT(*) FILTER (WHERE status IN ('DISPUTE_PENDING', 'PENDING_CLIENT_REVIEW')) as pending_reviews,
+      COUNT(*) FILTER (WHERE status IN ('DISPUTED', 'CLIENT_REJECTED')) as client_rejected
     FROM attributed_domain
   `;
 
@@ -713,7 +717,8 @@ export async function getDashboardStats(clientConfigId?: string): Promise<{
     total_paying_customers: string;
     total_hard_matches: string;
     total_soft_matches: string;
-    pending_disputes: string;
+    pending_reviews: string;
+    client_rejected: string;
   }>(query, params);
 
   return {
@@ -721,7 +726,8 @@ export async function getDashboardStats(clientConfigId?: string): Promise<{
     total_paying_customers: parseInt(rows[0]?.total_paying_customers || '0', 10),
     total_hard_matches: parseInt(rows[0]?.total_hard_matches || '0', 10),
     total_soft_matches: parseInt(rows[0]?.total_soft_matches || '0', 10),
-    pending_disputes: parseInt(rows[0]?.pending_disputes || '0', 10),
+    pending_reviews: parseInt(rows[0]?.pending_reviews || '0', 10),
+    client_rejected: parseInt(rows[0]?.client_rejected || '0', 10),
   };
 }
 
@@ -798,9 +804,16 @@ export async function getClientStats(clientConfigId: string): Promise<ClientStat
 // ============ Status Change Logging ============
 
 export type StatusChangeAction = 
+  // New review workflow actions
+  | 'SENT_FOR_REVIEW'      // Agency sent domain for client review
+  | 'REVIEW_CONFIRMED'     // Client confirmed attribution
+  | 'REVIEW_REJECTED'      // Client rejected attribution
+  | 'AUTO_CONFIRMED'       // System auto-confirmed after 7 days
+  // Legacy dispute actions (for backward compatibility)
   | 'DISPUTE_SUBMITTED'
   | 'DISPUTE_APPROVED'
   | 'DISPUTE_REJECTED'
+  // Other actions
   | 'MANUAL_ATTRIBUTION'
   | 'STATUS_UPDATE'
   | 'SYSTEM_UPDATE';

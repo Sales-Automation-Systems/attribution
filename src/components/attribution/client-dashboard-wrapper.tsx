@@ -4,7 +4,6 @@ import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { AccountsTable, type AccountDomain } from './accounts-table';
 import { AddEventModal } from './add-event-modal';
-import { DisputeSidePanel } from '@/components/tasks/dispute-side-panel';
 import { Button } from '@/components/ui/button';
 import { Plus, Download } from 'lucide-react';
 
@@ -28,20 +27,6 @@ export function ClientDashboardWrapper({
   const router = useRouter();
   
   const [addEventModal, setAddEventModal] = useState(false);
-
-  // Side panel state for disputes
-  const [disputePanel, setDisputePanel] = useState<{
-    isOpen: boolean;
-    domain: AccountDomain | null;
-  }>({ isOpen: false, domain: null });
-
-  // Handle opening the dispute side panel
-  const handleOpenDisputePanel = useCallback(
-    (domain: AccountDomain) => {
-      setDisputePanel({ isOpen: true, domain });
-    },
-    []
-  );
 
   // Handle success (refresh data)
   const handleSuccess = useCallback(() => {
@@ -114,7 +99,6 @@ export function ClientDashboardWrapper({
         slug={slug}
         uuid={uuid}
         attributionWindowDays={attributionWindowDays}
-        onOpenDisputePanel={handleOpenDisputePanel}
       />
 
       <AddEventModal
@@ -123,16 +107,6 @@ export function ClientDashboardWrapper({
         slug={slug}
         uuid={uuid}
         revShareRate={revShareRate}
-        onSuccess={handleSuccess}
-      />
-
-      {/* Dispute Side Panel */}
-      <DisputeSidePanel
-        isOpen={disputePanel.isOpen}
-        onClose={() => setDisputePanel({ isOpen: false, domain: null })}
-        domain={disputePanel.domain}
-        slug={slug}
-        uuid={uuid}
         onSuccess={handleSuccess}
       />
     </div>

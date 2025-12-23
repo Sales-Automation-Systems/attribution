@@ -826,46 +826,67 @@ const isWithinBillingWindow =
 // 1. Are outside the 12-month billing window
 // 2. No longer meet the criteria for inclusion
 
-// cleanupDisputedLineItems() removes line items for:
-// 1. Domains with status = 'DISPUTED' (approved disputes)
+// cleanupRejectedLineItems() removes line items for:
+// 1. Domains with status = 'CLIENT_REJECTED' (client rejected attribution)
+// 2. Legacy 'DISPUTED' status (for backward compatibility)
 ```
 
-### 5.3 Dispute Flow
+### 5.3 Client Review Workflow
+
+The review workflow is **agency-initiated** - the agency sends domains for client review, and clients respond by confirming or rejecting the attribution.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                            DISPUTE FLOW                                      │
+│                         CLIENT REVIEW WORKFLOW                               │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│  1. CLIENT SUBMITS DISPUTE                                                  │
-│     ─────────────────────                                                   │
-│     • Domain status → DISPUTE_PENDING                                       │
-│     • Task created with type = 'dispute'                                    │
-│     • Reason captured in dispute_reason                                     │
-│     • Logged as STATUS_CHANGE event                                         │
+│  1. AGENCY SENDS FOR REVIEW                                                 │
+│     ──────────────────────                                                  │
+│     • Admin clicks "Send for Review" button (requires password: "Review")  │
+│     • Domain status → PENDING_CLIENT_REVIEW                                 │
+│     • Task created with type = 'REVIEW'                                     │
+│     • review_sent_at timestamp recorded                                     │
+│     • 7-day countdown begins                                                │
+│     • Logged as STATUS_CHANGE event (action: SENT_FOR_REVIEW)               │
 │                                                                             │
-│  2. AGENCY REVIEWS                                                          │
-│     ───────────────                                                         │
-│     • Task visible in admin dashboard                                       │
-│     • Can view domain timeline and history                                  │
-│     • Decision: APPROVE or REJECT                                           │
+│  2. CLIENT REVIEWS                                                          │
+│     ─────────────────                                                       │
+│     • Client sees "Pending Review" badge on domain                          │
+│     • "Confirm" and "Reject" buttons available                              │
+│     • Can add optional notes when rejecting                                 │
 │                                                                             │
-│  3a. IF APPROVED                                                            │
-│      ────────────                                                           │
-│      • Domain status → DISPUTED                                             │
+│  3a. IF CLIENT CONFIRMS                                                     │
+│      ───────────────────                                                    │
+│      • Domain status → ATTRIBUTED                                           │
+│      • Remains billable                                                     │
+│      • review_response = 'CONFIRMED'                                        │
+│      • Logged as STATUS_CHANGE event (action: REVIEW_CONFIRMED)             │
+│                                                                             │
+│  3b. IF CLIENT REJECTS                                                      │
+│      ──────────────────                                                     │
+│      • Domain status → CLIENT_REJECTED                                      │
 │      • Line items removed from reconciliation                               │
 │      • Not billed to client                                                 │
-│      • Logged as STATUS_CHANGE event                                        │
+│      • review_response = 'REJECTED', review_notes captured                  │
+│      • Logged as STATUS_CHANGE event (action: REVIEW_REJECTED)              │
 │                                                                             │
-│  3b. IF REJECTED                                                            │
-│      ────────────                                                           │
-│      • Domain status → ATTRIBUTED (restored)                                │
+│  3c. IF CLIENT DOESN'T RESPOND (7 days)                                     │
+│      ──────────────────────────────────                                     │
+│      • Domain auto-confirmed as ATTRIBUTED                                  │
 │      • Remains billable                                                     │
-│      • Client can re-dispute with new evidence                              │
-│      • Logged as STATUS_CHANGE event                                        │
+│      • review_response = 'CONFIRMED', review_response_by = 'System'         │
+│      • Logged as STATUS_CHANGE event (action: AUTO_CONFIRMED)               │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+**Status Mapping:**
+
+| Status | Description | Billable? |
+|--------|-------------|-----------|
+| `PENDING_CLIENT_REVIEW` | Agency sent, awaiting client response | Pending |
+| `CLIENT_REJECTED` | Client rejected attribution | No |
+| `ATTRIBUTED` | Confirmed or auto-confirmed | Yes |
 
 ### 5.4 Reconciliation Sync Process
 
@@ -873,7 +894,7 @@ The reconciliation sync (`/api/reconciliation/sync`) performs:
 
 1. **Upsert periods**: Create/update quarterly periods for client
 2. **Cleanup stale items**: Remove line items outside 12-month window
-3. **Cleanup disputed items**: Remove line items for disputed domains
+3. **Cleanup rejected items**: Remove line items for CLIENT_REJECTED domains
 4. **Populate line items**: Add billable domains based on billing model
 5. **Backfill dates**: Fill in missing `paying_customer_date` values
 6. **Update totals**: Calculate `estimated_total` for each period
@@ -933,7 +954,7 @@ The reconciliation sync (`/api/reconciliation/sync`) performs:
 **Query Parameters:**
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `status` | string | Filter by status: `attributed`, `outside_window`, `not_attributed`, `dispute_pending` |
+| `status` | string | Filter by status: `attributed`, `outside_window`, `unattributed`, `pending_review`, `client_rejected` |
 | `events` | string | Filter by event type: `reply`, `signup`, `meeting`, `paying` |
 | `search` | string | Search domain name |
 | `focusView` | boolean | Show only hard matches |
@@ -1016,16 +1037,15 @@ The reconciliation sync (`/api/reconciliation/sync`) performs:
 }
 ```
 
-### Submit Dispute
+### Send for Review (Admin)
 
-**Endpoint:** `POST /api/clients/[slug]/[uuid]/domains/[domainId]/dispute`
+**Endpoint:** `POST /api/admin/domains/[domainId]/send-for-review`
 
 **Request Body:**
 ```json
 {
-  "reason": "not_our_lead",
-  "details": "This lead came through a different channel",
-  "submittedBy": "client@example.com"
+  "sentBy": "admin@agency.com",
+  "notes": "Please review this attribution"
 }
 ```
 
@@ -1033,8 +1053,83 @@ The reconciliation sync (`/api/reconciliation/sync`) performs:
 ```json
 {
   "success": true,
-  "message": "Dispute submitted successfully",
-  "taskId": "task-uuid"
+  "message": "Domain sent for client review",
+  "domainId": "uuid",
+  "domain": "example.com",
+  "newStatus": "PENDING_CLIENT_REVIEW",
+  "reviewSentAt": "2025-01-15T10:00:00Z",
+  "expiresAt": "2025-01-22T10:00:00Z"
+}
+```
+
+### Bulk Send for Review (Admin)
+
+**Endpoint:** `POST /api/admin/domains/send-for-review`
+
+**Request Body:**
+```json
+{
+  "domainIds": ["uuid1", "uuid2", "uuid3"],
+  "sentBy": "admin@agency.com",
+  "notes": "Quarterly review batch"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Sent 3 domain(s) for review, 0 failed",
+  "results": [
+    { "domainId": "uuid1", "domain": "example.com", "success": true },
+    { "domainId": "uuid2", "domain": "test.com", "success": true },
+    { "domainId": "uuid3", "domain": "demo.com", "success": true }
+  ],
+  "expiresAt": "2025-01-22T10:00:00Z"
+}
+```
+
+### Review Response (Client)
+
+**Endpoint:** `POST /api/clients/[slug]/[uuid]/domains/[domainId]/review-response`
+
+**Request Body:**
+```json
+{
+  "response": "CONFIRMED",  // or "REJECTED"
+  "notes": "Optional notes explaining the decision",
+  "respondedBy": "client@example.com"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Attribution confirmed",
+  "domainId": "uuid",
+  "domain": "example.com",
+  "newStatus": "ATTRIBUTED",
+  "respondedAt": "2025-01-18T14:30:00Z"
+}
+```
+
+### Auto-Confirm Reviews (Cron)
+
+**Endpoint:** `POST /api/admin/auto-confirm-reviews`
+
+Called automatically by cron job to auto-confirm domains pending review for more than 7 days.
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Auto-confirmed 5 domain(s), 0 failed",
+  "autoConfirmed": 5,
+  "failed": 0,
+  "results": [
+    { "domainId": "uuid1", "domain": "example.com", "success": true }
+  ]
 }
 ```
 

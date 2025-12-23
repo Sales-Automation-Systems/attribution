@@ -69,17 +69,17 @@ interface AccountsTableProps {
   slug: string;
   uuid: string;
   attributionWindowDays: number;
-  onOpenDisputePanel?: (domain: AccountDomain) => void;
 }
 
 type EventTypeFilter = 'reply' | 'signup' | 'meeting' | 'paying';
-type StatusFilterType = 'attributed' | 'outside_window' | 'unattributed' | 'disputed' | 'dispute_pending' | 'client_attributed';
+type StatusFilterType = 'attributed' | 'outside_window' | 'unattributed' | 'pending_review' | 'client_rejected' | 'client_attributed';
 
 // Map domain status to our filter types
 function getStatusFilterType(domain: AccountDomain): StatusFilterType {
   if (domain.status === 'CLIENT_PROMOTED') return 'client_attributed';
-  if (domain.status === 'DISPUTE_PENDING') return 'dispute_pending';
-  if (domain.status === 'DISPUTED') return 'disputed';
+  // New review workflow statuses
+  if (domain.status === 'PENDING_CLIENT_REVIEW' || domain.status === 'DISPUTE_PENDING') return 'pending_review';
+  if (domain.status === 'CLIENT_REJECTED' || domain.status === 'DISPUTED') return 'client_rejected';
   if (domain.status === 'OUTSIDE_WINDOW' || (!domain.is_within_window && domain.match_type !== 'NO_MATCH' && domain.match_type !== null)) return 'outside_window';
   if (domain.status === 'UNATTRIBUTED' || domain.match_type === 'NO_MATCH' || domain.match_type === null) return 'unattributed';
   return 'attributed';
@@ -101,7 +101,6 @@ export function AccountsTable({
   slug,
   uuid,
   attributionWindowDays,
-  onOpenDisputePanel,
 }: AccountsTableProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -126,7 +125,7 @@ export function AccountsTable({
     const status = searchParams.get('status');
     if (status) {
       return new Set(status.split(',').filter(s => 
-        ['attributed', 'outside_window', 'unattributed', 'disputed', 'dispute_pending', 'client_attributed'].includes(s)
+        ['attributed', 'outside_window', 'unattributed', 'pending_review', 'client_rejected', 'client_attributed'].includes(s)
       ) as StatusFilterType[]);
     }
     return new Set();
@@ -134,11 +133,15 @@ export function AccountsTable({
   const [focusView, setFocusView] = useState(() => searchParams.get('focus') === 'true');
   const [selectedDomain, setSelectedDomain] = useState<AccountDomain | null>(null);
   
-  // Dispute mode - hidden by default, unlocked with password for developer demos
-  const [disputeModeUnlocked, setDisputeModeUnlocked] = useState(false);
-  const [disputePasswordDialog, setDisputePasswordDialog] = useState(false);
-  const [disputePassword, setDisputePassword] = useState('');
-  const [disputePasswordError, setDisputePasswordError] = useState(false);
+  // Review mode - unlocked with password for admin to send domains for client review
+  const [reviewModeUnlocked, setReviewModeUnlocked] = useState(false);
+  const [reviewPasswordDialog, setReviewPasswordDialog] = useState(false);
+  const [reviewPassword, setReviewPassword] = useState('');
+  const [reviewPasswordError, setReviewPasswordError] = useState(false);
+  
+  // State for review actions
+  const [sendingForReview, setSendingForReview] = useState<string | null>(null);
+  const [respondingToReview, setRespondingToReview] = useState<string | null>(null);
   
   // Track if initial URL sync has been done
   const initialSyncDoneRef = useRef(false);
@@ -298,28 +301,74 @@ export function AccountsTable({
     });
   };
 
-  // Handle dispute mode toggle - requires password to unlock
-  const handleDisputeModeToggle = () => {
-    if (disputeModeUnlocked) {
+  // Handle review mode toggle - requires password to unlock (for admin to send for review)
+  const handleReviewModeToggle = () => {
+    if (reviewModeUnlocked) {
       // Already unlocked, just toggle off
-      setDisputeModeUnlocked(false);
+      setReviewModeUnlocked(false);
     } else {
       // Open password dialog
-      setDisputePassword('');
-      setDisputePasswordError(false);
-      setDisputePasswordDialog(true);
+      setReviewPassword('');
+      setReviewPasswordError(false);
+      setReviewPasswordDialog(true);
     }
   };
 
-  // Handle dispute password submission
-  const handleDisputePasswordSubmit = () => {
-    if (disputePassword === 'Dispute') {
-      setDisputeModeUnlocked(true);
-      setDisputePasswordDialog(false);
-      setDisputePassword('');
-      setDisputePasswordError(false);
+  // Handle review password submission
+  const handleReviewPasswordSubmit = () => {
+    if (reviewPassword === 'Review') {
+      setReviewModeUnlocked(true);
+      setReviewPasswordDialog(false);
+      setReviewPassword('');
+      setReviewPasswordError(false);
     } else {
-      setDisputePasswordError(true);
+      setReviewPasswordError(true);
+    }
+  };
+
+  // Handle sending domain for client review (admin action)
+  const handleSendForReview = async (domain: AccountDomain) => {
+    setSendingForReview(domain.id);
+    try {
+      const response = await fetch(`/api/admin/domains/${domain.id}/send-for-review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sentBy: 'admin' }),
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to send for review');
+      }
+      // Refresh the data
+      fetchServerFilteredDomains();
+    } catch (err) {
+      console.error('Error sending for review:', err);
+      alert(err instanceof Error ? err.message : 'Failed to send for review');
+    } finally {
+      setSendingForReview(null);
+    }
+  };
+
+  // Handle client review response (confirm or reject)
+  const handleReviewResponse = async (domain: AccountDomain, response: 'CONFIRMED' | 'REJECTED') => {
+    setRespondingToReview(domain.id);
+    try {
+      const res = await fetch(`/api/clients/${slug}/${uuid}/domains/${domain.id}/review-response`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ response }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to submit response');
+      }
+      // Refresh the data
+      fetchServerFilteredDomains();
+    } catch (err) {
+      console.error('Error responding to review:', err);
+      alert(err instanceof Error ? err.message : 'Failed to submit response');
+    } finally {
+      setRespondingToReview(null);
     }
   };
 
@@ -332,8 +381,13 @@ export function AccountsTable({
     const attributed = filteredDomains.filter((d) => getStatusFilterType(d) === 'attributed').length;
     const outsideWindow = filteredDomains.filter((d) => getStatusFilterType(d) === 'outside_window').length;
     const unattributed = filteredDomains.filter((d) => getStatusFilterType(d) === 'unattributed').length;
-    const disputePending = filteredDomains.filter((d) => d.status === 'DISPUTE_PENDING').length;
-    const disputed = filteredDomains.filter((d) => d.status === 'DISPUTED').length;
+    // New review workflow statuses
+    const pendingReview = filteredDomains.filter((d) => 
+      d.status === 'PENDING_CLIENT_REVIEW' || d.status === 'DISPUTE_PENDING'
+    ).length;
+    const clientRejected = filteredDomains.filter((d) => 
+      d.status === 'CLIENT_REJECTED' || d.status === 'DISPUTED'
+    ).length;
     const manuallyAttributed = filteredDomains.filter((d) => d.status === 'CLIENT_PROMOTED').length;
     const withReplies = filteredDomains.filter((d) => d.has_positive_reply).length;
     const withSignups = filteredDomains.filter((d) => d.has_sign_up).length;
@@ -345,8 +399,8 @@ export function AccountsTable({
       attributed,
       outsideWindow,
       unattributed,
-      disputePending,
-      disputed,
+      pendingReview,
+      clientRejected,
       manuallyAttributed,
       withReplies,
       withSignups,
@@ -414,52 +468,26 @@ export function AccountsTable({
             </Badge>
           </DefinitionTooltip>
         );
-      case 'dispute_pending':
-        // Show "In Review" badge - dispute submitted, awaiting agency review
-        return disputeModeUnlocked ? (
-          <Badge 
-            variant="outline" 
-            className="bg-amber-500/10 text-amber-700 dark:text-amber-400 cursor-pointer hover:bg-amber-500/20 transition-colors"
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenDisputePanel?.(domain);
-            }}
-            title="Dispute submitted - click to view details"
-          >
-            <Clock className="h-3 w-3 mr-1" />
-            In Review
-          </Badge>
-        ) : (
+      case 'pending_review':
+        // Pending client review - agency sent, awaiting client response
+        return (
           <Badge 
             variant="outline" 
             className="bg-amber-500/10 text-amber-700 dark:text-amber-400"
           >
             <Clock className="h-3 w-3 mr-1" />
-            In Review
+            Pending Review
           </Badge>
         );
-      case 'disputed':
-        // Dispute has been approved by agency
-        return disputeModeUnlocked ? (
+      case 'client_rejected':
+        // Client rejected the attribution
+        return (
           <Badge 
             variant="outline" 
-            className="bg-orange-500/10 text-orange-700 dark:text-orange-400 cursor-pointer hover:bg-orange-500/20 transition-colors"
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenDisputePanel?.(domain);
-            }}
-            title="Click to view dispute details"
+            className="bg-red-500/10 text-red-700 dark:text-red-400"
           >
-            <Flag className="h-3 w-3 mr-1" />
-            Disputed
-          </Badge>
-        ) : (
-          <Badge 
-            variant="outline" 
-            className="bg-orange-500/10 text-orange-700 dark:text-orange-400"
-          >
-            <Flag className="h-3 w-3 mr-1" />
-            Disputed
+            <XCircle className="h-3 w-3 mr-1" />
+            Rejected
           </Badge>
         );
       case 'client_attributed':
@@ -478,62 +506,72 @@ export function AccountsTable({
   const renderActionButton = (domain: AccountDomain) => {
     const statusType = getStatusFilterType(domain);
 
-    // Only show dispute-related buttons when dispute mode is unlocked
-    if (statusType === 'attributed' && disputeModeUnlocked) {
+    // Admin: Send for Review button (when review mode is unlocked)
+    if (statusType === 'attributed' && reviewModeUnlocked) {
       return (
         <Button
           variant="ghost"
           size="sm"
-          className="h-7 text-xs text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+          className="h-7 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
           onClick={(e) => {
             e.stopPropagation();
-            onOpenDisputePanel?.(domain);
+            handleSendForReview(domain);
           }}
-          title="Challenge this attribution"
+          disabled={sendingForReview === domain.id}
+          title="Send to client for review"
         >
-          <Flag className="h-3 w-3 mr-1" />
-          Dispute
+          {sendingForReview === domain.id ? (
+            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+          ) : (
+            <Flag className="h-3 w-3 mr-1" />
+          )}
+          Send for Review
         </Button>
       );
     }
 
-    if (statusType === 'dispute_pending' && disputeModeUnlocked) {
+    // Client: Respond to review (always visible for pending_review items)
+    if (statusType === 'pending_review') {
+      const isResponding = respondingToReview === domain.id;
       return (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpenDisputePanel?.(domain);
-          }}
-          title="View dispute in review"
-        >
-          <Eye className="h-3 w-3 mr-1" />
-          View
-        </Button>
+        <div className="flex gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs text-green-600 hover:text-green-700 hover:bg-green-50"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleReviewResponse(domain, 'CONFIRMED');
+            }}
+            disabled={isResponding}
+            title="Confirm this attribution is correct"
+          >
+            {isResponding ? (
+              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+            ) : (
+              <CheckCircle2 className="h-3 w-3 mr-1" />
+            )}
+            Confirm
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleReviewResponse(domain, 'REJECTED');
+            }}
+            disabled={isResponding}
+            title="Reject this attribution"
+          >
+            <XCircle className="h-3 w-3 mr-1" />
+            Reject
+          </Button>
+        </div>
       );
     }
 
-    if (statusType === 'disputed' && disputeModeUnlocked) {
-      return (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 text-xs text-orange-600 hover:text-orange-700 hover:bg-orange-50"
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpenDisputePanel?.(domain);
-          }}
-          title="View dispute details"
-        >
-          <Eye className="h-3 w-3 mr-1" />
-          View
-        </Button>
-      );
-    }
-
-    // For outside_window and unattributed, no action button
+    // For outside_window, unattributed, and client_rejected, no action button
     // Users should use "Add Event" modal to add missing events
     // which will trigger attribution recalculation automatically
     return null;
@@ -649,28 +687,28 @@ export function AccountsTable({
             Unattributed
           </button>
           <button
-            onClick={() => toggleStatusFilter('dispute_pending')}
+            onClick={() => toggleStatusFilter('pending_review')}
             className={cn(
               'inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors',
-              statusFilters.has('dispute_pending')
+              statusFilters.has('pending_review')
                 ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300'
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground'
             )}
           >
             <Clock className="h-3 w-3" />
-            In Review
+            Pending Review
           </button>
           <button
-            onClick={() => toggleStatusFilter('disputed')}
+            onClick={() => toggleStatusFilter('client_rejected')}
             className={cn(
               'inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors',
-              statusFilters.has('disputed')
-                ? 'bg-orange-500/20 text-orange-700 dark:text-orange-300'
+              statusFilters.has('client_rejected')
+                ? 'bg-red-500/20 text-red-700 dark:text-red-300'
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground'
             )}
           >
-            <Flag className="h-3 w-3" />
-            Disputed
+            <XCircle className="h-3 w-3" />
+            Rejected
           </button>
         </div>
 
@@ -693,19 +731,19 @@ export function AccountsTable({
           </button>
         </DefinitionTooltip>
 
-        {/* Dispute Mode Toggle (password protected) */}
+        {/* Review Mode Toggle (password protected for admin) */}
         <button
-          onClick={handleDisputeModeToggle}
+          onClick={handleReviewModeToggle}
           className={cn(
             'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors',
-            disputeModeUnlocked
-              ? 'bg-orange-500/20 text-orange-700 dark:text-orange-300'
+            reviewModeUnlocked
+              ? 'bg-blue-500/20 text-blue-700 dark:text-blue-300'
               : 'text-muted-foreground hover:bg-muted hover:text-foreground'
           )}
-          title={disputeModeUnlocked ? 'Click to lock dispute features' : 'Click to unlock dispute features (requires password)'}
+          title={reviewModeUnlocked ? 'Click to lock admin review features' : 'Click to unlock admin review features (requires password)'}
         >
-          {disputeModeUnlocked ? <Unlock className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
-          Dispute
+          {reviewModeUnlocked ? <Unlock className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
+          Admin
         </button>
 
         {/* Clear Filters */}
@@ -885,46 +923,47 @@ export function AccountsTable({
         uuid={uuid}
       />
 
-      {/* Dispute Mode Password Dialog */}
-      <Dialog open={disputePasswordDialog} onOpenChange={setDisputePasswordDialog}>
+      {/* Review Mode Password Dialog (Admin) */}
+      <Dialog open={reviewPasswordDialog} onOpenChange={setReviewPasswordDialog}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Lock className="h-5 w-5" />
-              Unlock Dispute Features
+              Unlock Admin Review Features
             </DialogTitle>
             <DialogDescription>
-              Enter the password to enable dispute functionality.
+              Enter the password to enable admin review functionality. 
+              This allows you to send domains for client review.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
-            <Label htmlFor="dispute-password">Password</Label>
+            <Label htmlFor="review-password">Password</Label>
             <Input
-              id="dispute-password"
+              id="review-password"
               type="password"
               placeholder="Enter password..."
-              value={disputePassword}
+              value={reviewPassword}
               onChange={(e) => {
-                setDisputePassword(e.target.value);
-                setDisputePasswordError(false);
+                setReviewPassword(e.target.value);
+                setReviewPasswordError(false);
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
-                  handleDisputePasswordSubmit();
+                  handleReviewPasswordSubmit();
                 }
               }}
-              className={cn(disputePasswordError && 'border-red-500')}
+              className={cn(reviewPasswordError && 'border-red-500')}
               autoFocus
             />
-            {disputePasswordError && (
+            {reviewPasswordError && (
               <p className="text-sm text-red-500 mt-1">Incorrect password</p>
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDisputePasswordDialog(false)}>
+            <Button variant="outline" onClick={() => setReviewPasswordDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={handleDisputePasswordSubmit}>
+            <Button onClick={handleReviewPasswordSubmit}>
               <Unlock className="h-4 w-4 mr-2" />
               Unlock
             </Button>
