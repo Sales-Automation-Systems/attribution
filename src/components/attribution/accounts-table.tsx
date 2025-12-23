@@ -340,7 +340,7 @@ export function AccountsTable({
         throw new Error(data.error || 'Failed to send for review');
       }
       // Refresh the data
-      fetchServerFilteredDomains();
+      fetchFilteredDomains();
     } catch (err) {
       console.error('Error sending for review:', err);
       alert(err instanceof Error ? err.message : 'Failed to send for review');
@@ -363,7 +363,7 @@ export function AccountsTable({
         throw new Error(data.error || 'Failed to submit response');
       }
       // Refresh the data
-      fetchServerFilteredDomains();
+      fetchFilteredDomains();
     } catch (err) {
       console.error('Error responding to review:', err);
       alert(err instanceof Error ? err.message : 'Failed to submit response');
