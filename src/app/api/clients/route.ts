@@ -25,7 +25,7 @@ export async function GET() {
             totalPaying: stats.total_paying_customers,
             hardMatches: stats.total_hard_matches,
             softMatches: stats.total_soft_matches,
-            pendingDisputes: stats.pending_disputes,
+            pendingReviews: stats.pending_reviews,
           },
         };
       })

@@ -103,21 +103,21 @@ export default async function DashboardPage() {
             </Card>
           )}
 
-          {/* Pending Disputes */}
-          {stats.pending_disputes > 0 && (
-            <Card className="border-yellow-200 bg-yellow-50/50 dark:border-yellow-900 dark:bg-yellow-950/20">
+          {/* Pending Reviews */}
+          {stats.pending_reviews > 0 && (
+            <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium flex items-center gap-2 text-yellow-700 dark:text-yellow-400">
+                <CardTitle className="text-sm font-medium flex items-center gap-2 text-amber-700 dark:text-amber-400">
                   <AlertTriangle className="h-4 w-4" />
-                  Pending Disputes
+                  Pending Client Reviews
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold text-yellow-700 dark:text-yellow-400">
-                  {stats.pending_disputes}
+                <p className="text-2xl font-bold text-amber-700 dark:text-amber-400">
+                  {stats.pending_reviews}
                 </p>
-                <p className="text-xs text-yellow-600 dark:text-yellow-500">
-                  Awaiting review
+                <p className="text-xs text-amber-600 dark:text-amber-500">
+                  Awaiting client response
                 </p>
               </CardContent>
             </Card>
